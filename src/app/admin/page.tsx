@@ -307,7 +307,7 @@ export default function AdminPage() {
       
       if (sucesso) {
         // Registrar ganho do pagamento
-        if (operador.valorMensal && operador.formaPagamento) {
+        if (operador.valorMensal && operador.formaPagamento && (operador.formaPagamento === "pix" || operador.formaPagamento === "cartao")) {
           await registrarGanho(
             "mensalidade-paga",
             operador.id,
