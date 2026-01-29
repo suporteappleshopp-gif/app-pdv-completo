@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { AdminSupabase } from "@/lib/admin-supabase";
+import { AuthSupabase } from "@/lib/auth-supabase";
 import { Operador } from "@/lib/types";
 import { LogIn, Loader2, User, Lock, Shield, UserPlus, CreditCard, Copy, CheckCircle, AlertCircle, ExternalLink, Calendar, MessageCircle } from "lucide-react";
 import { addDays, differenceInDays } from "date-fns";
@@ -29,41 +29,38 @@ export default function LoginPage() {
   const [mostrarPagamento, setMostrarPagamento] = useState(false);
   const [cadastroSucesso, setCadastroSucesso] = useState(false);
 
-  const SENHA_ADMIN = "Sedexdez@1";
+  const ADMIN_EMAIL = "admin@pdv.com";
+  const ADMIN_PASSWORD = "Sedexdez@1";
   const LINK_PAGAMENTO_CARTAO = "https://pag.ae/81s4kiCNR"; // Link para pagamento de R$ 149,70 parcelado em até 3x
   const LINK_PAGAMENTO_PIX = "https://pag.ae/SEU_LINK_PIX_AQUI"; // Link para pagamento PIX de R$ 59,90
-  const WHATSAPP_CONTATO = "5565981023329";
+  const WHATSAPP_CONTATO = process.env.NEXT_PUBLIC_WHATSAPP_CONTATO || "5565981032239";
 
   useEffect(() => {
     const initDB = async () => {
       try {
-        // Verificar se admin existe no Supabase (silenciosamente)
-        const operadores = await AdminSupabase.getAllOperadores();
-        const adminExistente = operadores.find(op => op.isAdmin);
-
-        if (!adminExistente && operadores.length === 0) {
-          // Tentar criar admin no Supabase (se estiver configurado)
-          const adminOperador: Operador = {
-            id: "admin-master",
-            nome: "Administrador",
-            email: "admin",
-            senha: "Sedexdez@1",
-            ativo: true,
-            isAdmin: true,
-            createdAt: new Date(),
-          };
-          await AdminSupabase.addOperador(adminOperador);
+        // Verificar se já tem sessão ativa
+        const session = await AuthSupabase.getSession();
+        if (session) {
+          const operador = await AuthSupabase.getCurrentOperador();
+          if (operador) {
+            if (operador.isAdmin) {
+              router.push("/admin");
+            } else {
+              router.push("/caixa");
+            }
+            return;
+          }
         }
 
         setDbReady(true);
       } catch (err) {
-        // Falha silenciosa - admin funcionará localmente
+        console.error("Erro ao verificar sessão:", err);
         setDbReady(true);
       }
     };
 
     initDB();
-  }, []);
+  }, [router]);
 
   const handleAcessar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,8 +69,11 @@ export default function LoginPage() {
 
     try {
       if (modoAcesso === "usuario") {
-        if (!nomeCompleto.trim()) {
-          setError("Digite seu nome completo");
+        // Login de usuário normal - usar email como identificador
+        const email = nomeCompleto.trim();
+
+        if (!email) {
+          setError("Digite seu email");
           setLoading(false);
           return;
         }
@@ -84,110 +84,56 @@ export default function LoginPage() {
           return;
         }
 
-        // Buscar operador no Supabase
-        const operadores = await AdminSupabase.getAllOperadores();
-        const operadorEncontrado = operadores.find(
-          (op) =>
-            !op.isAdmin &&
-            op.nome.toLowerCase() === nomeCompleto.trim().toLowerCase() &&
-            op.senha === senha
-        );
+        // Fazer login com Supabase
+        const resultado = await AuthSupabase.signIn(email, senha);
 
-        if (!operadorEncontrado) {
-          setError("Nome ou senha incorretos");
+        if (!resultado.success || !resultado.operador) {
+          setError(resultado.error || "Email ou senha incorretos");
           setLoading(false);
           return;
         }
 
-        // REGRA CORRIGIDA: Usuários SEM mensalidade (criados pelo admin) podem usar o app normalmente
-        const usuarioSemMensalidade = !operadorEncontrado.formaPagamento;
+        const operador = resultado.operador;
 
-        if (usuarioSemMensalidade) {
-          // Usuário sem mensalidade - acesso livre e permanente
-          localStorage.setItem("operadorId", operadorEncontrado.id);
-          localStorage.setItem("operadorNome", operadorEncontrado.nome);
-          localStorage.setItem("operadorEmail", operadorEncontrado.email);
-          localStorage.setItem("isAdmin", "false");
-          localStorage.setItem("operadorSuspenso", "false");
-          localStorage.setItem("operadorAtivo", "true");
-          localStorage.setItem("usuarioSemMensalidade", "true"); // Flag para identificar usuário sem mensalidade
+        // Verificar se é usuário sem mensalidade (criado pelo admin)
+        const usuarioSemMensalidade = !operador.formaPagamento;
 
-          router.push("/caixa");
-        } else {
-          // Usuário COM mensalidade - verificar validade
-          if (operadorEncontrado.dataProximoVencimento) {
-            const hoje = new Date();
-            const vencimento = new Date(operadorEncontrado.dataProximoVencimento);
-            
-            if (hoje > vencimento) {
-              // Expirou o período - suspender automaticamente
-              const operadorAtualizado = {
-                ...operadorEncontrado,
-                ativo: false,
-                suspenso: true,
-                aguardandoPagamento: true,
-              };
-              await AdminSupabase.updateOperador(operadorAtualizado);
-              operadorEncontrado.suspenso = true;
-              operadorEncontrado.ativo = false;
-            }
-          }
+        // Salvar dados no localStorage para compatibilidade
+        localStorage.setItem("operadorId", operador.id);
+        localStorage.setItem("operadorNome", operador.nome);
+        localStorage.setItem("operadorEmail", operador.email);
+        localStorage.setItem("isAdmin", "false");
+        localStorage.setItem("usuarioSemMensalidade", usuarioSemMensalidade ? "true" : "false");
 
-          // Verificar se está suspenso ou inativo
-          if (operadorEncontrado.suspenso || !operadorEncontrado.ativo) {
-            setError("Sua conta está suspensa. Entre em contato com o administrador para renovar.");
-            setLoading(false);
-            return;
-          }
-
-          // Usuário com mensalidade ativo - permitir acesso
-          localStorage.setItem("operadorId", operadorEncontrado.id);
-          localStorage.setItem("operadorNome", operadorEncontrado.nome);
-          localStorage.setItem("operadorEmail", operadorEncontrado.email);
-          localStorage.setItem("isAdmin", "false");
-          localStorage.setItem("operadorSuspenso", "false");
-          localStorage.setItem("operadorAtivo", "true");
-          localStorage.setItem("usuarioSemMensalidade", "false");
-
-          router.push("/caixa");
-        }
+        router.push("/caixa");
       } else {
         // Login Admin
-        if (senhaAdmin !== SENHA_ADMIN) {
-          setError("Senha de administrador inválida");
+        const resultado = await AuthSupabase.signIn(ADMIN_EMAIL, ADMIN_PASSWORD);
+
+        if (!resultado.success || !resultado.operador) {
+          setError("Email ou senha de administrador inválidos");
           setLoading(false);
           return;
         }
 
-        // Buscar admin no Supabase (silenciosamente)
-        const operadores = await AdminSupabase.getAllOperadores();
-        let operador = operadores.find(op => op.isAdmin);
+        const operador = resultado.operador;
 
-        // Se não encontrou no Supabase, usar admin local
-        if (!operador) {
-          operador = {
-            id: "admin-master",
-            nome: "Administrador",
-            email: "admin",
-            senha: "Sedexdez@1",
-            ativo: true,
-            isAdmin: true,
-            createdAt: new Date(),
-          };
+        if (!operador.isAdmin) {
+          setError("Acesso negado: usuário não é administrador");
+          setLoading(false);
+          return;
         }
 
         localStorage.setItem("operadorId", operador.id);
         localStorage.setItem("operadorNome", operador.nome);
         localStorage.setItem("operadorEmail", operador.email);
         localStorage.setItem("isAdmin", "true");
-        localStorage.setItem("operadorSuspenso", "false");
-        localStorage.setItem("operadorAtivo", "true");
 
         router.push("/admin");
       }
     } catch (err) {
       console.error("Erro no acesso:", err);
-      setError("Erro ao acessar sistema");
+      setError("Erro ao conectar com o servidor");
       setLoading(false);
     }
   };
@@ -212,38 +158,22 @@ export default function LoginPage() {
     }
 
     try {
-      // Verificar se usuário já existe
-      const operadores = await AdminSupabase.getAllOperadores();
-      const usuarioExistente = operadores.find(
-        (op) => op.nome.toLowerCase() === novoCadastro.nome.trim().toLowerCase()
+      // Gerar email único baseado no nome
+      const emailBase = novoCadastro.nome.toLowerCase().replace(/\s+/g, "");
+      const email = `${emailBase}@pdv.local`;
+
+      // Criar conta com Supabase
+      const resultado = await AuthSupabase.signUp(
+        email,
+        novoCadastro.senha,
+        novoCadastro.nome.trim(),
+        novoCadastro.formaPagamento
       );
 
-      if (usuarioExistente) {
-        setError("Já existe um usuário com este nome");
+      if (!resultado.success) {
+        setError(resultado.error || "Erro ao criar cadastro. Tente novamente.");
         return;
       }
-
-      // Criar novo operador (suspenso até pagamento)
-      const valorPagamento = novoCadastro.formaPagamento === "pix" ? 59.90 : 149.70;
-      const diasAcesso = novoCadastro.formaPagamento === "pix" ? 100 : 365;
-      
-      const novoOperador: Operador = {
-        id: `user-${Date.now()}`,
-        nome: novoCadastro.nome.trim(),
-        email: `${novoCadastro.nome.toLowerCase().replace(/\s+/g, "")}@local`,
-        senha: novoCadastro.senha,
-        isAdmin: false,
-        ativo: false,
-        suspenso: true, // Suspenso até pagamento
-        createdAt: new Date(),
-        formaPagamento: novoCadastro.formaPagamento,
-        valorMensal: valorPagamento,
-        diasAssinatura: diasAcesso,
-        dataProximoVencimento: addDays(new Date(), diasAcesso),
-        aguardandoPagamento: true,
-      };
-
-      await AdminSupabase.addOperador(novoOperador);
 
       // Mostrar tela de pagamento
       setMostrarPagamento(true);
@@ -591,16 +521,16 @@ export default function LoginPage() {
             <>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nome Completo
+                  Email
                 </label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
-                    type="text"
+                    type="email"
                     value={nomeCompleto}
                     onChange={(e) => setNomeCompleto(e.target.value)}
                     className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="Digite seu nome completo"
+                    placeholder="Digite seu email"
                     required
                   />
                 </div>

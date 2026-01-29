@@ -283,7 +283,7 @@ export default function ImpressaoNota({ venda, onClose }: ImpressaoNotaProps) {
               </div>
               ${tipoDocumento !== "cupom" && configNFCe ? `
               <div style="font-size: 8px; color: #666; margin-top: 2px;">
-                CFOP: ${configNFCe.cfopPadrao} | NCM: ${item.ncm || "00000000"}
+                CFOP: ${configNFCe.cfopPadrao} | NCM: ${"00000000"}
               </div>
               ` : ""}
             </div>

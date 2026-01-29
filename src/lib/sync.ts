@@ -206,6 +206,9 @@ export class CloudSync {
         codigoBarras: p.codigo_barras,
         preco: parseFloat(p.preco),
         estoque: p.estoque,
+        estoqueMinimo: p.estoque_minimo || 0,
+        categoria: p.categoria,
+        descricao: p.descricao,
       }));
 
       // Salvar no IndexedDB local para acesso offline

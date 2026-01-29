@@ -71,23 +71,31 @@ export default function AdministradorPage() {
     }
 
     try {
-      const novoOperador: Operador = {
-        id: `user-${Date.now()}`,
-        nome: nomeUsuario,
-        email: `${nomeUsuario.toLowerCase().replace(/\s+/g, "")}-${Date.now()}@local`,
-        senha: novaSenha,
-        ativo: true,
-        isAdmin: false,
-        createdAt: new Date(),
-      };
+      // Importar AuthSupabase
+      const { AuthSupabase } = await import("@/lib/auth-supabase");
 
-      await db.addOperador(novoOperador);
+      // Gerar email único
+      const emailBase = nomeUsuario.toLowerCase().replace(/\s+/g, "");
+      const email = `${emailBase}-${Date.now()}@pdv.local`;
+
+      // Criar usuário sem mensalidade (acesso livre)
+      const resultado = await AuthSupabase.createUserWithoutSubscription(
+        email,
+        novaSenha,
+        nomeUsuario
+      );
+
+      if (!resultado.success) {
+        alert(resultado.error || "Erro ao criar usuário");
+        return;
+      }
+
       await carregarUsuarios();
-      
+
       setShowModalUsuario(false);
       setNovaSenha("");
       setNomeUsuario("");
-      alert("Usuário criado com sucesso!");
+      alert("Usuário criado com sucesso! (Acesso Livre - Sem Mensalidade)");
     } catch (error) {
       console.error("Erro ao criar usuário:", error);
       alert("Erro ao criar usuário");

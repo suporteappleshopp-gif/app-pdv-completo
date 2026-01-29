@@ -120,7 +120,7 @@ export default function ProdutosPage() {
         codigoBarras,
         preco: parseFloat(preco),
         estoque: parseInt(estoque),
-        estoqueMinimo: estoqueMinimo ? parseInt(estoqueMinimo) : undefined,
+        estoqueMinimo: estoqueMinimo ? parseInt(estoqueMinimo) : 0,
       };
 
       if (editando) {
