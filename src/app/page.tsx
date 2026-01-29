@@ -62,6 +62,102 @@ export default function LoginPage() {
     initDB();
   }, [router]);
 
+  const configurarAdminAgora = async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      // Verificar se admin já existe
+      const { data: existingOperador } = await (await import("@/lib/supabase")).supabase
+        .from("operadores")
+        .select("*")
+        .eq("email", ADMIN_EMAIL)
+        .single();
+
+      if (existingOperador) {
+        // Atualizar para garantir que é admin e está ativo
+        const { error: updateError } = await (await import("@/lib/supabase")).supabase
+          .from("operadores")
+          .update({
+            is_admin: true,
+            ativo: true,
+            suspenso: false,
+            aguardando_pagamento: false,
+            forma_pagamento: null,
+            valor_mensal: null,
+            dias_assinatura: null,
+            data_proximo_vencimento: null,
+          })
+          .eq("email", ADMIN_EMAIL);
+
+        if (updateError) {
+          setError("Erro ao atualizar admin: " + updateError.message);
+          setLoading(false);
+          return;
+        }
+
+        alert("✅ Admin configurado com sucesso! Agora você pode fazer login.");
+        setLoading(false);
+        return;
+      }
+
+      // Criar novo admin
+      const { supabase } = await import("@/lib/supabase");
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: ADMIN_EMAIL,
+        password: ADMIN_PASSWORD,
+        options: {
+          data: {
+            nome: "Diego Marques",
+          },
+        },
+      });
+
+      if (authError) {
+        setError("Erro ao criar admin: " + authError.message);
+        setLoading(false);
+        return;
+      }
+
+      if (!authData.user) {
+        setError("Erro: usuário não foi criado");
+        setLoading(false);
+        return;
+      }
+
+      // Aguardar trigger criar o operador
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Atualizar operador para ser admin
+      const { error: updateError } = await supabase
+        .from("operadores")
+        .update({
+          is_admin: true,
+          ativo: true,
+          suspenso: false,
+          aguardando_pagamento: false,
+          forma_pagamento: null,
+          valor_mensal: null,
+          dias_assinatura: null,
+          data_proximo_vencimento: null,
+        })
+        .eq("auth_user_id", authData.user.id);
+
+      if (updateError) {
+        setError("Erro ao configurar permissões: " + updateError.message);
+        setLoading(false);
+        return;
+      }
+
+      alert("✅ Administrador criado com sucesso! Agora você pode fazer login.");
+      setLoading(false);
+    } catch (err) {
+      console.error("Erro ao configurar admin:", err);
+      setError("Erro ao configurar administrador");
+      setLoading(false);
+    }
+  };
+
   const handleAcessar = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -647,6 +743,27 @@ export default function LoginPage() {
         )}
 
         <div className="mt-6 pt-6 border-t border-gray-200 space-y-4">
+          {/* Botão de Configuração do Admin - Aparece apenas no modo admin */}
+          {modoAcesso === "admin" && (
+            <button
+              onClick={configurarAdminAgora}
+              disabled={loading}
+              className="w-full bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white py-3 rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2 disabled:opacity-50"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Configurando...</span>
+                </>
+              ) : (
+                <>
+                  <Shield className="w-5 h-5" />
+                  <span>🔧 Configurar Admin (Primeira vez)</span>
+                </>
+              )}
+            </button>
+          )}
+
           <button
             onClick={() => {
               setModoAcesso(modoAcesso === "usuario" ? "admin" : "usuario");
