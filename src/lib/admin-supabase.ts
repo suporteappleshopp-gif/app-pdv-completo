@@ -53,7 +53,7 @@ export class AdminSupabase {
         .order("created_at", { ascending: false });
 
       if (error) {
-        console.error("Erro ao buscar operadores:", error);
+        // Supabase não configurado - retornar array vazio silenciosamente
         return [];
       }
 
@@ -133,13 +133,13 @@ export class AdminSupabase {
       });
 
       if (error) {
-        console.error("Erro ao criar operador:", error);
+        // Supabase não configurado - retornar false silenciosamente
         return false;
       }
 
       return true;
     } catch (error) {
-      console.error("Erro ao criar operador:", error);
+      // Supabase não configurado - retornar false silenciosamente
       return false;
     }
   }
@@ -342,13 +342,13 @@ export class AdminSupabase {
       const { count, error } = await query;
 
       if (error) {
-        console.error("Erro ao contar mensagens não lidas:", error);
+        // Supabase não configurado - retornar 0 silenciosamente
         return 0;
       }
 
       return count || 0;
     } catch (error) {
-      console.error("Erro ao contar mensagens não lidas:", error);
+      // Supabase não configurado - retornar 0 silenciosamente
       return 0;
     }
   }

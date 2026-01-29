@@ -37,17 +37,12 @@ export default function LoginPage() {
   useEffect(() => {
     const initDB = async () => {
       try {
-        console.log("🔄 Verificando admin no Supabase...");
-
-        // Verificar se admin existe no Supabase
+        // Verificar se admin existe no Supabase (silenciosamente)
         const operadores = await AdminSupabase.getAllOperadores();
-        console.log("📊 Total de operadores no Supabase:", operadores.length);
-
         const adminExistente = operadores.find(op => op.isAdmin);
 
-        if (!adminExistente) {
-          console.log("⚠️ Admin não encontrado! Criando admin...");
-
+        if (!adminExistente && operadores.length === 0) {
+          // Tentar criar admin no Supabase (se estiver configurado)
           const adminOperador: Operador = {
             id: "admin-master",
             nome: "Administrador",
@@ -57,22 +52,12 @@ export default function LoginPage() {
             isAdmin: true,
             createdAt: new Date(),
           };
-
-          const sucesso = await AdminSupabase.addOperador(adminOperador);
-
-          if (sucesso) {
-            console.log("✅ Admin criado com sucesso no Supabase!");
-          } else {
-            console.warn("⚠️ Supabase não configurado corretamente. Admin funcionará localmente.");
-          }
-        } else {
-          console.log("✅ Admin encontrado:", adminExistente.nome, "| Senha:", adminExistente.senha);
+          await AdminSupabase.addOperador(adminOperador);
         }
 
         setDbReady(true);
       } catch (err) {
-        console.error("❌ Erro ao inicializar:", err);
-        console.log("ℹ️ Sistema funcionará com admin local (senha: Sedexdez@1)");
+        // Falha silenciosa - admin funcionará localmente
         setDbReady(true);
       }
     };
@@ -168,26 +153,18 @@ export default function LoginPage() {
         }
       } else {
         // Login Admin
-        console.log("🔐 Tentando login admin...");
-        console.log("📝 Senha digitada:", senhaAdmin);
-        console.log("🔑 Senha esperada:", SENHA_ADMIN);
-        console.log("✅ Senhas coincidem?", senhaAdmin === SENHA_ADMIN);
-
         if (senhaAdmin !== SENHA_ADMIN) {
           setError("Senha de administrador inválida");
           setLoading(false);
           return;
         }
 
-        console.log("🔍 Buscando admin no Supabase...");
+        // Buscar admin no Supabase (silenciosamente)
         const operadores = await AdminSupabase.getAllOperadores();
-        console.log("📊 Total de operadores encontrados:", operadores.length);
-
         let operador = operadores.find(op => op.isAdmin);
 
-        // Se não encontrou no Supabase (pode estar desconfigurado), usar admin local
+        // Se não encontrou no Supabase, usar admin local
         if (!operador) {
-          console.warn("⚠️ Admin não encontrado no Supabase. Usando admin local.");
           operador = {
             id: "admin-master",
             nome: "Administrador",
@@ -199,9 +176,6 @@ export default function LoginPage() {
           };
         }
 
-        console.log("✅ Admin autenticado:", operador.nome);
-        console.log("💾 Salvando no localStorage...");
-
         localStorage.setItem("operadorId", operador.id);
         localStorage.setItem("operadorNome", operador.nome);
         localStorage.setItem("operadorEmail", operador.email);
@@ -209,7 +183,6 @@ export default function LoginPage() {
         localStorage.setItem("operadorSuspenso", "false");
         localStorage.setItem("operadorAtivo", "true");
 
-        console.log("🚀 Redirecionando para /admin");
         router.push("/admin");
       }
     } catch (err) {

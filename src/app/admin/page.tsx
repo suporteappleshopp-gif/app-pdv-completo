@@ -116,13 +116,11 @@ export default function AdminPage() {
   const setupRealtimeSync = () => {
     // Watch operadores em tempo real
     const channelOperadores = AdminSupabase.watchOperadores((ops) => {
-      console.log("✅ Operadores atualizados em tempo real:", ops.length);
       setOperadores(ops);
     });
 
     // Watch mensagens não lidas em tempo real
     const channelMensagens = AdminSupabase.watchMensagensNaoLidas((count) => {
-      console.log("✅ Mensagens não lidas atualizadas:", count);
       setMensagensNaoLidas(count);
     });
 
@@ -137,14 +135,13 @@ export default function AdminPage() {
     try {
       setLoading(true);
       const todosOperadores = await AdminSupabase.getAllOperadores();
-      console.log("✅ Operadores carregados do Supabase:", todosOperadores.length);
       setOperadores(todosOperadores);
 
       // Carregar contagem de mensagens não lidas
       const count = await AdminSupabase.contarMensagensNaoLidas();
       setMensagensNaoLidas(count);
     } catch (err) {
-      console.error("Erro ao carregar operadores:", err);
+      // Falha silenciosa - Supabase pode não estar configurado
     } finally {
       setLoading(false);
     }
