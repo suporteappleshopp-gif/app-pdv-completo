@@ -32,7 +32,7 @@ export default function AdministradorPage() {
 
   const [showModalUsuario, setShowModalUsuario] = useState(false);
   const [novaSenha, setNovaSenha] = useState("");
-  const [nomeUsuario, setNomeUsuario] = useState("");
+  const [emailUsuario, setEmailUsuario] = useState("");
   const [filtroStatus, setFiltroStatus] = useState<"todos" | "ativo" | "inativo" | "suspenso">("todos");
 
   useEffect(() => {
@@ -60,8 +60,15 @@ export default function AdministradorPage() {
   };
 
   const handleCriarUsuario = async () => {
-    if (!nomeUsuario || !novaSenha) {
+    if (!emailUsuario || !novaSenha) {
       alert("Preencha todos os campos");
+      return;
+    }
+
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailUsuario.trim())) {
+      alert("Digite um email válido");
       return;
     }
 
@@ -74,15 +81,10 @@ export default function AdministradorPage() {
       // Importar AuthSupabase
       const { AuthSupabase } = await import("@/lib/auth-supabase");
 
-      // Gerar email único
-      const emailBase = nomeUsuario.toLowerCase().replace(/\s+/g, "");
-      const email = `${emailBase}-${Date.now()}@pdv.local`;
-
       // Criar usuário sem mensalidade (acesso livre)
       const resultado = await AuthSupabase.createUserWithoutSubscription(
-        email,
-        novaSenha,
-        nomeUsuario
+        emailUsuario.trim(),
+        novaSenha
       );
 
       if (!resultado.success) {
@@ -94,8 +96,8 @@ export default function AdministradorPage() {
 
       setShowModalUsuario(false);
       setNovaSenha("");
-      setNomeUsuario("");
-      alert("Usuário criado com sucesso! (Acesso Livre - Sem Mensalidade)");
+      setEmailUsuario("");
+      alert("Usuário criado com sucesso!\n\nEmail: " + emailUsuario + "\n\n✅ Acesso Livre - Sem Mensalidade");
     } catch (error) {
       console.error("Erro ao criar usuário:", error);
       alert("Erro ao criar usuário");
@@ -394,16 +396,19 @@ export default function AdministradorPage() {
             </div>
 
             <div className="space-y-4">
-              {/* Nome */}
+              {/* Email */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Nome Completo</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Email do Usuário</label>
                 <input
-                  type="text"
-                  value={nomeUsuario}
-                  onChange={(e) => setNomeUsuario(e.target.value)}
-                  placeholder="João Silva"
+                  type="email"
+                  value={emailUsuario}
+                  onChange={(e) => setEmailUsuario(e.target.value)}
+                  placeholder="usuario@exemplo.com"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Este email será usado para login no sistema
+                </p>
               </div>
 
               {/* Senha */}
@@ -422,6 +427,19 @@ export default function AdministradorPage() {
                 <p className="text-xs text-gray-500 mt-1">
                   Use letras, números ou caracteres especiais
                 </p>
+              </div>
+
+              {/* Aviso de acesso livre */}
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <div className="flex items-start space-x-2">
+                  <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-green-900">Acesso Livre - Sem Mensalidade</p>
+                    <p className="text-xs text-green-700 mt-1">
+                      Este usuário terá acesso permanente ao sistema sem precisar pagar mensalidade.
+                    </p>
+                  </div>
+                </div>
               </div>
 
               {/* Botões */}

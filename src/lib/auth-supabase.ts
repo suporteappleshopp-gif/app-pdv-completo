@@ -263,11 +263,11 @@ export class AuthSupabase {
 
   /**
    * Criar usuário sem mensalidade (apenas admin)
+   * Nome será extraído automaticamente do email
    */
   static async createUserWithoutSubscription(
     email: string,
-    password: string,
-    nome: string
+    password: string
   ): Promise<{
     success: boolean;
     operador?: Operador;
@@ -283,6 +283,9 @@ export class AuthSupabase {
         };
       }
 
+      // Extrair nome do email (parte antes do @)
+      const nome = email.split("@")[0];
+
       // Criar usuário no Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
@@ -297,9 +300,12 @@ export class AuthSupabase {
       if (authError || !authData.user) {
         return {
           success: false,
-          error: "Erro ao criar usuário",
+          error: authError?.message || "Erro ao criar usuário",
         };
       }
+
+      // Aguardar um pouco para o trigger criar o operador
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       // Atualizar operador para ter acesso livre
       const { error: updateError } = await supabase

@@ -17,16 +17,18 @@ O sistema foi completamente migrado para usar **Supabase** como backend, com aut
 - Limpar cache = perder tudo
 
 **Agora:**
-- Login por **email + senha**
+- Login por **email + senha** (SEM campo de nome)
 - Autenticação gerenciada pelo Supabase
 - Mesma conta em qualquer computador
 - Dados salvos permanentemente na nuvem
+- Nome extraído automaticamente do email (parte antes do @)
 
 **Arquivos criados:**
 - `src/lib/auth-supabase.ts` - Biblioteca de autenticação
 
 **Arquivos modificados:**
-- `src/app/page.tsx` - Sistema de login atualizado
+- `src/app/page.tsx` - Sistema de login atualizado (apenas email + senha)
+- `src/app/administrador/page.tsx` - Criação de usuário atualizada (apenas email + senha)
 
 ---
 
@@ -248,10 +250,11 @@ FOR SELECT USING (
 ### Criação de Usuário pelo Admin
 
 1. Admin clica em "Criar Usuário"
-2. Preenche nome e senha
+2. Preenche **email** e **senha** (não precisa de nome)
 3. `AuthSupabase.createUserWithoutSubscription()` cria conta
-4. Usuário é criado com **acesso livre** (sem mensalidade)
-5. Pode usar o sistema imediatamente
+4. Nome é extraído automaticamente do email (ex: joao@email.com → "joao")
+5. Usuário é criado com **acesso livre** (sem mensalidade)
+6. Pode usar o sistema imediatamente
 
 ---
 

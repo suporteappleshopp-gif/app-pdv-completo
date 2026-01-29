@@ -110,13 +110,14 @@ O sistema agora está conectado ao Supabase! 🎉
 
 ### Teste 2: Criar Usuário Sem Mensalidade
 1. No painel admin, clique em "Criar Usuário"
-2. Preencha nome e senha
+2. Preencha **email** e **senha** (não precisa de nome)
 3. O usuário será criado com acesso livre (sem mensalidade)
+4. O nome do usuário será extraído automaticamente do email (parte antes do @)
 
 ### Teste 3: Registrar Usuário Com Mensalidade
 1. Faça logout
 2. Na tela de login, clique em "Criar Nova Conta"
-3. Preencha os dados e escolha forma de pagamento
+3. Preencha **email**, **senha** e escolha forma de pagamento
 4. O usuário será criado, mas ficará suspenso até o pagamento ser confirmado
 
 ## 🔒 Segurança

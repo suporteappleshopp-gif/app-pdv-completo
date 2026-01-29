@@ -21,7 +21,7 @@ export default function LoginPage() {
   
   // Estados do cadastro
   const [novoCadastro, setNovoCadastro] = useState({
-    nome: "",
+    email: "",
     senha: "",
     confirmarSenha: "",
     formaPagamento: "pix" as "pix" | "cartao",
@@ -142,8 +142,15 @@ export default function LoginPage() {
     setError("");
 
     // Validações
-    if (!novoCadastro.nome.trim()) {
-      setError("Digite seu nome completo");
+    if (!novoCadastro.email.trim()) {
+      setError("Digite seu email");
+      return;
+    }
+
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(novoCadastro.email.trim())) {
+      setError("Digite um email válido");
       return;
     }
 
@@ -158,15 +165,11 @@ export default function LoginPage() {
     }
 
     try {
-      // Gerar email único baseado no nome
-      const emailBase = novoCadastro.nome.toLowerCase().replace(/\s+/g, "");
-      const email = `${emailBase}@pdv.local`;
-
-      // Criar conta com Supabase
+      // Criar conta com Supabase usando email do usuário
       const resultado = await AuthSupabase.signUp(
-        email,
+        novoCadastro.email.trim(),
         novoCadastro.senha,
-        novoCadastro.nome.trim(),
+        novoCadastro.email.split("@")[0], // Nome será a parte antes do @
         novoCadastro.formaPagamento
       );
 
@@ -188,7 +191,7 @@ export default function LoginPage() {
     setModoAcesso("usuario");
     setMostrarPagamento(false);
     setCadastroSucesso(false);
-    setNovoCadastro({ nome: "", senha: "", confirmarSenha: "", formaPagamento: "pix" });
+    setNovoCadastro({ email: "", senha: "", confirmarSenha: "", formaPagamento: "pix" });
     setError("");
   };
 
@@ -360,16 +363,16 @@ export default function LoginPage() {
           <form onSubmit={(e) => { e.preventDefault(); handleCadastrar(); }} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Nome Completo
+                Email
               </label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
-                  type="text"
-                  value={novoCadastro.nome}
-                  onChange={(e) => setNovoCadastro({ ...novoCadastro, nome: e.target.value })}
+                  type="email"
+                  value={novoCadastro.email}
+                  onChange={(e) => setNovoCadastro({ ...novoCadastro, email: e.target.value })}
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  placeholder="Digite seu nome completo"
+                  placeholder="seuemail@exemplo.com"
                   required
                 />
               </div>
@@ -485,7 +488,7 @@ export default function LoginPage() {
             <button
               onClick={() => {
                 setModoAcesso("usuario");
-                setNovoCadastro({ nome: "", senha: "", confirmarSenha: "", formaPagamento: "pix" });
+                setNovoCadastro({ email: "", senha: "", confirmarSenha: "", formaPagamento: "pix" });
                 setError("");
               }}
               className="w-full text-center text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors"
