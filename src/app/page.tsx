@@ -29,7 +29,7 @@ export default function LoginPage() {
   const [mostrarPagamento, setMostrarPagamento] = useState(false);
   const [cadastroSucesso, setCadastroSucesso] = useState(false);
 
-  const ADMIN_EMAIL = "admin@pdv.com";
+  const ADMIN_EMAIL = "diegomarqueshm@icloud.com";
   const ADMIN_PASSWORD = "Sedexdez@1";
   const LINK_PAGAMENTO_CARTAO = "https://pag.ae/81s4kiCNR"; // Link para pagamento de R$ 149,70 parcelado em até 3x
   const LINK_PAGAMENTO_PIX = "https://pag.ae/SEU_LINK_PIX_AQUI"; // Link para pagamento PIX de R$ 59,90
@@ -107,8 +107,17 @@ export default function LoginPage() {
 
         router.push("/caixa");
       } else {
-        // Login Admin
-        const resultado = await AuthSupabase.signIn(ADMIN_EMAIL, ADMIN_PASSWORD);
+        // Login Admin - usar email e senha digitados
+        const emailAdmin = nomeCompleto.trim();
+        const senhaAdminDigitada = senhaAdmin.trim();
+
+        if (!emailAdmin || !senhaAdminDigitada) {
+          setError("Digite email e senha do administrador");
+          setLoading(false);
+          return;
+        }
+
+        const resultado = await AuthSupabase.signIn(emailAdmin, senhaAdminDigitada);
 
         if (!resultado.success || !resultado.operador) {
           setError("Email ou senha de administrador inválidos");
@@ -558,22 +567,41 @@ export default function LoginPage() {
               </div>
             </>
           ) : (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Senha de Administrador
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="password"
-                  value={senhaAdmin}
-                  onChange={(e) => setSenhaAdmin(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                  placeholder="Digite a senha"
-                  required
-                />
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email do Administrador
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="email"
+                    value={nomeCompleto}
+                    onChange={(e) => setNomeCompleto(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                    placeholder="Digite o email de admin"
+                    required
+                  />
+                </div>
               </div>
-            </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Senha de Administrador
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="password"
+                    value={senhaAdmin}
+                    onChange={(e) => setSenhaAdmin(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                    placeholder="Digite a senha"
+                    required
+                  />
+                </div>
+              </div>
+            </>
           )}
 
           {error && (
