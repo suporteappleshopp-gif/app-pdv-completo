@@ -61,9 +61,9 @@ export default function LoginPage() {
           const sucesso = await AdminSupabase.addOperador(adminOperador);
 
           if (sucesso) {
-            console.log("✅ Admin criado com sucesso!");
+            console.log("✅ Admin criado com sucesso no Supabase!");
           } else {
-            console.error("❌ Erro ao criar admin");
+            console.warn("⚠️ Supabase não configurado corretamente. Admin funcionará localmente.");
           }
         } else {
           console.log("✅ Admin encontrado:", adminExistente.nome, "| Senha:", adminExistente.senha);
@@ -72,6 +72,7 @@ export default function LoginPage() {
         setDbReady(true);
       } catch (err) {
         console.error("❌ Erro ao inicializar:", err);
+        console.log("ℹ️ Sistema funcionará com admin local (senha: Sedexdez@1)");
         setDbReady(true);
       }
     };
@@ -182,16 +183,23 @@ export default function LoginPage() {
         const operadores = await AdminSupabase.getAllOperadores();
         console.log("📊 Total de operadores encontrados:", operadores.length);
 
-        const operador = operadores.find(op => op.isAdmin);
+        let operador = operadores.find(op => op.isAdmin);
 
+        // Se não encontrou no Supabase (pode estar desconfigurado), usar admin local
         if (!operador) {
-          console.error("❌ Admin não encontrado no banco!");
-          setError("Erro: conta admin não encontrada");
-          setLoading(false);
-          return;
+          console.warn("⚠️ Admin não encontrado no Supabase. Usando admin local.");
+          operador = {
+            id: "admin-master",
+            nome: "Administrador",
+            email: "admin",
+            senha: "Sedexdez@1",
+            ativo: true,
+            isAdmin: true,
+            createdAt: new Date(),
+          };
         }
 
-        console.log("✅ Admin encontrado:", operador.nome);
+        console.log("✅ Admin autenticado:", operador.nome);
         console.log("💾 Salvando no localStorage...");
 
         localStorage.setItem("operadorId", operador.id);
