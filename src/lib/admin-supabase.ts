@@ -22,12 +22,12 @@ export class AdminSupabase {
     diasRestantes: number;
     expirado: boolean;
   } {
-    // Se tem mensalidade, não precisa verificar validade de 30 dias
-    if (operador.formaPagamento && operador.formaPagamento !== "sem-mensalidade") {
+    // Admins sempre têm acesso válido
+    if (operador.isAdmin) {
       return { valido: true, diasRestantes: 999, expirado: false };
     }
 
-    // Se não tem forma de pagamento definida (sem mensalidade)
+    // Para usuários comuns, verificar 30 dias desde criação
     const dataAtual = new Date();
     const dataCriacao = new Date(operador.createdAt);
     const diferencaDias = Math.floor(
@@ -63,27 +63,12 @@ export class AdminSupabase {
           nome: op.nome,
           email: op.email,
           senha: op.senha,
-          isAdmin: op.is_admin,
-          ativo: op.ativo,
-          suspenso: op.suspenso,
-          aguardandoPagamento: op.aguardando_pagamento,
-          formaPagamento: op.forma_pagamento as "pix" | "cartao" | undefined,
-          valorMensal: op.valor_mensal,
-          dataProximoVencimento: op.data_proximo_vencimento
-            ? new Date(op.data_proximo_vencimento)
-            : undefined,
+          isAdmin: op.is_admin || false,
+          ativo: op.ativo || false,
+          suspenso: op.suspenso || false,
+          aguardandoPagamento: op.aguardando_pagamento || false,
           createdAt: new Date(op.created_at),
         };
-
-        // Verificar validade de 30 dias para logins sem mensalidade
-        const { expirado } = this.verificarValidadeOperador(operador);
-        
-        // Se expirou e não tem mensalidade, suspender automaticamente
-        if (expirado && !operador.formaPagamento && operador.ativo) {
-          this.suspenderPorExpiracao(operador.id);
-          operador.ativo = false;
-          operador.suspenso = true;
-        }
 
         return operador;
       });
@@ -125,9 +110,6 @@ export class AdminSupabase {
         ativo: operador.ativo,
         suspenso: operador.suspenso || false,
         aguardando_pagamento: operador.aguardandoPagamento || false,
-        forma_pagamento: operador.formaPagamento,
-        valor_mensal: operador.valorMensal,
-        data_proximo_vencimento: operador.dataProximoVencimento?.toISOString(),
         created_at: operador.createdAt.toISOString(),
         updated_at: new Date().toISOString(),
       });
@@ -159,9 +141,6 @@ export class AdminSupabase {
           ativo: operador.ativo,
           suspenso: operador.suspenso || false,
           aguardando_pagamento: operador.aguardandoPagamento || false,
-          forma_pagamento: operador.formaPagamento,
-          valor_mensal: operador.valorMensal,
-          data_proximo_vencimento: operador.dataProximoVencimento?.toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq("id", operador.id);
@@ -198,15 +177,10 @@ export class AdminSupabase {
         nome: data.nome,
         email: data.email,
         senha: data.senha,
-        isAdmin: data.is_admin,
-        ativo: data.ativo,
-        suspenso: data.suspenso,
-        aguardandoPagamento: data.aguardando_pagamento,
-        formaPagamento: data.forma_pagamento as "pix" | "cartao" | undefined,
-        valorMensal: data.valor_mensal,
-        dataProximoVencimento: data.data_proximo_vencimento
-          ? new Date(data.data_proximo_vencimento)
-          : undefined,
+        isAdmin: data.is_admin || false,
+        ativo: data.ativo || false,
+        suspenso: data.suspenso || false,
+        aguardandoPagamento: data.aguardando_pagamento || false,
         createdAt: new Date(data.created_at),
       };
     } catch (error) {

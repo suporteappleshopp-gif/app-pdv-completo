@@ -31,10 +31,6 @@ async function setupAdmin() {
           ativo: true,
           suspenso: false,
           aguardando_pagamento: false,
-          forma_pagamento: null,
-          valor_mensal: null,
-          dias_assinatura: null,
-          data_proximo_vencimento: null,
         })
         .eq("email", ADMIN_EMAIL);
 
@@ -83,10 +79,6 @@ async function setupAdmin() {
         ativo: true,
         suspenso: false,
         aguardando_pagamento: false,
-        forma_pagamento: null,
-        valor_mensal: null,
-        dias_assinatura: null,
-        data_proximo_vencimento: null,
       })
       .eq("auth_user_id", authData.user.id);
 
