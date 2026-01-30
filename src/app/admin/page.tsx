@@ -927,8 +927,21 @@ export default function AdminPage() {
                               </span>
                             </div>
 
-                            {/* Dias Restantes */}
-                            {operador.dataProximoVencimento && (() => {
+                            {/* Dias Restantes - SEMPRE MOSTRAR */}
+                            {(() => {
+                              if (!operador.dataProximoVencimento) {
+                                // Usuário sem data de vencimento (sem mensalidade)
+                                return (
+                                  <div className="flex items-center space-x-1 px-3 py-1 bg-gray-500/20 text-gray-300 rounded-lg border border-gray-500/30">
+                                    <Calendar className="w-4 h-4" />
+                                    <span className="text-xs font-semibold">
+                                      Acesso ilimitado
+                                    </span>
+                                  </div>
+                                );
+                              }
+
+                              // Usuário com data de vencimento
                               const hoje = new Date();
                               const vencimento = new Date(operador.dataProximoVencimento);
                               const diasRestantesCalc = Math.ceil((vencimento.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
