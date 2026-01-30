@@ -303,19 +303,22 @@ export default function CaixaPage() {
 
     // Inicializar banco e carregar produtos
     const init = async () => {
-      // Buscar operador logado do Supabase (não do localStorage)
-      const { AuthSupabase } = await import("@/lib/auth-supabase");
-      const operador = await AuthSupabase.getCurrentOperador();
+      try {
+        // Buscar operador logado do Supabase
+        const { AuthSupabase } = await import("@/lib/auth-supabase");
+        const operador = await AuthSupabase.getCurrentOperador();
 
-      if (!operador) {
-        // Não tem sessão ativa - redirecionar para login
-        router.push("/");
-        return;
-      }
+        if (!operador) {
+          console.error("❌ Operador não encontrado - redirecionando para login");
+          router.push("/");
+          return;
+        }
 
-      // Configurar dados do operador a partir do banco
-      setOperadorNome(operador.nome);
-      setOperadorId(operador.id);
+        console.log("✅ Operador encontrado:", operador.email);
+
+        // Configurar dados do operador a partir do banco
+        setOperadorNome(operador.nome);
+        setOperadorId(operador.id);
 
       // Verificar se é usuário sem mensalidade (criado pelo admin)
       const semMensalidade = !operador.formaPagamento;
@@ -367,15 +370,42 @@ export default function CaixaPage() {
         }
       }
 
-      // Verificar vencimento (apenas para usuários COM mensalidade)
-      if (!semMensalidade) {
-        const operadorDB = await db.getOperador(operador.id);
-        if (operadorDB && operadorDB.dataProximoVencimento) {
-          const dias = differenceInDays(new Date(operadorDB.dataProximoVencimento), new Date());
-          if (dias <= 3 && dias >= 0) {
-            setDiasAteVencimento(dias);
-            setMostrarLembrete(true);
+        // Verificar vencimento (apenas para usuários COM mensalidade)
+        if (!semMensalidade) {
+          const operadorDB = await db.getOperador(operador.id);
+          if (operadorDB && operadorDB.dataProximoVencimento) {
+            const dias = differenceInDays(new Date(operadorDB.dataProximoVencimento), new Date());
+            if (dias <= 3 && dias >= 0) {
+              setDiasAteVencimento(dias);
+              setMostrarLembrete(true);
+            }
           }
+        }
+      } catch (error) {
+        console.error("❌ Erro ao inicializar página do caixa:", error);
+        // Tentar recuperar dados do localStorage como fallback
+        const operadorSession = localStorage.getItem('operador_session');
+        if (operadorSession) {
+          try {
+            const operador = JSON.parse(operadorSession);
+            console.log("✅ Operador recuperado do localStorage:", operador.email);
+            setOperadorNome(operador.nome);
+            setOperadorId(operador.id);
+            setPodeUsarApp(true);
+            setStatusAssinatura("ativo");
+            setDiasRestantes(999);
+
+            // Inicializar banco
+            await db.init();
+            const todosProdutos = await db.getAllProdutos();
+            setProdutos(todosProdutos);
+          } catch (e) {
+            console.error("❌ Erro ao recuperar do localStorage:", e);
+            router.push("/");
+          }
+        } else {
+          console.error("❌ Nenhuma sessão encontrada - redirecionando para login");
+          router.push("/");
         }
       }
     };

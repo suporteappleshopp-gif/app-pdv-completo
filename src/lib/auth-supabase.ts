@@ -260,9 +260,33 @@ export class AuthSupabase {
    */
   static async getCurrentOperador(): Promise<Operador | null> {
     try {
+      console.log("🔍 Buscando operador atual...");
+
+      // PRIMEIRO: Tentar buscar do localStorage (login direto - mais rápido)
+      if (typeof window !== 'undefined') {
+        const sessionStr = localStorage.getItem('operador_session');
+        if (sessionStr) {
+          try {
+            const operador = JSON.parse(sessionStr);
+            console.log("✅ Operador encontrado no localStorage:", operador.email);
+            return {
+              ...operador,
+              createdAt: new Date(operador.createdAt),
+              dataProximoVencimento: operador.dataProximoVencimento ? new Date(operador.dataProximoVencimento) : undefined,
+              dataPagamento: operador.dataPagamento ? new Date(operador.dataPagamento) : undefined,
+            };
+          } catch (e) {
+            console.warn("⚠️ Erro ao parsear sessão do localStorage:", e);
+          }
+        }
+      }
+
+      // SEGUNDO: Tentar buscar do Supabase Auth
       const { data: { user } } = await supabase.auth.getUser();
 
       if (user) {
+        console.log("🔍 Usuário Auth encontrado:", user.id);
+
         // Buscar apenas campos básicos (SEMPRE existem)
         const { data: operadorData, error } = await supabase
           .from("operadores")
@@ -270,60 +294,77 @@ export class AuthSupabase {
           .eq("auth_user_id", user.id)
           .single();
 
-        if (!error && operadorData) {
-          const operador: Operador = {
-            id: operadorData.id,
-            nome: operadorData.nome,
-            email: operadorData.email,
-            senha: "",
-            isAdmin: operadorData.is_admin || false,
-            ativo: operadorData.ativo || false,
-            suspenso: operadorData.suspenso || false,
-            aguardandoPagamento: operadorData.aguardando_pagamento || false,
-            createdAt: new Date(operadorData.created_at),
-          };
-
-          // Tentar buscar campos extras (podem não existir)
-          try {
-            const { data: extrasData } = await supabase
-              .from("operadores")
-              .select("forma_pagamento, valor_mensal, data_proximo_vencimento, dias_assinatura, data_pagamento")
-              .eq("auth_user_id", user.id)
-              .single();
-
-            if (extrasData) {
-              operador.formaPagamento = extrasData.forma_pagamento || undefined;
-              operador.valorMensal = extrasData.valor_mensal || undefined;
-              operador.dataProximoVencimento = extrasData.data_proximo_vencimento ? new Date(extrasData.data_proximo_vencimento) : undefined;
-              operador.diasAssinatura = extrasData.dias_assinatura || undefined;
-              operador.dataPagamento = extrasData.data_pagamento ? new Date(extrasData.data_pagamento) : undefined;
-            }
-          } catch (extrasError) {
-            // Campos extras não existem - continuar sem eles
-            console.log("⚠️ Campos extras não disponíveis (é normal se as colunas não existem no banco)");
-          }
-
-          return operador;
+        if (error) {
+          console.error("❌ Erro ao buscar operador por auth_user_id:", error);
+          return null;
         }
+
+        if (!operadorData) {
+          console.warn("⚠️ Operador não encontrado no banco para auth_user_id:", user.id);
+          return null;
+        }
+
+        console.log("✅ Operador encontrado no Supabase:", operadorData.email);
+
+        const operador: Operador = {
+          id: operadorData.id,
+          nome: operadorData.nome,
+          email: operadorData.email,
+          senha: "",
+          isAdmin: operadorData.is_admin || false,
+          ativo: operadorData.ativo || false,
+          suspenso: operadorData.suspenso || false,
+          aguardandoPagamento: operadorData.aguardando_pagamento || false,
+          createdAt: new Date(operadorData.created_at),
+        };
+
+        // Tentar buscar campos extras (podem não existir)
+        try {
+          const { data: extrasData } = await supabase
+            .from("operadores")
+            .select("forma_pagamento, valor_mensal, data_proximo_vencimento, dias_assinatura, data_pagamento")
+            .eq("auth_user_id", user.id)
+            .single();
+
+          if (extrasData) {
+            operador.formaPagamento = extrasData.forma_pagamento || undefined;
+            operador.valorMensal = extrasData.valor_mensal || undefined;
+            operador.dataProximoVencimento = extrasData.data_proximo_vencimento ? new Date(extrasData.data_proximo_vencimento) : undefined;
+            operador.diasAssinatura = extrasData.dias_assinatura || undefined;
+            operador.dataPagamento = extrasData.data_pagamento ? new Date(extrasData.data_pagamento) : undefined;
+          }
+        } catch (extrasError) {
+          // Campos extras não existem - continuar sem eles
+          console.log("⚠️ Campos extras não disponíveis");
+        }
+
+        return operador;
       }
 
-      // Tentar buscar sessão do localStorage (login direto)
+      console.warn("⚠️ Nenhum usuário Auth encontrado");
+      return null;
+    } catch (error) {
+      console.error("❌ Erro ao buscar operador:", error);
+
+      // Fallback final: tentar localStorage novamente
       if (typeof window !== 'undefined') {
         const sessionStr = localStorage.getItem('operador_session');
         if (sessionStr) {
-          const operador = JSON.parse(sessionStr);
-          return {
-            ...operador,
-            createdAt: new Date(operador.createdAt),
-            dataProximoVencimento: operador.dataProximoVencimento ? new Date(operador.dataProximoVencimento) : undefined,
-            dataPagamento: operador.dataPagamento ? new Date(operador.dataPagamento) : undefined,
-          };
+          try {
+            const operador = JSON.parse(sessionStr);
+            console.log("✅ Usando sessão do localStorage como fallback:", operador.email);
+            return {
+              ...operador,
+              createdAt: new Date(operador.createdAt),
+              dataProximoVencimento: operador.dataProximoVencimento ? new Date(operador.dataProximoVencimento) : undefined,
+              dataPagamento: operador.dataPagamento ? new Date(operador.dataPagamento) : undefined,
+            };
+          } catch (e) {
+            console.error("❌ Erro ao usar fallback do localStorage:", e);
+          }
         }
       }
 
-      return null;
-    } catch (error) {
-      console.error("Erro ao buscar operador:", error);
       return null;
     }
   }
