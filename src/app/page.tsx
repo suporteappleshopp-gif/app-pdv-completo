@@ -292,43 +292,27 @@ export default function LoginPage() {
 
         router.push("/caixa");
       } else {
-        // Login Admin - usar email e senha digitados
-        const emailAdmin = nomeCompleto.trim();
+        // Login Admin - apenas com senha
         const senhaAdminDigitada = senhaAdmin.trim();
 
-        if (!emailAdmin || !senhaAdminDigitada) {
-          setError("Digite email e senha do administrador");
+        if (!senhaAdminDigitada) {
+          setError("Digite a senha do administrador");
           setLoading(false);
           return;
         }
 
-        try {
-          const resultado = await AuthSupabase.signIn(emailAdmin, senhaAdminDigitada);
-
-          if (!resultado.success || !resultado.operador) {
-            setError(resultado.error || "Email ou senha de administrador inválidos");
-            setLoading(false);
-            return;
-          }
-
-          const operador = resultado.operador;
-
-          if (!operador.isAdmin) {
-            setError("Acesso negado: usuário não é administrador");
-            setLoading(false);
-            return;
-          }
-
-          // Login bem-sucedido
-          localStorage.setItem("operadorId", operador.id);
-          localStorage.setItem("operadorNome", operador.nome);
-          localStorage.setItem("operadorEmail", operador.email);
+        // Verificar senha diretamente
+        if (senhaAdminDigitada === ADMIN_PASSWORD) {
+          // Login admin bem-sucedido - sem Supabase Auth
+          localStorage.setItem("operadorId", "admin-master");
+          localStorage.setItem("operadorNome", "Administrador");
+          localStorage.setItem("operadorEmail", "admin@sistema.com");
           localStorage.setItem("isAdmin", "true");
 
+          console.log("✅ Login de administrador bem-sucedido!");
           router.push("/admin");
-        } catch (err) {
-          console.error("Erro no login admin:", err);
-          setError("Erro ao conectar com o servidor. Verifique se o admin está configurado.");
+        } else {
+          setError("Senha de administrador incorreta");
           setLoading(false);
         }
       }
@@ -759,41 +743,26 @@ export default function LoginPage() {
               </div>
             </>
           ) : (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email do Administrador
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="email"
-                    value={nomeCompleto}
-                    onChange={(e) => setNomeCompleto(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                    placeholder="Digite o email de admin"
-                    required
-                  />
-                </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Senha de Administrador
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="password"
+                  value={senhaAdmin}
+                  onChange={(e) => setSenhaAdmin(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                  placeholder="Digite a senha: Sedexdez@1"
+                  required
+                  autoFocus
+                />
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Senha de Administrador
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="password"
-                    value={senhaAdmin}
-                    onChange={(e) => setSenhaAdmin(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                    placeholder="Digite a senha"
-                    required
-                  />
-                </div>
-              </div>
-            </>
+              <p className="mt-2 text-sm text-gray-500">
+                Digite apenas a senha do administrador para acessar o painel.
+              </p>
+            </div>
           )}
 
           {error && (
@@ -839,37 +808,6 @@ export default function LoginPage() {
         )}
 
         <div className="mt-6 pt-6 border-t border-gray-200 space-y-4">
-          {/* Botão de Diagnóstico do Admin - Aparece apenas no modo admin */}
-          {modoAcesso === "admin" && (
-            <>
-              <button
-                onClick={() => router.push("/diagnostico-admin")}
-                className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white py-3 rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
-              >
-                <Shield className="w-5 h-5" />
-                <span>🔍 Diagnosticar Admin</span>
-              </button>
-
-              <button
-                onClick={configurarAdminAgora}
-                disabled={loading}
-                className="w-full bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white py-3 rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2 disabled:opacity-50"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Configurando...</span>
-                  </>
-                ) : (
-                  <>
-                    <Shield className="w-5 h-5" />
-                    <span>🔧 Configurar Admin (Primeira vez)</span>
-                  </>
-                )}
-              </button>
-            </>
-          )}
-
           <button
             onClick={() => {
               setModoAcesso(modoAcesso === "usuario" ? "admin" : "usuario");
