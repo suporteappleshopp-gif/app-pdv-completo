@@ -166,18 +166,19 @@ export class AdminSupabase {
   }
 
   /**
-   * Atualizar operador existente
+   * Atualizar operador existente - ADMIN TEM CONTROLE TOTAL
    */
   static async updateOperador(operador: Operador): Promise<boolean> {
     try {
-      // Primeiro, buscar o operador atual para ver os campos disponíveis
-      const { data: operadorAtual } = await supabase
-        .from("operadores")
-        .select("*")
-        .eq("id", operador.id)
-        .single();
-
-      console.log("📋 Operador atual no banco:", operadorAtual);
+      console.log("🔄 ADMIN atualizando operador:", {
+        id: operador.id,
+        email: operador.email,
+        nome: operador.nome,
+        ativo: operador.ativo,
+        suspenso: operador.suspenso,
+        diasAssinatura: operador.diasAssinatura,
+        dataProximoVencimento: operador.dataProximoVencimento,
+      });
 
       const updateData: any = {
         nome: operador.nome,
@@ -190,76 +191,54 @@ export class AdminSupabase {
         updated_at: new Date().toISOString(),
       };
 
-      // Adicionar campos opcionais se existirem
+      // IMPORTANTE: Admin pode atualizar QUALQUER campo, incluindo datas e dias
       if (operador.dataProximoVencimento) {
         updateData.data_proximo_vencimento = operador.dataProximoVencimento instanceof Date
           ? operador.dataProximoVencimento.toISOString()
-          : operador.dataProximoVencimento;
+          : new Date(operador.dataProximoVencimento).toISOString();
       }
-      if (operador.diasAssinatura !== undefined) {
+
+      if (operador.diasAssinatura !== undefined && operador.diasAssinatura !== null) {
         updateData.dias_assinatura = operador.diasAssinatura;
       }
+
       if (operador.formaPagamento) {
         updateData.forma_pagamento = operador.formaPagamento;
       }
+
       if (operador.valorMensal !== undefined) {
         updateData.valor_mensal = operador.valorMensal;
       }
 
-      console.log("📤 Dados que serão enviados ao Supabase:", updateData);
+      if (operador.dataPagamento) {
+        updateData.data_pagamento = operador.dataPagamento instanceof Date
+          ? operador.dataPagamento.toISOString()
+          : new Date(operador.dataPagamento).toISOString();
+      }
 
-      // Tentar atualizar com todos os campos
-      let { data, error } = await supabase
+      console.log("📤 ADMIN enviando atualização completa:", updateData);
+
+      // Admin SEMPRE atualiza com sucesso - prioridade máxima
+      const { data, error } = await supabase
         .from("operadores")
         .update(updateData)
         .eq("id", operador.id)
         .select();
 
-      // Se der erro, tentar atualizar apenas campos básicos
       if (error) {
-        console.warn("⚠️ Erro ao atualizar com todos os campos:", {
+        console.error("❌ Erro ao atualizar operador:", {
           message: error.message,
           code: error.code,
           details: error.details,
+          hint: error.hint,
         });
-
-        console.log("🔄 Tentando atualizar apenas campos básicos...");
-
-        // Atualizar apenas campos básicos que existem desde sempre
-        const updateBasico = {
-          nome: operador.nome,
-          email: operador.email,
-          senha: operador.senha,
-          is_admin: operador.isAdmin,
-          ativo: operador.ativo,
-          suspenso: operador.suspenso || false,
-          aguardando_pagamento: operador.aguardandoPagamento || false,
-          updated_at: new Date().toISOString(),
-        };
-
-        const resultado = await supabase
-          .from("operadores")
-          .update(updateBasico)
-          .eq("id", operador.id)
-          .select();
-
-        data = resultado.data;
-        error = resultado.error;
-
-        if (error) {
-          console.error("❌ Erro ao atualizar operador (tentativa básica):", {
-            message: error.message,
-            code: error.code,
-            details: error.details,
-          });
-          return false;
-        }
+        return false;
       }
 
-      console.log("✅ Operador atualizado com sucesso!", data);
+      console.log("✅ ADMIN atualizou operador com sucesso!", data);
       return true;
     } catch (error) {
-      console.error("❌ Erro ao atualizar operador:", error);
+      console.error("❌ Erro crítico ao atualizar operador:", error);
       return false;
     }
   }

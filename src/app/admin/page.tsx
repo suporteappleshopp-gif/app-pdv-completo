@@ -539,45 +539,60 @@ export default function AdminPage() {
     if (!operadorParaGerenciarDias) return;
 
     try {
-      const dataAtual = operadorParaGerenciarDias.dataProximoVencimento
+      console.log("🔧 ADMIN gerenciando dias:", {
+        operador: operadorParaGerenciarDias.email,
+        diasParaAdicionar,
+        diasAssinaturaAtual: operadorParaGerenciarDias.diasAssinatura,
+        vencimentoAtual: operadorParaGerenciarDias.dataProximoVencimento,
+      });
+
+      // Calcular nova data de vencimento baseada na data atual de vencimento
+      const dataBase = operadorParaGerenciarDias.dataProximoVencimento
         ? new Date(operadorParaGerenciarDias.dataProximoVencimento)
         : new Date();
 
-      const novaDataVencimento = new Date(dataAtual);
+      const novaDataVencimento = new Date(dataBase);
       novaDataVencimento.setDate(novaDataVencimento.getDate() + diasParaAdicionar);
+
+      // Calcular total de dias de assinatura
+      const diasAssinaturaAtualizados = (operadorParaGerenciarDias.diasAssinatura || 0) + diasParaAdicionar;
 
       const operadorAtualizado: Operador = {
         ...operadorParaGerenciarDias,
         dataProximoVencimento: novaDataVencimento,
-        diasAssinatura: (operadorParaGerenciarDias.diasAssinatura || 0) + diasParaAdicionar,
-        ativo: true, // Garantir que o usuário fique ativo
-        suspenso: false, // Remover suspensão ao adicionar dias
+        diasAssinatura: diasAssinaturaAtualizados,
+        ativo: true, // ADMIN pode reativar ao adicionar/gerenciar dias
+        suspenso: false, // ADMIN remove suspensão ao gerenciar dias
+        aguardandoPagamento: false, // ADMIN marca como pago ao gerenciar dias
       };
 
-      console.log("🔄 Atualizando operador:", {
+      console.log("📤 ADMIN enviando atualização:", {
         id: operadorAtualizado.id,
         email: operadorAtualizado.email,
         dataProximoVencimento: operadorAtualizado.dataProximoVencimento,
         diasAssinatura: operadorAtualizado.diasAssinatura,
+        ativo: operadorAtualizado.ativo,
+        suspenso: operadorAtualizado.suspenso,
       });
 
       const sucesso = await AdminSupabase.updateOperador(operadorAtualizado);
 
       if (sucesso) {
-        setSuccess(`${diasParaAdicionar > 0 ? 'Adicionados' : 'Removidos'} ${Math.abs(diasParaAdicionar)} dias com sucesso!`);
-        setTimeout(() => setSuccess(""), 3000);
+        setSuccess(`✅ ${diasParaAdicionar > 0 ? 'Adicionados' : 'Removidos'} ${Math.abs(diasParaAdicionar)} dias com sucesso! Total: ${diasAssinaturaAtualizados} dias`);
+        setTimeout(() => setSuccess(""), 5000);
         setShowGerenciarDiasModal(false);
         setOperadorParaGerenciarDias(null);
         setDiasParaAdicionar(0);
+
         // Recarregar operadores para atualizar a lista
         await carregarOperadores();
       } else {
-        setError("Erro ao gerenciar dias");
+        setError("❌ Erro ao gerenciar dias - verifique o console para detalhes");
         setTimeout(() => setError(""), 3000);
       }
     } catch (err) {
       console.error("❌ Erro ao gerenciar dias:", err);
-      setError("Erro ao gerenciar dias");
+      setError("❌ Erro ao gerenciar dias - verifique o console");
       setTimeout(() => setError(""), 3000);
     }
   };
