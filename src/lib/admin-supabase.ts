@@ -180,7 +180,7 @@ export class AdminSupabase {
         dataProximoVencimento: operador.dataProximoVencimento,
       });
 
-      // Preparar dados básicos (sempre existem)
+      // Preparar TODOS os dados de uma vez
       const updateData: any = {
         nome: operador.nome,
         email: operador.email,
@@ -192,78 +192,82 @@ export class AdminSupabase {
         updated_at: new Date().toISOString(),
       };
 
-      console.log("📤 ADMIN enviando atualização básica:", updateData);
-
-      // PASSO 1: Atualizar campos básicos primeiro (sempre funcionam)
-      const { data: dataBasica, error: errorBasico } = await supabase
-        .from("operadores")
-        .update(updateData)
-        .eq("id", operador.id)
-        .select();
-
-      if (errorBasico) {
-        console.error("❌ Erro ao atualizar campos básicos:", {
-          message: errorBasico.message,
-          code: errorBasico.code,
-          details: errorBasico.details,
-          hint: errorBasico.hint,
-        });
-        return false;
-      }
-
-      console.log("✅ Campos básicos atualizados!");
-
-      // PASSO 2: Tentar atualizar campos extras (pode falhar se não existirem)
-      const updateExtras: any = {};
-
+      // Adicionar campos de mensalidade (sempre tentar)
       if (operador.dataProximoVencimento) {
-        updateExtras.data_proximo_vencimento = operador.dataProximoVencimento instanceof Date
+        updateData.data_proximo_vencimento = operador.dataProximoVencimento instanceof Date
           ? operador.dataProximoVencimento.toISOString()
           : new Date(operador.dataProximoVencimento).toISOString();
       }
 
       if (operador.diasAssinatura !== undefined && operador.diasAssinatura !== null) {
-        updateExtras.dias_assinatura = operador.diasAssinatura;
+        updateData.dias_assinatura = operador.diasAssinatura;
       }
 
       if (operador.formaPagamento) {
-        updateExtras.forma_pagamento = operador.formaPagamento;
+        updateData.forma_pagamento = operador.formaPagamento;
       }
 
       if (operador.valorMensal !== undefined) {
-        updateExtras.valor_mensal = operador.valorMensal;
+        updateData.valor_mensal = operador.valorMensal;
       }
 
       if (operador.dataPagamento) {
-        updateExtras.data_pagamento = operador.dataPagamento instanceof Date
+        updateData.data_pagamento = operador.dataPagamento instanceof Date
           ? operador.dataPagamento.toISOString()
           : new Date(operador.dataPagamento).toISOString();
       }
 
-      // Se houver campos extras, tentar atualizar
-      if (Object.keys(updateExtras).length > 0) {
-        console.log("📤 Tentando atualizar campos extras:", updateExtras);
+      console.log("📤 ADMIN enviando atualização completa:", JSON.stringify(updateData, null, 2));
 
-        const { data: dataExtras, error: errorExtras } = await supabase
-          .from("operadores")
-          .update(updateExtras)
-          .eq("id", operador.id)
-          .select();
+      // ADMIN atualiza TUDO de uma vez
+      const { data, error } = await supabase
+        .from("operadores")
+        .update(updateData)
+        .eq("id", operador.id)
+        .select();
 
-        if (errorExtras) {
-          console.warn("⚠️ Campos extras não puderam ser atualizados (podem não existir na tabela):", {
-            message: errorExtras.message,
-            hint: errorExtras.hint,
-          });
-          // NÃO retornar false aqui - campos básicos já foram atualizados
-          console.log("✅ Atualização parcial concluída (apenas campos básicos)");
+      if (error) {
+        console.error("❌ Erro ao atualizar operador:", {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+        });
+
+        // Se o erro for de coluna não existente, tentar sem os campos extras
+        if (error.code === "42703" || error.message.includes("column") || error.message.includes("does not exist")) {
+          console.warn("⚠️ Algumas colunas não existem. Tentando atualizar apenas campos básicos...");
+
+          const updateBasico = {
+            nome: operador.nome,
+            email: operador.email,
+            senha: operador.senha,
+            is_admin: operador.isAdmin,
+            ativo: operador.ativo,
+            suspenso: operador.suspenso || false,
+            aguardando_pagamento: operador.aguardandoPagamento || false,
+            updated_at: new Date().toISOString(),
+          };
+
+          const { data: dataBasico, error: errorBasico } = await supabase
+            .from("operadores")
+            .update(updateBasico)
+            .eq("id", operador.id)
+            .select();
+
+          if (errorBasico) {
+            console.error("❌ Erro ao atualizar campos básicos:", errorBasico);
+            return false;
+          }
+
+          console.log("✅ Campos básicos atualizados!", dataBasico);
           return true;
         }
 
-        console.log("✅ Campos extras atualizados!", dataExtras);
+        return false;
       }
 
-      console.log("✅ ADMIN atualizou operador com sucesso!");
+      console.log("✅ ADMIN atualizou operador com SUCESSO!", data);
       return true;
     } catch (error) {
       console.error("❌ Erro crítico ao atualizar operador:", error);

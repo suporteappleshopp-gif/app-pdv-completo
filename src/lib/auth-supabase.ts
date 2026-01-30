@@ -52,7 +52,7 @@ export class AuthSupabase {
             };
           }
 
-          // Montar objeto Operador
+          // Montar objeto Operador com TODOS os campos
           const operador: Operador = {
             id: operadorData.id,
             nome: operadorData.nome,
@@ -64,6 +64,10 @@ export class AuthSupabase {
             aguardandoPagamento: operadorData.aguardando_pagamento || false,
             createdAt: new Date(operadorData.created_at),
             formaPagamento: operadorData.forma_pagamento || undefined,
+            valorMensal: operadorData.valor_mensal || undefined,
+            dataProximoVencimento: operadorData.data_proximo_vencimento ? new Date(operadorData.data_proximo_vencimento) : undefined,
+            diasAssinatura: operadorData.dias_assinatura || undefined,
+            dataPagamento: operadorData.data_pagamento ? new Date(operadorData.data_pagamento) : undefined,
           };
 
           console.log("✅ Login bem-sucedido! Operador:", operador.nome, "| Admin:", operador.isAdmin);
@@ -116,6 +120,10 @@ export class AuthSupabase {
           aguardandoPagamento: operadorDirectData.aguardando_pagamento || false,
           createdAt: new Date(operadorDirectData.created_at),
           formaPagamento: operadorDirectData.forma_pagamento || undefined,
+          valorMensal: operadorDirectData.valor_mensal || undefined,
+          dataProximoVencimento: operadorDirectData.data_proximo_vencimento ? new Date(operadorDirectData.data_proximo_vencimento) : undefined,
+          diasAssinatura: operadorDirectData.dias_assinatura || undefined,
+          dataPagamento: operadorDirectData.data_pagamento ? new Date(operadorDirectData.data_pagamento) : undefined,
         };
 
         // Criar sessão temporária no localStorage (já que não temos Auth)
@@ -273,6 +281,10 @@ export class AuthSupabase {
             aguardandoPagamento: operadorData.aguardando_pagamento || false,
             createdAt: new Date(operadorData.created_at),
             formaPagamento: operadorData.forma_pagamento || undefined,
+            valorMensal: operadorData.valor_mensal || undefined,
+            dataProximoVencimento: operadorData.data_proximo_vencimento ? new Date(operadorData.data_proximo_vencimento) : undefined,
+            diasAssinatura: operadorData.dias_assinatura || undefined,
+            dataPagamento: operadorData.data_pagamento ? new Date(operadorData.data_pagamento) : undefined,
           };
         }
       }
