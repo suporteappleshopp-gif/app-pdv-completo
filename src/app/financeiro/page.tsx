@@ -122,27 +122,6 @@ export default function FinanceiroPage() {
 
           await db.addPagamento(novoPagamento);
           console.log("Pagamento inicial adicionado com sucesso!");
-
-          // Atualizar dias no Supabase (99 dias)
-          try {
-            const { supabase } = await import("@/lib/supabase");
-            const dataVencimento = new Date();
-            dataVencimento.setDate(dataVencimento.getDate() + 99);
-
-            await supabase
-              .from("operadores")
-              .update({
-                data_proximo_vencimento: dataVencimento.toISOString(),
-                ativo: true,
-                suspenso: false,
-                aguardando_pagamento: false,
-              })
-              .eq("email", "diego2@gmail.com");
-
-            console.log("Dias restantes atualizados para 99 dias");
-          } catch (error) {
-            console.error("Erro ao atualizar dias no Supabase:", error);
-          }
         }
       }
 
@@ -165,28 +144,73 @@ export default function FinanceiroPage() {
         setCartaoSalvo(JSON.parse(cartaoSalvoStorage));
       }
 
-      // Carregar dias restantes do Supabase
-      try {
-        const { supabase } = await import("@/lib/supabase");
-        const { data: operadorDB } = await supabase
-          .from("operadores")
-          .select("data_proximo_vencimento")
-          .eq("email", operador.email)
-          .single();
-
-        if (operadorDB?.data_proximo_vencimento) {
-          const vencimento = new Date(operadorDB.data_proximo_vencimento);
-          const hoje = new Date();
-          const dias = differenceInDays(vencimento, hoje);
-          setDiasRestantes(dias);
-          setDataProximoVencimento(vencimento);
-        }
-      } catch (error) {
-        console.error("Erro ao carregar dias restantes:", error);
-      }
-
       await calcularGanhos();
       await calcularTotalDiasDisponiveis();
+
+      // Calcular dias restantes com base nos pagamentos
+      const pagamentosPagos = todosPagamentos.filter(p => p.status === "pago");
+
+      if (pagamentosPagos.length > 0) {
+        // Somar todos os dias comprados
+        const totalDiasComprados = pagamentosPagos.reduce((total, p) => {
+          return total + (p.diasComprados || 0);
+        }, 0);
+
+        // Pegar a data do primeiro pagamento
+        const datasPagamento = pagamentosPagos.map(p =>
+          p.dataPagamento ? new Date(p.dataPagamento) : new Date(p.dataVencimento)
+        );
+        const primeiroPagamento = new Date(Math.min(...datasPagamento.map(d => d.getTime())));
+
+        // Calcular dias já usados desde o primeiro pagamento
+        const hoje = new Date();
+        const diasUsados = differenceInDays(hoje, primeiroPagamento);
+
+        // Dias restantes = total comprado - dias já usados
+        const diasRestantesCalculados = Math.max(0, totalDiasComprados - diasUsados);
+
+        // Calcular data de vencimento
+        const dataVencimento = new Date(primeiroPagamento);
+        dataVencimento.setDate(dataVencimento.getDate() + totalDiasComprados);
+
+        setDiasRestantes(diasRestantesCalculados);
+        setDataProximoVencimento(dataVencimento);
+
+        // Atualizar no Supabase
+        try {
+          const { supabase } = await import("@/lib/supabase");
+          await supabase
+            .from("operadores")
+            .update({
+              data_proximo_vencimento: dataVencimento.toISOString(),
+              ativo: diasRestantesCalculados > 0,
+              suspenso: diasRestantesCalculados <= 0,
+            })
+            .eq("email", operador.email);
+        } catch (error) {
+          console.error("Erro ao atualizar Supabase:", error);
+        }
+      } else {
+        // Sem pagamentos, carregar do Supabase
+        try {
+          const { supabase } = await import("@/lib/supabase");
+          const { data: operadorDB } = await supabase
+            .from("operadores")
+            .select("data_proximo_vencimento")
+            .eq("email", operador.email)
+            .single();
+
+          if (operadorDB?.data_proximo_vencimento) {
+            const vencimento = new Date(operadorDB.data_proximo_vencimento);
+            const hoje = new Date();
+            const dias = differenceInDays(vencimento, hoje);
+            setDiasRestantes(dias);
+            setDataProximoVencimento(vencimento);
+          }
+        } catch (error) {
+          console.error("Erro ao carregar dias restantes:", error);
+        }
+      }
     } catch (err) {
       console.error("Erro ao carregar dados:", err);
     } finally {
