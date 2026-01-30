@@ -918,32 +918,35 @@ export default function AdminPage() {
                           )}
 
                           {/* Data de Ativação e Dias Restantes */}
-                          <div className="flex items-center space-x-1 px-3 py-1 bg-blue-500/20 text-blue-300 rounded-lg border border-blue-500/30">
-                            <Calendar className="w-4 h-4" />
-                            <span className="text-xs font-semibold">
-                              Ativado: {format(new Date(operador.createdAt), "dd/MM/yyyy", { locale: ptBR })}
-                            </span>
+                          <div className="flex flex-col space-y-2">
+                            {/* Data de Ativação */}
+                            <div className="flex items-center space-x-1 px-3 py-1 bg-blue-500/20 text-blue-300 rounded-lg border border-blue-500/30">
+                              <Calendar className="w-4 h-4" />
+                              <span className="text-xs font-semibold">
+                                Ativado: {format(new Date(operador.createdAt), "dd/MM/yyyy", { locale: ptBR })}
+                              </span>
+                            </div>
+
+                            {/* Dias Restantes */}
+                            {operador.dataProximoVencimento && (() => {
+                              const hoje = new Date();
+                              const vencimento = new Date(operador.dataProximoVencimento);
+                              const diasRestantesCalc = Math.ceil((vencimento.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
+
+                              return (
+                                <div className={`flex items-center space-x-1 px-3 py-1 rounded-lg border ${
+                                  diasRestantesCalc > 10 ? "bg-green-500/20 text-green-300 border-green-500/30" :
+                                  diasRestantesCalc > 5 ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/30" :
+                                  "bg-red-500/20 text-red-300 border-red-500/30"
+                                }`}>
+                                  <Calendar className="w-4 h-4" />
+                                  <span className="text-xs font-semibold">
+                                    {diasRestantesCalc >= 0 ? `${diasRestantesCalc} dias restantes` : "Vencido"}
+                                  </span>
+                                </div>
+                              );
+                            })()}
                           </div>
-
-                          {/* Dias Restantes */}
-                          {operador.dataProximoVencimento && (() => {
-                            const hoje = new Date();
-                            const vencimento = new Date(operador.dataProximoVencimento);
-                            const diasRestantesCalc = Math.ceil((vencimento.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
-
-                            return (
-                              <div className={`flex items-center space-x-1 px-3 py-1 rounded-lg border ${
-                                diasRestantesCalc > 10 ? "bg-green-500/20 text-green-300 border-green-500/30" :
-                                diasRestantesCalc > 5 ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/30" :
-                                "bg-red-500/20 text-red-300 border-red-500/30"
-                              }`}>
-                                <Calendar className="w-4 h-4" />
-                                <span className="text-xs font-semibold">
-                                  {diasRestantesCalc >= 0 ? `${diasRestantesCalc} dias restantes` : "Vencido"}
-                                </span>
-                              </div>
-                            );
-                          })()}
 
                           {/* Badge de status */}
                           {operador.suspenso ? (
