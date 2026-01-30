@@ -3,7 +3,15 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Criar cliente Supabase apenas se as credenciais estiverem configuradas
+// Caso contrário, o app funciona em modo local (IndexedDB)
+export const supabase = (supabaseUrl && supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : createClient('https://placeholder.supabase.co', 'placeholder-key', {
+      auth: { persistSession: false },
+      db: { schema: 'public' },
+      global: { fetch: () => Promise.reject(new Error('Supabase não configurado - usando modo local')) }
+    });
 
 // Tipos para o banco de dados
 export interface Database {
