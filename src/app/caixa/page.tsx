@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/db";
-import { CloudSync } from "@/lib/sync";
+import { SupabaseSync } from "@/lib/supabase-sync";
 import { GerenciadorAssinatura } from "@/lib/assinatura";
 import { Produto, ItemVenda, Venda, Operador, TipoPagamento } from "@/lib/types";
 import {
@@ -200,15 +200,15 @@ export default function CaixaPage() {
         operadorNome,
       }));
 
-      // Se online E Supabase configurado, sincronizar com nuvem
-      if (online && supabaseConfigured) {
-        // Sincronizar dados específicos baseado no tipo
+      // Se online E Supabase configurado, sincronizar com nuvem isolado por usuário
+      if (online && supabaseConfigured && operadorId) {
+        // Sincronizar dados específicos baseado no tipo com isolamento por usuário
         if (tipo === "venda_concluida" || tipo === "venda_cancelada") {
           const todasVendas = await db.getAllVendas();
-          await CloudSync.syncVendas(todasVendas);
+          await SupabaseSync.syncVendas(operadorId, todasVendas);
         } else if (tipo === "produto_estoque") {
           const todosProdutos = await db.getAllProdutos();
-          await CloudSync.syncProdutos(todosProdutos);
+          await SupabaseSync.syncProdutos(operadorId, todosProdutos);
         } else if (tipo === "carrinho") {
           // Carrinho é apenas local, não sincroniza
         }
@@ -248,12 +248,19 @@ export default function CaixaPage() {
 
   // Monitorar status online/offline
   useEffect(() => {
-    const handleOnline = () => {
+    const handleOnline = async () => {
       setOnline(true);
       console.log("✅ Conexão restaurada - sincronizando dados...");
-      // Sincronizar dados pendentes quando voltar online
-      if (supabaseConfigured) {
-        CloudSync.syncAll();
+      // Sincronizar dados pendentes quando voltar online com isolamento por usuário
+      if (supabaseConfigured && operadorId) {
+        try {
+          const todasVendas = await db.getAllVendas();
+          const todosProdutos = await db.getAllProdutos();
+          await SupabaseSync.syncVendas(operadorId, todasVendas);
+          await SupabaseSync.syncProdutos(operadorId, todosProdutos);
+        } catch (error) {
+          console.error("Erro ao sincronizar após reconexão:", error);
+        }
       }
     };
 
@@ -272,7 +279,7 @@ export default function CaixaPage() {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [supabaseConfigured]);
+  }, [supabaseConfigured, operadorId]);
 
   // Salvar carrinho automaticamente
   useEffect(() => {
@@ -298,7 +305,7 @@ export default function CaixaPage() {
     setMounted(true);
 
     // Verificar se Supabase está configurado
-    const isConfigured = CloudSync.isConfigured();
+    const isConfigured = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
     setSupabaseConfigured(isConfigured);
 
     // Inicializar banco e carregar produtos
@@ -332,17 +339,14 @@ export default function CaixaPage() {
       }
 
       await db.init();
-      
-      // Tentar carregar produtos da nuvem primeiro (se configurado)
+
+      // Tentar carregar produtos da nuvem primeiro isolados por usuário
       if (isConfigured) {
         try {
-          const produtosNuvem = await CloudSync.loadProdutos();
+          const produtosNuvem = await SupabaseSync.loadProdutos(operador.id);
           if (produtosNuvem.length > 0) {
             setProdutos(produtosNuvem);
-            console.log("✅ Produtos carregados da nuvem");
-            
-            // Configurar sincronização automática a cada 30 segundos
-            CloudSync.setupAutoSync(30000);
+            console.log("✅ Produtos carregados da nuvem para usuário:", operador.id);
             return;
           }
         } catch (error) {
@@ -583,21 +587,21 @@ export default function CaixaPage() {
   }, [carrinho]);
 
   const carregarVendas = async () => {
-    // Tentar carregar da nuvem primeiro
-    if (supabaseConfigured) {
+    // Tentar carregar da nuvem primeiro isoladas por usuário
+    if (supabaseConfigured && operadorId) {
       try {
-        const vendasNuvem = await CloudSync.loadVendas();
-        const realizadas = vendasNuvem.filter(v => v.operadorId === operadorId && v.status === "concluida");
-        const canceladas = vendasNuvem.filter(v => v.operadorId === operadorId && v.status === "cancelada");
+        const vendasNuvem = await SupabaseSync.loadVendas(operadorId);
+        const realizadas = vendasNuvem.filter(v => v.status === "concluida");
+        const canceladas = vendasNuvem.filter(v => v.status === "cancelada");
         setVendasRealizadas(realizadas);
         setVendasCanceladas(canceladas);
-        console.log("✅ Vendas carregadas da nuvem");
+        console.log("✅ Vendas carregadas da nuvem para usuário:", operadorId);
         return;
       } catch (error) {
         console.error("⚠️ Erro ao carregar vendas da nuvem, usando dados locais:", error);
       }
     }
-    
+
     // Fallback: carregar vendas locais
     const todasVendas = await db.getAllVendas();
     const realizadas = todasVendas.filter(v => v.operadorId === operadorId && v.status === "concluida");
