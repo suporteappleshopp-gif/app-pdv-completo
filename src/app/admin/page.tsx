@@ -535,11 +535,20 @@ export default function AdminPage() {
       const novaDataVencimento = new Date(dataAtual);
       novaDataVencimento.setDate(novaDataVencimento.getDate() + diasParaAdicionar);
 
-      const operadorAtualizado = {
+      const operadorAtualizado: Operador = {
         ...operadorParaGerenciarDias,
         dataProximoVencimento: novaDataVencimento,
         diasAssinatura: (operadorParaGerenciarDias.diasAssinatura || 0) + diasParaAdicionar,
+        ativo: true, // Garantir que o usuário fique ativo
+        suspenso: false, // Remover suspensão ao adicionar dias
       };
+
+      console.log("🔄 Atualizando operador:", {
+        id: operadorAtualizado.id,
+        email: operadorAtualizado.email,
+        dataProximoVencimento: operadorAtualizado.dataProximoVencimento,
+        diasAssinatura: operadorAtualizado.diasAssinatura,
+      });
 
       const sucesso = await AdminSupabase.updateOperador(operadorAtualizado);
 
@@ -556,7 +565,7 @@ export default function AdminPage() {
         setTimeout(() => setError(""), 3000);
       }
     } catch (err) {
-      console.error("Erro ao gerenciar dias:", err);
+      console.error("❌ Erro ao gerenciar dias:", err);
       setError("Erro ao gerenciar dias");
       setTimeout(() => setError(""), 3000);
     }

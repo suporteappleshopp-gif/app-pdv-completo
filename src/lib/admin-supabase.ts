@@ -159,19 +159,28 @@ export class AdminSupabase {
         updateData.forma_pagamento = operador.formaPagamento;
       }
 
+      console.log("📤 Dados que serão enviados ao Supabase:", {
+        id: operador.id,
+        email: operador.email,
+        data_proximo_vencimento: updateData.data_proximo_vencimento,
+        dias_assinatura: updateData.dias_assinatura,
+        ativo: updateData.ativo,
+      });
+
       const { error } = await supabase
         .from("operadores")
         .update(updateData)
         .eq("id", operador.id);
 
       if (error) {
-        console.error("Erro ao atualizar operador:", error);
+        console.error("❌ Erro ao atualizar operador:", error);
         return false;
       }
 
+      console.log("✅ Operador atualizado com sucesso!");
       return true;
     } catch (error) {
-      console.error("Erro ao atualizar operador:", error);
+      console.error("❌ Erro ao atualizar operador:", error);
       return false;
     }
   }
