@@ -614,9 +614,36 @@ export default function CaixaPage() {
       return;
     }
 
+    // Verificar se o estoque está esgotado
+    if (produto.estoque <= 0) {
+      const confirmar = window.confirm(
+        `⚠️ ATENÇÃO: O produto "${produto.nome}" está ESGOTADO (estoque: ${produto.estoque}).\n\nDeseja adicionar mesmo assim ao carrinho?`
+      );
+
+      if (!confirmar) {
+        setBusca("");
+        setMostrarProdutos(false);
+        return;
+      }
+    }
+
     const itemExistente = carrinho.find((item) => item.produtoId === produto.id);
-    
+
     if (itemExistente) {
+      // Verificar se a quantidade no carrinho já ultrapassou o estoque
+      const novaQuantidade = itemExistente.quantidade + 1;
+      if (novaQuantidade > produto.estoque && produto.estoque > 0) {
+        const confirmar = window.confirm(
+          `⚠️ ATENÇÃO: A quantidade solicitada (${novaQuantidade}) ultrapassa o estoque disponível (${produto.estoque}) do produto "${produto.nome}".\n\nDeseja adicionar mesmo assim?`
+        );
+
+        if (!confirmar) {
+          setBusca("");
+          setMostrarProdutos(false);
+          return;
+        }
+      }
+
       setCarrinho(
         carrinho.map((item) =>
           item.produtoId === produto.id
@@ -638,7 +665,7 @@ export default function CaixaPage() {
       };
       setCarrinho([...carrinho, novoItem]);
     }
-    
+
     setBusca("");
     setMostrarProdutos(false);
   };
@@ -647,6 +674,38 @@ export default function CaixaPage() {
     if (!usuarioSemMensalidade && !podeUsarApp) {
       setMostrarBloqueio(true);
       return;
+    }
+
+    // Se está aumentando a quantidade, verificar estoque
+    if (delta > 0) {
+      const item = carrinho.find(i => i.produtoId === produtoId);
+      const produto = produtos.find(p => p.id === produtoId);
+
+      if (item && produto) {
+        const novaQuantidade = item.quantidade + delta;
+
+        // Verificar se ultrapassa o estoque disponível
+        if (novaQuantidade > produto.estoque && produto.estoque > 0) {
+          const confirmar = window.confirm(
+            `⚠️ ATENÇÃO: A quantidade solicitada (${novaQuantidade}) ultrapassa o estoque disponível (${produto.estoque}) do produto "${produto.nome}".\n\nDeseja aumentar mesmo assim?`
+          );
+
+          if (!confirmar) {
+            return;
+          }
+        }
+
+        // Verificar se o produto está esgotado
+        if (produto.estoque <= 0) {
+          const confirmar = window.confirm(
+            `⚠️ ATENÇÃO: O produto "${produto.nome}" está ESGOTADO (estoque: ${produto.estoque}).\n\nDeseja aumentar a quantidade mesmo assim?`
+          );
+
+          if (!confirmar) {
+            return;
+          }
+        }
+      }
     }
 
     setCarrinho(
