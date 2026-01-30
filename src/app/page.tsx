@@ -754,13 +754,13 @@ export default function LoginPage() {
                   value={senhaAdmin}
                   onChange={(e) => setSenhaAdmin(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                  placeholder="Digite a senha: Sedexdez@1"
+                  placeholder="Digite a senha do administrador"
                   required
                   autoFocus
                 />
               </div>
               <p className="mt-2 text-sm text-gray-500">
-                Digite apenas a senha do administrador para acessar o painel.
+                Acesso restrito apenas para administradores do sistema.
               </p>
             </div>
           )}
