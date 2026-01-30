@@ -202,20 +202,15 @@ export default function CaixaPage() {
 
       // Se online E Supabase configurado, sincronizar com nuvem
       if (online && supabaseConfigured) {
-        try {
-          // Sincronizar dados específicos baseado no tipo
-          if (tipo === "venda_concluida" || tipo === "venda_cancelada") {
-            const todasVendas = await db.getAllVendas();
-            await CloudSync.syncVendas(todasVendas);
-          } else if (tipo === "produto_estoque") {
-            const todosProdutos = await db.getAllProdutos();
-            await CloudSync.syncProdutos(todosProdutos);
-          } else if (tipo === "carrinho") {
-            // Carrinho é apenas local, não sincroniza
-          }
-          console.log(`✅ Dados sincronizados na nuvem (${tipo})`);
-        } catch (syncError) {
-          console.error("⚠️ Erro ao sincronizar com nuvem (dados salvos localmente):", syncError);
+        // Sincronizar dados específicos baseado no tipo
+        if (tipo === "venda_concluida" || tipo === "venda_cancelada") {
+          const todasVendas = await db.getAllVendas();
+          await CloudSync.syncVendas(todasVendas);
+        } else if (tipo === "produto_estoque") {
+          const todosProdutos = await db.getAllProdutos();
+          await CloudSync.syncProdutos(todosProdutos);
+        } else if (tipo === "carrinho") {
+          // Carrinho é apenas local, não sincroniza
         }
       }
 

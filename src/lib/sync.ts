@@ -61,8 +61,8 @@ export class CloudSync {
       }
       console.log('✅ Produtos sincronizados na nuvem');
     } catch (error) {
-      console.error('❌ Erro ao sincronizar produtos:', error);
-      throw error;
+      console.warn('⚠️ Erro ao sincronizar produtos (dados salvos localmente):', error);
+      // Não lança erro - permite que a operação continue mesmo sem sincronização
     }
   }
 
@@ -109,8 +109,8 @@ export class CloudSync {
       }
       console.log('✅ Vendas sincronizadas na nuvem');
     } catch (error) {
-      console.error('❌ Erro ao sincronizar vendas:', error);
-      throw error;
+      console.warn('⚠️ Erro ao sincronizar vendas (dados salvos localmente):', error);
+      // Não lança erro - permite que a operação continue mesmo sem sincronização
     }
   }
 
