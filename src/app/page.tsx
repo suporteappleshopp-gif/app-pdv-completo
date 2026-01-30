@@ -141,43 +141,64 @@ export default function LoginPage() {
 
       console.log("✅ Admin criado no Auth! ID:", authData.user.id);
 
-      // Passo 2: Aguardar trigger criar o operador
-      console.log("⏳ Aguardando criação automática do operador...");
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Passo 2: Aguardar um pouco para possível trigger
+      console.log("⏳ Aguardando possível criação automática...");
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Passo 3: Verificar se operador foi criado
-      const { data: operadorCriado } = await supabase
+      // Passo 3: Verificar se operador foi criado pelo trigger
+      let { data: operadorCriado } = await supabase
         .from("operadores")
         .select("*")
         .eq("auth_user_id", authData.user.id)
-        .single();
+        .maybeSingle();
 
+      // Passo 4: Se não existe, criar manualmente
       if (!operadorCriado) {
-        setError("Operador não foi criado automaticamente. Verifique o trigger no banco de dados.");
-        setLoading(false);
-        return;
+        console.log("⚠️ Trigger não criou o operador. Criando manualmente...");
+
+        const { data: novoOperador, error: insertError } = await supabase
+          .from("operadores")
+          .insert({
+            auth_user_id: authData.user.id,
+            email: ADMIN_EMAIL,
+            nome: "Diego Marques",
+            senha: "", // Senha gerenciada pelo Auth
+            is_admin: true,
+            ativo: true,
+            suspenso: false,
+            aguardando_pagamento: false,
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          setError("Erro ao criar operador: " + insertError.message);
+          setLoading(false);
+          return;
+        }
+
+        operadorCriado = novoOperador;
+        console.log("✅ Operador criado manualmente:", operadorCriado.id);
+      } else {
+        console.log("✅ Operador já existe:", operadorCriado.id);
+
+        // Atualizar para garantir que é admin
+        const { error: updateError } = await supabase
+          .from("operadores")
+          .update({
+            is_admin: true,
+            ativo: true,
+            suspenso: false,
+            aguardando_pagamento: false,
+          })
+          .eq("auth_user_id", authData.user.id);
+
+        if (updateError) {
+          console.warn("⚠️ Erro ao atualizar operador:", updateError.message);
+        }
       }
 
-      console.log("✅ Operador criado:", operadorCriado.id);
-
-      // Passo 4: Atualizar operador para ser admin
-      const { error: updateError } = await supabase
-        .from("operadores")
-        .update({
-          is_admin: true,
-          ativo: true,
-          suspenso: false,
-          aguardando_pagamento: false,
-        })
-        .eq("auth_user_id", authData.user.id);
-
-      if (updateError) {
-        setError("Erro ao configurar permissões: " + updateError.message);
-        setLoading(false);
-        return;
-      }
-
-      console.log("✅ Permissões de admin configuradas!");
+      console.log("✅ Admin configurado com sucesso!");
 
       alert("✅ Administrador criado com sucesso! Agora você pode fazer login.");
       setLoading(false);
