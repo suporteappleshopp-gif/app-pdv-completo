@@ -76,8 +76,16 @@ export default function DiagnosticoAdminPage() {
       if (authError) {
         addResultado("Login no Supabase Auth", false, `Erro: ${authError.message}`);
 
+        // Se o erro for "Email not confirmed", instruir usuário
+        if (authError.message.includes("Email not confirmed")) {
+          addResultado(
+            "⚠️ Email Não Confirmado",
+            false,
+            "O email precisa ser confirmado no painel do Supabase. Veja as instruções abaixo para resolver."
+          );
+        }
         // Se o erro for "Invalid login credentials", o admin pode não existir no Auth
-        if (authError.message.includes("Invalid login")) {
+        else if (authError.message.includes("Invalid login")) {
           addResultado("Diagnóstico", false, "Admin não existe no sistema de autenticação. Use o botão 'Configurar Admin' na tela de login.");
         }
       } else if (!authData.user) {
@@ -245,6 +253,43 @@ export default function DiagnosticoAdminPage() {
                 <li>Se o login falhar com "Invalid login credentials", o admin precisa ser criado no sistema de autenticação.</li>
                 <li>Após configurar, volte à tela de login e entre como administrador usando as credenciais acima.</li>
               </ol>
+            </div>
+          </div>
+        </div>
+
+        {/* Instruções Especiais para "Email not confirmed" */}
+        <div className="bg-red-500/20 border border-red-500/30 rounded-2xl p-6 mt-6">
+          <div className="flex items-start space-x-3">
+            <AlertCircle className="w-6 h-6 text-red-400 flex-shrink-0 mt-0.5" />
+            <div className="text-red-100 flex-1">
+              <h3 className="font-semibold mb-3 text-lg">🔴 ERRO: "Email not confirmed"</h3>
+              <p className="mb-4 text-sm">Se você viu este erro, siga estas etapas no painel do Supabase:</p>
+
+              <div className="bg-black/30 rounded-lg p-4 space-y-4 text-sm">
+                <div>
+                  <p className="font-bold mb-2">📍 OPÇÃO 1: Desabilitar Confirmação de Email (Recomendado)</p>
+                  <ol className="list-decimal list-inside space-y-1 ml-2">
+                    <li>Acesse: <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="underline text-blue-300 hover:text-blue-200">https://supabase.com/dashboard</a></li>
+                    <li>Vá em <strong>Authentication</strong> → <strong>Providers</strong></li>
+                    <li>Clique em <strong>Email</strong></li>
+                    <li>Desmarque a opção <strong>"Confirm email"</strong></li>
+                    <li>Clique em <strong>Save</strong></li>
+                    <li>Volte aqui e tente fazer login novamente</li>
+                  </ol>
+                </div>
+
+                <div className="border-t border-red-400/30 pt-3">
+                  <p className="font-bold mb-2">📍 OPÇÃO 2: Confirmar Email Manualmente</p>
+                  <ol className="list-decimal list-inside space-y-1 ml-2">
+                    <li>Acesse: <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="underline text-blue-300 hover:text-blue-200">https://supabase.com/dashboard</a></li>
+                    <li>Vá em <strong>Authentication</strong> → <strong>Users</strong></li>
+                    <li>Encontre o usuário: <strong>{ADMIN_EMAIL}</strong></li>
+                    <li>Clique nos três pontos (...) ao lado do usuário</li>
+                    <li>Clique em <strong>"Confirm email"</strong> ou <strong>"Verify email"</strong></li>
+                    <li>Volte aqui e tente fazer login novamente</li>
+                  </ol>
+                </div>
+              </div>
             </div>
           </div>
         </div>
