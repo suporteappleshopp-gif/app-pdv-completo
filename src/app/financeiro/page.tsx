@@ -99,6 +99,53 @@ export default function FinanceiroPage() {
 
       if (!operador) return;
 
+      // INICIALIZAÇÃO AUTOMÁTICA: Adicionar pagamento inicial para diego2@gmail.com
+      if (operador.email === "diego2@gmail.com") {
+        const pagamentosExistentes = await db.getPagamentosByUsuario(operador.id);
+
+        // Se não tem nenhum pagamento, adicionar o pagamento inicial
+        if (pagamentosExistentes.length === 0) {
+          console.log("Inicializando pagamento para diego2@gmail.com...");
+
+          const novoPagamento: Pagamento = {
+            id: `pag_diego_init_${Date.now()}`,
+            usuarioId: operador.id,
+            mesReferencia: "Renovação 100 dias - PIX",
+            valor: 59.90,
+            dataVencimento: new Date(),
+            dataPagamento: new Date(),
+            status: "pago",
+            formaPagamento: "pix",
+            diasComprados: 100,
+            tipoCompra: "renovacao-100",
+          };
+
+          await db.addPagamento(novoPagamento);
+          console.log("Pagamento inicial adicionado com sucesso!");
+
+          // Atualizar dias no Supabase (99 dias)
+          try {
+            const { supabase } = await import("@/lib/supabase");
+            const dataVencimento = new Date();
+            dataVencimento.setDate(dataVencimento.getDate() + 99);
+
+            await supabase
+              .from("operadores")
+              .update({
+                data_proximo_vencimento: dataVencimento.toISOString(),
+                ativo: true,
+                suspenso: false,
+                aguardando_pagamento: false,
+              })
+              .eq("email", "diego2@gmail.com");
+
+            console.log("Dias restantes atualizados para 99 dias");
+          } catch (error) {
+            console.error("Erro ao atualizar dias no Supabase:", error);
+          }
+        }
+      }
+
       // Carregar pagamentos
       const todosPagamentos = await db.getPagamentosByUsuario(operador.id);
       todosPagamentos.sort((a, b) =>
