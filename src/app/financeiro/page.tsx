@@ -55,10 +55,6 @@ export default function FinanceiroPage() {
   });
   const [cartaoSalvo, setCartaoSalvo] = useState<any>(null);
 
-  // Estados para compra personalizada de dias
-  const [showModalCompraDias, setShowModalCompraDias] = useState(false);
-  const [diasParaComprar, setDiasParaComprar] = useState("");
-  const [formaPagamentoPersonalizada, setFormaPagamentoPersonalizada] = useState<"pix" | "cartao">("pix");
   const [totalDiasDisponiveis, setTotalDiasDisponiveis] = useState(0);
 
   useEffect(() => {
@@ -330,59 +326,6 @@ export default function FinanceiroPage() {
     }
   };
 
-  const abrirModalCompraDias = () => {
-    setShowModalCompraDias(true);
-    setDiasParaComprar("");
-    setFormaPagamentoPersonalizada("pix");
-  };
-
-  const calcularValorDias = () => {
-    const dias = parseInt(diasParaComprar) || 0;
-    // R$ 0,60 por dia
-    return (dias * 0.60).toFixed(2);
-  };
-
-  const confirmarCompraDias = async () => {
-    const dias = parseInt(diasParaComprar);
-
-    if (!dias || dias <= 0) {
-      alert("Digite uma quantidade válida de dias!");
-      return;
-    }
-
-    if (dias < 10) {
-      alert("A compra mínima é de 10 dias!");
-      return;
-    }
-
-    try {
-      const valor = parseFloat(calcularValorDias());
-
-      // Criar novo pagamento
-      const novoPagamento: Pagamento = {
-        id: `pag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        usuarioId: operadorId,
-        mesReferencia: `Compra de ${dias} dias`,
-        valor: valor,
-        dataVencimento: new Date(),
-        dataPagamento: new Date(),
-        status: "pago",
-        formaPagamento: formaPagamentoPersonalizada,
-        diasComprados: dias,
-        tipoCompra: "personalizado",
-      };
-
-      await db.addPagamento(novoPagamento);
-
-      alert(`Compra de ${dias} dias confirmada com sucesso!\nValor: R$ ${valor}`);
-      setShowModalCompraDias(false);
-      carregarDados();
-    } catch (err) {
-      console.error("Erro ao processar compra:", err);
-      alert("Erro ao processar compra!");
-    }
-  };
-
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "pago":
@@ -595,7 +538,30 @@ export default function FinanceiroPage() {
                 </div>
 
                 <button
-                  onClick={() => window.open("https://mpago.la/24Hxr1X", "_blank")}
+                  onClick={async () => {
+                    window.open("https://mpago.la/24Hxr1X", "_blank");
+
+                    // Registrar pagamento no banco
+                    try {
+                      const novoPagamento: Pagamento = {
+                        id: `pag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                        usuarioId: operadorId,
+                        mesReferencia: "Renovação 100 dias - PIX",
+                        valor: 59.90,
+                        dataVencimento: new Date(),
+                        dataPagamento: new Date(),
+                        status: "pago",
+                        formaPagamento: "pix",
+                        diasComprados: 100,
+                        tipoCompra: "renovacao-100",
+                      };
+
+                      await db.addPagamento(novoPagamento);
+                      carregarDados();
+                    } catch (err) {
+                      console.error("Erro ao registrar pagamento:", err);
+                    }
+                  }}
                   className="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
                 >
                   <span>Renovar com PIX</span>
@@ -644,7 +610,30 @@ export default function FinanceiroPage() {
                 </div>
 
                 <button
-                  onClick={() => window.open("https://mpago.li/12S6mJE", "_blank")}
+                  onClick={async () => {
+                    window.open("https://mpago.li/12S6mJE", "_blank");
+
+                    // Registrar pagamento no banco
+                    try {
+                      const novoPagamento: Pagamento = {
+                        id: `pag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                        usuarioId: operadorId,
+                        mesReferencia: "Renovação Anual 365 dias - Cartão",
+                        valor: 149.70,
+                        dataVencimento: new Date(),
+                        dataPagamento: new Date(),
+                        status: "pago",
+                        formaPagamento: "cartao",
+                        diasComprados: 365,
+                        tipoCompra: "renovacao-365",
+                      };
+
+                      await db.addPagamento(novoPagamento);
+                      carregarDados();
+                    } catch (err) {
+                      console.error("Erro ao registrar pagamento:", err);
+                    }
+                  }}
                   className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-4 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
                 >
                   <CreditCard className="w-5 h-5" />
@@ -672,78 +661,6 @@ export default function FinanceiroPage() {
             </div>
           </div>
         )}
-
-        {/* Seção de Compra Personalizada de Dias */}
-        <div className="bg-gradient-to-br from-cyan-600 via-blue-600 to-indigo-600 rounded-2xl shadow-2xl p-8 border border-white/20">
-          <div className="text-center mb-6">
-            <h2 className="text-3xl font-bold text-white mb-2">Compre Dias Personalizados</h2>
-            <p className="text-white/90 text-lg">
-              Escolha a quantidade de dias que deseja adicionar à sua conta
-            </p>
-            <p className="text-yellow-300 font-semibold text-xl mt-2">
-              R$ 0,60 por dia
-            </p>
-          </div>
-
-          <div className="bg-white/10 backdrop-blur-md rounded-xl p-8 border border-white/20 max-w-2xl mx-auto">
-            <div className="grid md:grid-cols-2 gap-6 mb-6">
-              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 border border-white/20">
-                <div className="text-center">
-                  <DollarSign className="w-12 h-12 text-yellow-300 mx-auto mb-3" />
-                  <p className="text-white/80 text-sm mb-2">Total de Dias Disponíveis</p>
-                  <p className="text-white text-4xl font-bold">{totalDiasDisponiveis}</p>
-                  <p className="text-white/70 text-xs mt-2">dias de acesso ativo</p>
-                </div>
-              </div>
-
-              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 border border-white/20">
-                <div className="text-center">
-                  <Calendar className="w-12 h-12 text-green-300 mx-auto mb-3" />
-                  <p className="text-white/80 text-sm mb-2">Dias Restantes</p>
-                  <p className="text-white text-4xl font-bold">{diasRestantes >= 0 ? diasRestantes : 0}</p>
-                  <p className="text-white/70 text-xs mt-2">até o vencimento</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="bg-gradient-to-r from-emerald-500/20 to-green-500/20 border border-green-400/30 rounded-lg p-4">
-                <div className="flex items-start space-x-3">
-                  <CheckCircle className="w-5 h-5 text-green-300 flex-shrink-0 mt-0.5" />
-                  <div className="text-white/90 text-sm">
-                    <p className="font-semibold mb-1">Flexibilidade Total:</p>
-                    <p>✅ Compre a quantidade de dias que precisar (mínimo 10 dias)</p>
-                    <p>✅ Os dias são somados ao seu saldo atual</p>
-                    <p>✅ Sem compromisso de renovação automática</p>
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={abrirModalCompraDias}
-                className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white py-4 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
-              >
-                <DollarSign className="w-6 h-6" />
-                <span>Comprar Dias Agora</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20 text-center">
-              <p className="text-white/80 text-sm mb-2">10 dias</p>
-              <p className="text-white text-2xl font-bold">R$ 6,00</p>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20 text-center">
-              <p className="text-white/80 text-sm mb-2">30 dias</p>
-              <p className="text-white text-2xl font-bold">R$ 18,00</p>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20 text-center">
-              <p className="text-white/80 text-sm mb-2">100 dias</p>
-              <p className="text-white text-2xl font-bold">R$ 60,00</p>
-            </div>
-          </div>
-        </div>
 
         {/* Banner Financeiro - Análise de Ganhos */}
         <div className="bg-gradient-to-br from-emerald-500 via-green-600 to-teal-600 rounded-2xl shadow-2xl p-8 border border-white/20">
@@ -1127,152 +1044,6 @@ export default function FinanceiroPage() {
                   className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg hover:from-purple-600 hover:to-indigo-700 transition-all font-semibold shadow-lg"
                 >
                   Salvar Meta
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Compra Personalizada de Dias */}
-      {showModalCompraDias && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl max-w-lg w-full border border-white/10">
-            <div className="bg-gradient-to-r from-cyan-600 to-blue-600 px-6 py-4 flex items-center justify-between rounded-t-2xl">
-              <h3 className="text-xl font-bold text-white">Comprar Dias Personalizados</h3>
-              <button
-                onClick={() => setShowModalCompraDias(false)}
-                className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-6">
-              {/* Informações Atuais */}
-              <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-purple-200 text-sm mb-1">Dias Disponíveis</p>
-                    <p className="text-white text-2xl font-bold">{totalDiasDisponiveis}</p>
-                  </div>
-                  <div>
-                    <p className="text-purple-200 text-sm mb-1">Dias Restantes</p>
-                    <p className="text-white text-2xl font-bold">{diasRestantes >= 0 ? diasRestantes : 0}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Input de Quantidade */}
-              <div>
-                <label className="block text-purple-200 text-sm font-semibold mb-2">
-                  Quantos dias deseja comprar? (mínimo 10)
-                </label>
-                <input
-                  type="number"
-                  value={diasParaComprar}
-                  onChange={(e) => setDiasParaComprar(e.target.value)}
-                  placeholder="Ex: 30"
-                  min="10"
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-cyan-500 text-lg font-semibold"
-                />
-              </div>
-
-              {/* Valor Calculado */}
-              {diasParaComprar && parseInt(diasParaComprar) >= 10 && (
-                <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-400/30 rounded-lg p-6">
-                  <div className="text-center">
-                    <p className="text-green-200 text-sm mb-2">Valor Total</p>
-                    <p className="text-white text-4xl font-bold mb-3">
-                      R$ {calcularValorDias()}
-                    </p>
-                    <div className="flex items-center justify-center space-x-2 text-green-200 text-sm">
-                      <span>{diasParaComprar} dias</span>
-                      <span>×</span>
-                      <span>R$ 0,60</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Forma de Pagamento */}
-              <div>
-                <label className="block text-purple-200 text-sm font-semibold mb-3">
-                  Forma de Pagamento
-                </label>
-                <div className="space-y-3">
-                  <button
-                    onClick={() => setFormaPagamentoPersonalizada("pix")}
-                    className={`w-full p-4 rounded-lg border-2 transition-all ${
-                      formaPagamentoPersonalizada === "pix"
-                        ? "border-green-500 bg-green-500/20"
-                        : "border-white/20 bg-white/5 hover:bg-white/10"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-6 h-6 bg-white rounded flex items-center justify-center">
-                          <span className="text-purple-600 font-bold text-xs">PIX</span>
-                        </div>
-                        <div className="text-left">
-                          <p className="text-white font-semibold">PIX</p>
-                          <p className="text-purple-200 text-sm">Pagamento instantâneo</p>
-                        </div>
-                      </div>
-                      {formaPagamentoPersonalizada === "pix" && (
-                        <CheckCircle className="w-6 h-6 text-green-400" />
-                      )}
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => setFormaPagamentoPersonalizada("cartao")}
-                    className={`w-full p-4 rounded-lg border-2 transition-all ${
-                      formaPagamentoPersonalizada === "cartao"
-                        ? "border-green-500 bg-green-500/20"
-                        : "border-white/20 bg-white/5 hover:bg-white/10"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <CreditCard className="w-6 h-6 text-white" />
-                        <div className="text-left">
-                          <p className="text-white font-semibold">Cartão de Crédito</p>
-                          <p className="text-purple-200 text-sm">Débito ou crédito</p>
-                        </div>
-                      </div>
-                      {formaPagamentoPersonalizada === "cartao" && (
-                        <CheckCircle className="w-6 h-6 text-green-400" />
-                      )}
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              {/* Informação */}
-              <div className="bg-blue-500/20 border border-blue-500/30 rounded-lg p-4">
-                <div className="flex items-start space-x-3">
-                  <AlertCircle className="w-5 h-5 text-blue-300 flex-shrink-0 mt-0.5" />
-                  <p className="text-blue-200 text-sm">
-                    Os dias comprados serão adicionados ao seu saldo total e aparecerão no extrato de pagamentos.
-                  </p>
-                </div>
-              </div>
-
-              {/* Botões */}
-              <div className="flex space-x-3 pt-4">
-                <button
-                  onClick={() => setShowModalCompraDias(false)}
-                  className="flex-1 px-4 py-3 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors font-semibold"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={confirmarCompraDias}
-                  disabled={!diasParaComprar || parseInt(diasParaComprar) < 10}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-lg hover:from-cyan-600 hover:to-blue-700 transition-all font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Confirmar Compra
                 </button>
               </div>
             </div>
