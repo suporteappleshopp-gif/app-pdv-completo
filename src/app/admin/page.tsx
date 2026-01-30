@@ -53,7 +53,7 @@ export default function AdminPage() {
   // Modal de criação de usuário
   const [showModal, setShowModal] = useState(false);
   const [novoUsuario, setNovoUsuario] = useState({
-    nome: "",
+    email: "",
     senha: "",
     formaPagamento: "sem-mensalidade" as "cartao" | "pix" | "sem-mensalidade",
   });
@@ -189,8 +189,16 @@ export default function AdminPage() {
   };
 
   const handleCriarUsuario = async () => {
-    if (!novoUsuario.nome || !novoUsuario.senha) {
+    if (!novoUsuario.email || !novoUsuario.senha) {
       setError("Preencha todos os campos");
+      setTimeout(() => setError(""), 3000);
+      return;
+    }
+
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(novoUsuario.email.trim())) {
+      setError("Digite um email válido");
       setTimeout(() => setError(""), 3000);
       return;
     }
@@ -202,6 +210,9 @@ export default function AdminPage() {
     }
 
     try {
+      // Extrair nome do email (parte antes do @)
+      const nomeExtraido = novoUsuario.email.split("@")[0];
+
       let valorPagamento = 0;
       let dataProximoVencimento = null;
       let ativo = false;
@@ -222,8 +233,8 @@ export default function AdminPage() {
 
       const novoOperador: Operador = {
         id: `user-${Date.now()}`,
-        nome: novoUsuario.nome,
-        email: `${novoUsuario.nome.toLowerCase().replace(/\s+/g, "")}@local`,
+        nome: nomeExtraido,
+        email: novoUsuario.email.trim(),
         senha: novoUsuario.senha,
         isAdmin: false,
         ativo: ativo,
@@ -261,9 +272,9 @@ export default function AdminPage() {
       );
       setTimeout(() => setSuccess(""), 3000);
       setShowModal(false);
-      setNovoUsuario({ 
-        nome: "", 
-        senha: "", 
+      setNovoUsuario({
+        email: "",
+        senha: "",
         formaPagamento: "sem-mensalidade",
       });
     } catch (err) {
@@ -917,16 +928,16 @@ export default function AdminPage() {
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-purple-200 text-sm font-semibold mb-2">
-                  Nome Completo
+                  Email
                 </label>
                 <input
-                  type="text"
-                  value={novoUsuario.nome}
+                  type="email"
+                  value={novoUsuario.email}
                   onChange={(e) =>
-                    setNovoUsuario({ ...novoUsuario, nome: e.target.value })
+                    setNovoUsuario({ ...novoUsuario, email: e.target.value })
                   }
                   className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-purple-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                  placeholder="Digite o nome completo"
+                  placeholder="Digite o email do usuário"
                 />
               </div>
 
