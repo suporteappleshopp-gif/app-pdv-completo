@@ -60,10 +60,16 @@ export default function AdminPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // Modal de edição de senha
+  // Modal de edição de senha e email
   const [showEditModal, setShowEditModal] = useState(false);
   const [usuarioParaEditar, setUsuarioParaEditar] = useState<Operador | null>(null);
   const [novaSenha, setNovaSenha] = useState("");
+  const [novoEmail, setNovoEmail] = useState("");
+
+  // Modal de gerenciar dias
+  const [showGerenciarDiasModal, setShowGerenciarDiasModal] = useState(false);
+  const [operadorParaGerenciarDias, setOperadorParaGerenciarDias] = useState<Operador | null>(null);
+  const [diasParaAdicionar, setDiasParaAdicionar] = useState(0);
 
   // Controle de visualização de senhas
   const [mostrarSenhas, setMostrarSenhas] = useState(false);
@@ -441,13 +447,28 @@ export default function AdminPage() {
   const abrirModalEditarSenha = (operador: Operador) => {
     setUsuarioParaEditar(operador);
     setNovaSenha("");
+    setNovoEmail(operador.email);
     setShowEditModal(true);
+  };
+
+  const abrirModalGerenciarDias = (operador: Operador) => {
+    setOperadorParaGerenciarDias(operador);
+    setDiasParaAdicionar(0);
+    setShowGerenciarDiasModal(true);
   };
 
   const handleEditarSenha = async () => {
     if (!usuarioParaEditar) return;
 
-    if (!novaSenha || novaSenha.length < 6) {
+    // Validar email
+    if (!novoEmail || !novoEmail.includes("@")) {
+      setError("Digite um email válido");
+      setTimeout(() => setError(""), 3000);
+      return;
+    }
+
+    // Validar senha se foi informada
+    if (novaSenha && novaSenha.length < 6) {
       setError("A senha deve ter no mínimo 6 caracteres");
       setTimeout(() => setError(""), 3000);
       return;
@@ -456,25 +477,63 @@ export default function AdminPage() {
     try {
       const operadorAtualizado = {
         ...usuarioParaEditar,
-        senha: novaSenha,
+        email: novoEmail,
+        ...(novaSenha && { senha: novaSenha }),
       };
 
       const sucesso = await AdminSupabase.updateOperador(operadorAtualizado);
-      
+
       if (sucesso) {
-        setSuccess("Senha alterada com sucesso!");
+        setSuccess("Dados alterados com sucesso!");
         setTimeout(() => setSuccess(""), 3000);
       } else {
-        setError("Erro ao alterar senha");
+        setError("Erro ao alterar dados");
         setTimeout(() => setError(""), 3000);
       }
-      
+
       setShowEditModal(false);
       setUsuarioParaEditar(null);
       setNovaSenha("");
+      setNovoEmail("");
     } catch (err) {
-      console.error("Erro ao alterar senha:", err);
-      setError("Erro ao alterar senha");
+      console.error("Erro ao alterar dados:", err);
+      setError("Erro ao alterar dados");
+      setTimeout(() => setError(""), 3000);
+    }
+  };
+
+  const handleGerenciarDias = async () => {
+    if (!operadorParaGerenciarDias) return;
+
+    try {
+      const dataAtual = operadorParaGerenciarDias.dataProximoVencimento
+        ? new Date(operadorParaGerenciarDias.dataProximoVencimento)
+        : new Date();
+
+      const novaDataVencimento = new Date(dataAtual);
+      novaDataVencimento.setDate(novaDataVencimento.getDate() + diasParaAdicionar);
+
+      const operadorAtualizado = {
+        ...operadorParaGerenciarDias,
+        dataProximoVencimento: novaDataVencimento,
+        diasAssinatura: (operadorParaGerenciarDias.diasAssinatura || 0) + diasParaAdicionar,
+      };
+
+      const sucesso = await AdminSupabase.updateOperador(operadorAtualizado);
+
+      if (sucesso) {
+        setSuccess(`${diasParaAdicionar > 0 ? 'Adicionados' : 'Removidos'} ${Math.abs(diasParaAdicionar)} dias com sucesso!`);
+        setTimeout(() => setSuccess(""), 3000);
+        setShowGerenciarDiasModal(false);
+        setOperadorParaGerenciarDias(null);
+        setDiasParaAdicionar(0);
+      } else {
+        setError("Erro ao gerenciar dias");
+        setTimeout(() => setError(""), 3000);
+      }
+    } catch (err) {
+      console.error("Erro ao gerenciar dias:", err);
+      setError("Erro ao gerenciar dias");
       setTimeout(() => setError(""), 3000);
     }
   };
@@ -862,6 +921,15 @@ export default function AdminPage() {
                             </span>
                           )}
 
+                          {/* Botão Gerenciar Dias */}
+                          <button
+                            onClick={() => abrirModalGerenciarDias(operador)}
+                            className="p-2 bg-purple-500/20 text-purple-300 rounded-lg hover:bg-purple-500/30 transition-all border border-purple-500/30"
+                            title="Gerenciar dias de acesso"
+                          >
+                            <Calendar className="w-5 h-5" />
+                          </button>
+
                           {/* Botão Confirmar Pagamento */}
                           {operador.aguardandoPagamento && (
                             <button
@@ -1229,17 +1297,18 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Modal de Edição de Senha */}
+      {/* Modal de Edição de Senha e Email */}
       {showEditModal && usuarioParaEditar && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl max-w-md w-full border border-white/10">
             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 flex items-center justify-between rounded-t-2xl">
-              <h3 className="text-xl font-bold text-white">Editar Senha</h3>
+              <h3 className="text-xl font-bold text-white">Editar Dados</h3>
               <button
                 onClick={() => {
                   setShowEditModal(false);
                   setUsuarioParaEditar(null);
                   setNovaSenha("");
+                  setNovoEmail("");
                 }}
                 className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
               >
@@ -1250,18 +1319,30 @@ export default function AdminPage() {
             <div className="p-6 space-y-4">
               <div>
                 <p className="text-purple-200 text-sm mb-4">
-                  Alterando senha do usuário: <span className="font-bold text-white">{usuarioParaEditar.nome}</span>
+                  Editando: <span className="font-bold text-white">{usuarioParaEditar.nome}</span>
                 </p>
+
                 <label className="block text-purple-200 text-sm font-semibold mb-2">
-                  Nova Senha (mínimo 6 caracteres)
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={novoEmail}
+                  onChange={(e) => setNovoEmail(e.target.value)}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-purple-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all mb-4"
+                  placeholder="Digite o novo email"
+                  autoFocus
+                />
+
+                <label className="block text-purple-200 text-sm font-semibold mb-2">
+                  Nova Senha (opcional - deixe vazio para manter a atual)
                 </label>
                 <input
                   type="password"
                   value={novaSenha}
                   onChange={(e) => setNovaSenha(e.target.value)}
                   className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-purple-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  placeholder="Digite a nova senha"
-                  autoFocus
+                  placeholder="Digite a nova senha (mínimo 6 caracteres)"
                 />
               </div>
 
@@ -1271,6 +1352,7 @@ export default function AdminPage() {
                     setShowEditModal(false);
                     setUsuarioParaEditar(null);
                     setNovaSenha("");
+                    setNovoEmail("");
                   }}
                   className="flex-1 px-4 py-3 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors font-semibold"
                 >
@@ -1280,7 +1362,91 @@ export default function AdminPage() {
                   onClick={handleEditarSenha}
                   className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all font-semibold shadow-lg"
                 >
-                  Salvar Senha
+                  Salvar Alterações
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Gerenciar Dias */}
+      {showGerenciarDiasModal && operadorParaGerenciarDias && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl max-w-md w-full border border-white/10">
+            <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+              <h3 className="text-xl font-bold text-white">Gerenciar Dias de Acesso</h3>
+              <button
+                onClick={() => {
+                  setShowGerenciarDiasModal(false);
+                  setOperadorParaGerenciarDias(null);
+                  setDiasParaAdicionar(0);
+                }}
+                className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <p className="text-purple-200 text-sm mb-4">
+                  Usuário: <span className="font-bold text-white">{operadorParaGerenciarDias.nome}</span>
+                </p>
+
+                {operadorParaGerenciarDias.dataProximoVencimento && (
+                  <p className="text-purple-200 text-sm mb-4">
+                    Vencimento atual: <span className="font-bold text-white">
+                      {new Date(operadorParaGerenciarDias.dataProximoVencimento).toLocaleDateString("pt-BR")}
+                    </span>
+                  </p>
+                )}
+
+                <label className="block text-purple-200 text-sm font-semibold mb-2">
+                  Dias para adicionar/remover
+                </label>
+                <p className="text-xs text-purple-300 mb-2">
+                  Use números positivos para adicionar dias ou negativos para remover
+                </p>
+                <input
+                  type="number"
+                  value={diasParaAdicionar}
+                  onChange={(e) => setDiasParaAdicionar(parseInt(e.target.value) || 0)}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-purple-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                  placeholder="Ex: 30 ou -15"
+                  autoFocus
+                />
+
+                {diasParaAdicionar !== 0 && operadorParaGerenciarDias.dataProximoVencimento && (
+                  <p className="text-green-300 text-sm mt-3">
+                    Novo vencimento: <span className="font-bold">
+                      {(() => {
+                        const novaData = new Date(operadorParaGerenciarDias.dataProximoVencimento);
+                        novaData.setDate(novaData.getDate() + diasParaAdicionar);
+                        return novaData.toLocaleDateString("pt-BR");
+                      })()}
+                    </span>
+                  </p>
+                )}
+              </div>
+
+              <div className="flex space-x-3 pt-4">
+                <button
+                  onClick={() => {
+                    setShowGerenciarDiasModal(false);
+                    setOperadorParaGerenciarDias(null);
+                    setDiasParaAdicionar(0);
+                  }}
+                  className="flex-1 px-4 py-3 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleGerenciarDias}
+                  disabled={diasParaAdicionar === 0}
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg hover:from-purple-600 hover:to-indigo-700 transition-all font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Aplicar
                 </button>
               </div>
             </div>
