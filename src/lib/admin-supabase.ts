@@ -1,3 +1,14 @@
+/**
+ * IMPORTANTE: Para o sistema funcionar corretamente, execute este SQL no Supabase:
+ *
+ * ALTER TABLE operadores
+ * ADD COLUMN IF NOT EXISTS data_proximo_vencimento TIMESTAMP,
+ * ADD COLUMN IF NOT EXISTS dias_assinatura INTEGER,
+ * ADD COLUMN IF NOT EXISTS forma_pagamento TEXT,
+ * ADD COLUMN IF NOT EXISTS valor_mensal NUMERIC(10,2),
+ * ADD COLUMN IF NOT EXISTS data_pagamento TIMESTAMP;
+ */
+
 import { supabase } from "./supabase";
 import { Operador } from "./types";
 
@@ -69,6 +80,7 @@ export class AdminSupabase {
           aguardandoPagamento: op.aguardando_pagamento || false,
           createdAt: new Date(op.created_at),
           formaPagamento: op.forma_pagamento || undefined,
+          valorMensal: op.valor_mensal || undefined,
           dataProximoVencimento: op.data_proximo_vencimento ? new Date(op.data_proximo_vencimento) : undefined,
           diasAssinatura: op.dias_assinatura || undefined,
           dataPagamento: op.data_pagamento ? new Date(op.data_pagamento) : undefined,
@@ -105,7 +117,7 @@ export class AdminSupabase {
    */
   static async addOperador(operador: Operador): Promise<boolean> {
     try {
-      const { error } = await supabase.from("operadores").insert({
+      const insertData: any = {
         id: operador.id,
         nome: operador.nome,
         email: operador.email,
@@ -116,16 +128,39 @@ export class AdminSupabase {
         aguardando_pagamento: operador.aguardandoPagamento || false,
         created_at: operador.createdAt.toISOString(),
         updated_at: new Date().toISOString(),
-      });
+      };
+
+      // Adicionar campos opcionais se existirem
+      if (operador.dataProximoVencimento) {
+        insertData.data_proximo_vencimento = operador.dataProximoVencimento instanceof Date
+          ? operador.dataProximoVencimento.toISOString()
+          : operador.dataProximoVencimento;
+      }
+      if (operador.diasAssinatura !== undefined) {
+        insertData.dias_assinatura = operador.diasAssinatura;
+      }
+      if (operador.formaPagamento) {
+        insertData.forma_pagamento = operador.formaPagamento;
+      }
+      if (operador.valorMensal !== undefined) {
+        insertData.valor_mensal = operador.valorMensal;
+      }
+
+      const { error } = await supabase.from("operadores").insert(insertData);
 
       if (error) {
-        // Supabase não configurado - retornar false silenciosamente
+        console.error("❌ Erro ao criar operador:", {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+        });
         return false;
       }
 
+      console.log("✅ Operador criado com sucesso!");
       return true;
     } catch (error) {
-      // Supabase não configurado - retornar false silenciosamente
+      console.error("❌ Erro ao criar operador:", error);
       return false;
     }
   }
@@ -166,6 +201,9 @@ export class AdminSupabase {
       }
       if (operador.formaPagamento) {
         updateData.forma_pagamento = operador.formaPagamento;
+      }
+      if (operador.valorMensal !== undefined) {
+        updateData.valor_mensal = operador.valorMensal;
       }
 
       console.log("📤 Dados que serão enviados ao Supabase:", updateData);
@@ -274,6 +312,7 @@ export class AdminSupabase {
         aguardandoPagamento: data.aguardando_pagamento || false,
         createdAt: new Date(data.created_at),
         formaPagamento: data.forma_pagamento || undefined,
+        valorMensal: data.valor_mensal || undefined,
         dataProximoVencimento: data.data_proximo_vencimento ? new Date(data.data_proximo_vencimento) : undefined,
         diasAssinatura: data.dias_assinatura || undefined,
         dataPagamento: data.data_pagamento ? new Date(data.data_pagamento) : undefined,
