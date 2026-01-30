@@ -1468,19 +1468,19 @@ export default function CaixaPage() {
       {/* Modal de Finalização com Tipo de Pagamento */}
       {mostrarModalFinalizacao && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6">
             <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center space-x-2">
               <DollarSign className="w-6 h-6 text-green-600" />
               <span>Finalizar Venda</span>
             </h3>
-            
+
             <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
               <p className="text-sm text-gray-600 mb-1">Total da Venda:</p>
               <p className="text-3xl font-bold text-green-600">R$ {total.toFixed(2)}</p>
             </div>
 
             <p className="text-gray-600 mb-4 font-semibold">Selecione a forma de pagamento:</p>
-            
+
             <div className="space-y-3 mb-6">
               <button
                 onClick={() => setTipoPagamento("dinheiro")}
