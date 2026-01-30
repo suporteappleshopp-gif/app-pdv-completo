@@ -94,6 +94,10 @@ export default function AdminPage() {
   const [operadorParaEditarVencimento, setOperadorParaEditarVencimento] = useState<Operador | null>(null);
   const [novaDataVencimento, setNovaDataVencimento] = useState("");
 
+  // Modal de excluir usuário
+  const [showExcluirUsuarioModal, setShowExcluirUsuarioModal] = useState(false);
+  const [operadorParaExcluir, setOperadorParaExcluir] = useState<Operador | null>(null);
+
   const WHATSAPP_CONTATO = "5565981032239";
 
   useEffect(() => {
@@ -455,6 +459,33 @@ export default function AdminPage() {
     setOperadorParaGerenciarDias(operador);
     setDiasParaAdicionar(0);
     setShowGerenciarDiasModal(true);
+  };
+
+  const abrirModalExcluirUsuario = (operador: Operador) => {
+    setOperadorParaExcluir(operador);
+    setShowExcluirUsuarioModal(true);
+  };
+
+  const handleExcluirUsuario = async () => {
+    if (!operadorParaExcluir) return;
+
+    try {
+      const sucesso = await AdminSupabase.deleteOperador(operadorParaExcluir.id);
+
+      if (sucesso) {
+        setSuccess(`Usuário "${operadorParaExcluir.nome}" excluído com sucesso!`);
+        setTimeout(() => setSuccess(""), 3000);
+        setShowExcluirUsuarioModal(false);
+        setOperadorParaExcluir(null);
+      } else {
+        setError("Erro ao excluir usuário");
+        setTimeout(() => setError(""), 3000);
+      }
+    } catch (err) {
+      console.error("Erro ao excluir usuário:", err);
+      setError("Erro ao excluir usuário");
+      setTimeout(() => setError(""), 3000);
+    }
   };
 
   const handleEditarSenha = async () => {
@@ -852,13 +883,27 @@ export default function AdminPage() {
                             <h3 className="text-white font-bold text-lg mb-1">
                               {operador.nome}
                             </h3>
-                            <div className="flex items-center space-x-4 text-sm">
+                            <div className="flex items-center space-x-4 text-sm flex-wrap">
                               <p className="text-purple-200">
                                 Login: <span className="font-mono">{operador.email}</span>
                               </p>
                               <p className="text-purple-200">
                                 Senha: <span className="font-mono">{mostrarSenhas ? operador.senha : "••••••"}</span>
                               </p>
+                              {operador.dataProximoVencimento && (
+                                <>
+                                  <p className="text-purple-200">
+                                    Vencimento: <span className="font-mono">{format(new Date(operador.dataProximoVencimento), "dd/MM/yyyy", { locale: ptBR })}</span>
+                                  </p>
+                                  <p className={`font-semibold ${
+                                    diasRestantes > 10 ? "text-green-300" :
+                                    diasRestantes > 5 ? "text-yellow-300" :
+                                    "text-red-300"
+                                  }`}>
+                                    {diasRestantes >= 0 ? `${diasRestantes} dias restantes` : "Vencido"}
+                                  </p>
+                                </>
+                              )}
                             </div>
                             
                             {/* Alerta de renovação (5 dias antes) */}
@@ -968,6 +1013,15 @@ export default function AdminPage() {
                               <UserMinus className="w-5 h-5" />
                             </button>
                           )}
+
+                          {/* Botão Excluir Usuário */}
+                          <button
+                            onClick={() => abrirModalExcluirUsuario(operador)}
+                            className="p-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 transition-all border border-red-500/30"
+                            title="Excluir usuário"
+                          >
+                            <UserX className="w-5 h-5" />
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -1447,6 +1501,65 @@ export default function AdminPage() {
                   className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg hover:from-purple-600 hover:to-indigo-700 transition-all font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Aplicar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Excluir Usuário */}
+      {showExcluirUsuarioModal && operadorParaExcluir && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl max-w-md w-full border border-white/10">
+            <div className="bg-gradient-to-r from-red-600 to-orange-600 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+              <h3 className="text-xl font-bold text-white">Excluir Usuário</h3>
+              <button
+                onClick={() => {
+                  setShowExcluirUsuarioModal(false);
+                  setOperadorParaExcluir(null);
+                }}
+                className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-start space-x-3">
+                  <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-red-800 font-bold mb-2">Atenção!</p>
+                    <p className="text-red-700 text-sm">
+                      Esta ação é <strong>irreversível</strong>. Todos os dados do usuário serão permanentemente excluídos.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
+                <p className="text-white text-sm mb-2">Usuário a ser excluído:</p>
+                <p className="text-white font-bold text-lg">{operadorParaExcluir.nome}</p>
+                <p className="text-purple-300 text-sm">{operadorParaExcluir.email}</p>
+              </div>
+
+              <div className="flex space-x-3 pt-4">
+                <button
+                  onClick={() => {
+                    setShowExcluirUsuarioModal(false);
+                    setOperadorParaExcluir(null);
+                  }}
+                  className="flex-1 px-4 py-3 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleExcluirUsuario}
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-red-500 to-orange-600 text-white rounded-lg hover:from-red-600 hover:to-orange-700 transition-all font-semibold shadow-lg flex items-center justify-center space-x-2"
+                >
+                  <UserX className="w-5 h-5" />
+                  <span>Excluir</span>
                 </button>
               </div>
             </div>

@@ -158,6 +158,28 @@ export class AdminSupabase {
   }
 
   /**
+   * Excluir operador
+   */
+  static async deleteOperador(id: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from("operadores")
+        .delete()
+        .eq("id", id);
+
+      if (error) {
+        console.error("Erro ao excluir operador:", error);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error("Erro ao excluir operador:", error);
+      return false;
+    }
+  }
+
+  /**
    * Buscar operador por ID
    */
   static async getOperadorById(id: string): Promise<Operador | null> {
