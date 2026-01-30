@@ -110,14 +110,14 @@ export default function FinanceiroPage() {
           const novoPagamento: Pagamento = {
             id: `pag_diego_init_${Date.now()}`,
             usuarioId: operador.id,
-            mesReferencia: "Renovação 100 dias - PIX",
+            mesReferencia: "Renovação 60 dias - PIX",
             valor: 59.90,
             dataVencimento: new Date(),
             dataPagamento: new Date(),
             status: "pago",
             formaPagamento: "pix",
-            diasComprados: 100,
-            tipoCompra: "renovacao-100",
+            diasComprados: 60,
+            tipoCompra: "renovacao-60",
           };
 
           await db.addPagamento(novoPagamento);
@@ -885,7 +885,9 @@ export default function FinanceiroPage() {
                             {pagamento.tipoCompra && (
                               <div className="mt-3">
                                 <span className="inline-block px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-xs font-semibold border border-blue-500/30">
+                                  {pagamento.tipoCompra === "renovacao-60" && "Renovação 60 dias"}
                                   {pagamento.tipoCompra === "renovacao-100" && "Renovação 100 dias"}
+                                  {pagamento.tipoCompra === "renovacao-180" && "Renovação Semestral"}
                                   {pagamento.tipoCompra === "renovacao-365" && "Renovação Anual"}
                                   {pagamento.tipoCompra === "personalizado" && "Compra Personalizada"}
                                 </span>
@@ -917,14 +919,14 @@ export default function FinanceiroPage() {
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">
-              {/* Plano PIX - 100 dias */}
+              {/* Plano PIX - 60 dias */}
               <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border-2 border-white/30 hover:border-green-400 transition-all">
                 <div className="text-center mb-4">
                   <div className="inline-block bg-green-500 text-white px-4 py-2 rounded-full font-bold text-lg mb-3">
                     PIX
                   </div>
                   <h3 className="text-4xl font-bold text-white mb-2">R$ 59,90</h3>
-                  <p className="text-white/80">100 dias de acesso</p>
+                  <p className="text-white/80">60 dias de acesso</p>
                 </div>
 
                 <div className="space-y-2 mb-6">
@@ -955,14 +957,14 @@ export default function FinanceiroPage() {
                       const novoPagamento: Pagamento = {
                         id: `pag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                         usuarioId: operadorId,
-                        mesReferencia: "Renovação 100 dias - PIX",
+                        mesReferencia: "Renovação 60 dias - PIX",
                         valor: 59.90,
                         dataVencimento: new Date(),
                         dataPagamento: new Date(),
                         status: "pago",
                         formaPagamento: "pix",
-                        diasComprados: 100,
-                        tipoCompra: "renovacao-100",
+                        diasComprados: 60,
+                        tipoCompra: "renovacao-60",
                       };
 
                       await db.addPagamento(novoPagamento);
@@ -979,12 +981,12 @@ export default function FinanceiroPage() {
 
                 {diasRestantes > 0 && (
                   <p className="text-xs text-white/70 text-center mt-3">
-                    Novo vencimento: {format(new Date(Date.now() + (diasRestantes + 100) * 24 * 60 * 60 * 1000), "dd/MM/yyyy")}
+                    Novo vencimento: {format(new Date(Date.now() + (diasRestantes + 60) * 24 * 60 * 60 * 1000), "dd/MM/yyyy")}
                   </p>
                 )}
               </div>
 
-              {/* Plano Cartão - 365 dias (1 ano) */}
+              {/* Plano Cartão - 180 dias (6 meses) */}
               <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border-2 border-yellow-400 hover:border-yellow-300 transition-all relative">
                 <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-yellow-400 text-gray-900 px-4 py-1 rounded-full font-bold text-sm">
                   MAIS VANTAJOSO
@@ -995,7 +997,7 @@ export default function FinanceiroPage() {
                     CARTÃO
                   </div>
                   <h3 className="text-4xl font-bold text-white mb-2">R$ 149,70</h3>
-                  <p className="text-white/80">365 dias (1 ano)</p>
+                  <p className="text-white/80">180 dias (6 meses)</p>
                   <p className="text-yellow-300 font-semibold text-sm mt-1">Parcele em até 3x sem juros</p>
                 </div>
 
@@ -1006,11 +1008,11 @@ export default function FinanceiroPage() {
                   </div>
                   <div className="flex items-center space-x-2 text-white/90">
                     <CheckCircle className="w-4 h-4 text-yellow-400" />
-                    <span className="text-sm">1 ano completo de acesso</span>
+                    <span className="text-sm">6 meses completos de acesso</span>
                   </div>
                   <div className="flex items-center space-x-2 text-white/90">
                     <CheckCircle className="w-4 h-4 text-yellow-400" />
-                    <span className="text-sm">Economia de R$ 69,20</span>
+                    <span className="text-sm">Economia de R$ 29,40</span>
                   </div>
                   <div className="flex items-center space-x-2 text-white/90">
                     <CheckCircle className="w-4 h-4 text-yellow-400" />
@@ -1027,14 +1029,14 @@ export default function FinanceiroPage() {
                       const novoPagamento: Pagamento = {
                         id: `pag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                         usuarioId: operadorId,
-                        mesReferencia: "Renovação Anual 365 dias - Cartão",
+                        mesReferencia: "Renovação Semestral 180 dias - Cartão",
                         valor: 149.70,
                         dataVencimento: new Date(),
                         dataPagamento: new Date(),
                         status: "pago",
                         formaPagamento: "cartao",
-                        diasComprados: 365,
-                        tipoCompra: "renovacao-365",
+                        diasComprados: 180,
+                        tipoCompra: "renovacao-180",
                       };
 
                       await db.addPagamento(novoPagamento);
@@ -1046,12 +1048,12 @@ export default function FinanceiroPage() {
                   className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-4 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
                 >
                   <CreditCard className="w-5 h-5" />
-                  <span>Renovar Anual</span>
+                  <span>Renovar Semestral</span>
                 </button>
 
                 {diasRestantes > 0 && (
                   <p className="text-xs text-white/70 text-center mt-3">
-                    Novo vencimento: {format(new Date(Date.now() + (diasRestantes + 365) * 24 * 60 * 60 * 1000), "dd/MM/yyyy")}
+                    Novo vencimento: {format(new Date(Date.now() + (diasRestantes + 180) * 24 * 60 * 60 * 1000), "dd/MM/yyyy")}
                   </p>
                 )}
               </div>
