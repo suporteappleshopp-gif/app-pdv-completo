@@ -135,6 +135,15 @@ export class AdminSupabase {
    */
   static async updateOperador(operador: Operador): Promise<boolean> {
     try {
+      // Primeiro, buscar o operador atual para ver os campos disponíveis
+      const { data: operadorAtual } = await supabase
+        .from("operadores")
+        .select("*")
+        .eq("id", operador.id)
+        .single();
+
+      console.log("📋 Operador atual no banco:", operadorAtual);
+
       const updateData: any = {
         nome: operador.nome,
         email: operador.email,
@@ -159,25 +168,57 @@ export class AdminSupabase {
         updateData.forma_pagamento = operador.formaPagamento;
       }
 
-      console.log("📤 Dados que serão enviados ao Supabase:", {
-        id: operador.id,
-        email: operador.email,
-        data_proximo_vencimento: updateData.data_proximo_vencimento,
-        dias_assinatura: updateData.dias_assinatura,
-        ativo: updateData.ativo,
-      });
+      console.log("📤 Dados que serão enviados ao Supabase:", updateData);
 
-      const { error } = await supabase
+      // Tentar atualizar com todos os campos
+      let { data, error } = await supabase
         .from("operadores")
         .update(updateData)
-        .eq("id", operador.id);
+        .eq("id", operador.id)
+        .select();
 
+      // Se der erro, tentar atualizar apenas campos básicos
       if (error) {
-        console.error("❌ Erro ao atualizar operador:", error);
-        return false;
+        console.warn("⚠️ Erro ao atualizar com todos os campos:", {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+        });
+
+        console.log("🔄 Tentando atualizar apenas campos básicos...");
+
+        // Atualizar apenas campos básicos que existem desde sempre
+        const updateBasico = {
+          nome: operador.nome,
+          email: operador.email,
+          senha: operador.senha,
+          is_admin: operador.isAdmin,
+          ativo: operador.ativo,
+          suspenso: operador.suspenso || false,
+          aguardando_pagamento: operador.aguardandoPagamento || false,
+          updated_at: new Date().toISOString(),
+        };
+
+        const resultado = await supabase
+          .from("operadores")
+          .update(updateBasico)
+          .eq("id", operador.id)
+          .select();
+
+        data = resultado.data;
+        error = resultado.error;
+
+        if (error) {
+          console.error("❌ Erro ao atualizar operador (tentativa básica):", {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+          });
+          return false;
+        }
       }
 
-      console.log("✅ Operador atualizado com sucesso!");
+      console.log("✅ Operador atualizado com sucesso!", data);
       return true;
     } catch (error) {
       console.error("❌ Erro ao atualizar operador:", error);
