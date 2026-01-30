@@ -13,7 +13,7 @@ export default function PagamentoPage() {
   const PIX_CODE = "00020101021226880014br.gov.bcb.pix2566api.pagseguro.com/pix/v2/cobv/F0B3FDB4-FD2E-480E-B18E-0C4CE653253427600016BR.COM.PAGSEGURO0136F0B3FDB4-FD2E-480E-B18E-0C4CE6532534520417995303986540559.905802BR5919DIEGO MARQUES GOMES6006Cuiaba62070503***6304E229";
   const LINK_PAGAMENTO_PIX = "https://mpago.la/24Hxr1X"; // Mercado Pago - R$ 59,90 PIX (100 dias)
   const LINK_PAGAMENTO_CARTAO = "https://mpago.li/12S6mJE"; // Mercado Pago - R$ 149,70 em até 3x (1 ano)
-  const WHATSAPP_CONTATO = "5565981023329";
+  const WHATSAPP_CONTATO = "5565981032239";
 
   useEffect(() => {
     const nome = localStorage.getItem("operadorNome") || "Usuário";

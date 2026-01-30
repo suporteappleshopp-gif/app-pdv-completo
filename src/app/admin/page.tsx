@@ -88,7 +88,7 @@ export default function AdminPage() {
   const [operadorParaEditarVencimento, setOperadorParaEditarVencimento] = useState<Operador | null>(null);
   const [novaDataVencimento, setNovaDataVencimento] = useState("");
 
-  const WHATSAPP_CONTATO = "5565981023329";
+  const WHATSAPP_CONTATO = "5565981032239";
 
   useEffect(() => {
     // Verificar autenticação

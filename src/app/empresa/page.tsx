@@ -38,7 +38,7 @@ export default function EmpresaPage() {
   const [ultimoSalvamento, setUltimoSalvamento] = useState<Date>(new Date());
   const [supabaseConfigured, setSupabaseConfigured] = useState(false);
 
-  const WHATSAPP_CONTATO = "5565981023329";
+  const WHATSAPP_CONTATO = "5565981032239";
 
   // Dados da Empresa
   const [empresa, setEmpresa] = useState<Empresa>({
