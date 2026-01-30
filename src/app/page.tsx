@@ -555,30 +555,6 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Mensagem principal - Contato WhatsApp após confirmar compra */}
-          <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-300 rounded-lg p-5 mb-6 shadow-md">
-            <div className="flex items-start space-x-3">
-              <div className="bg-green-500 rounded-full p-2 flex-shrink-0">
-                <MessageCircle className="w-6 h-6 text-white" />
-              </div>
-              <div className="flex-1">
-                <p className="font-bold text-green-900 mb-2 text-base">
-                  ✅ Após confirmar o pagamento
-                </p>
-                <p className="text-sm text-green-800 mb-3 leading-relaxed">
-                  Entre em contato pelo WhatsApp para finalizar seu cadastro com o administrador e ativar sua conta imediatamente.
-                </p>
-                <button
-                  onClick={abrirWhatsApp}
-                  className="w-full flex items-center justify-center space-x-2 bg-green-500 hover:bg-green-600 text-white py-2.5 rounded-lg font-semibold transition-all shadow-md"
-                >
-                  <MessageCircle className="w-5 h-5" />
-                  <span>Contatar Administrador</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
           <div className="space-y-3">
             <div className="flex items-center space-x-2 text-sm text-gray-600">
               <CheckCircle className="w-4 h-4 text-green-500" />
