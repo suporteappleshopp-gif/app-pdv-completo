@@ -55,6 +55,12 @@ export default function FinanceiroPage() {
   });
   const [cartaoSalvo, setCartaoSalvo] = useState<any>(null);
 
+  // Estados para compra personalizada de dias
+  const [showModalCompraDias, setShowModalCompraDias] = useState(false);
+  const [diasParaComprar, setDiasParaComprar] = useState("");
+  const [formaPagamentoPersonalizada, setFormaPagamentoPersonalizada] = useState<"pix" | "cartao">("pix");
+  const [totalDiasDisponiveis, setTotalDiasDisponiveis] = useState(0);
+
   useEffect(() => {
     const checkAuth = async () => {
       // Buscar operador logado do Supabase
@@ -137,10 +143,32 @@ export default function FinanceiroPage() {
       }
 
       await calcularGanhos();
+      await calcularTotalDiasDisponiveis();
     } catch (err) {
       console.error("Erro ao carregar dados:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const calcularTotalDiasDisponiveis = async () => {
+    try {
+      // Buscar todos os pagamentos pagos do usuário
+      const { AuthSupabase } = await import("@/lib/auth-supabase");
+      const operador = await AuthSupabase.getCurrentOperador();
+      if (!operador) return;
+
+      const todosPagamentos = await db.getPagamentosByUsuario(operador.id);
+      const pagamentosPagos = todosPagamentos.filter(p => p.status === "pago");
+
+      // Somar todos os dias comprados
+      const totalDias = pagamentosPagos.reduce((total, p) => {
+        return total + (p.diasComprados || 0);
+      }, 0);
+
+      setTotalDiasDisponiveis(totalDias);
+    } catch (error) {
+      console.error("Erro ao calcular total de dias:", error);
     }
   };
 
@@ -259,12 +287,12 @@ export default function FinanceiroPage() {
         alert("Preencha todos os dados do cartão!");
         return;
       }
-      
+
       if (dadosCartao.numero.replace(/\D/g, "").length !== 16) {
         alert("Número do cartão inválido!");
         return;
       }
-      
+
       if (dadosCartao.cvv.length !== 3) {
         alert("CVV inválido!");
         return;
@@ -280,7 +308,7 @@ export default function FinanceiroPage() {
       };
 
       await db.updatePagamento(pagamentoAtualizado);
-      
+
       // Salvar cartão se opção marcada
       if (formaPagamento === "cartao" && salvarCartao && !cartaoSalvo) {
         const cartaoParaSalvar = {
@@ -291,7 +319,7 @@ export default function FinanceiroPage() {
         localStorage.setItem(`cartao_${operadorId}`, JSON.stringify(cartaoParaSalvar));
         setCartaoSalvo(cartaoParaSalvar);
       }
-      
+
       alert("Pagamento confirmado com sucesso!");
       setShowModalPagamento(false);
       setPagamentoSelecionado(null);
@@ -299,6 +327,59 @@ export default function FinanceiroPage() {
     } catch (err) {
       console.error("Erro ao confirmar pagamento:", err);
       alert("Erro ao confirmar pagamento!");
+    }
+  };
+
+  const abrirModalCompraDias = () => {
+    setShowModalCompraDias(true);
+    setDiasParaComprar("");
+    setFormaPagamentoPersonalizada("pix");
+  };
+
+  const calcularValorDias = () => {
+    const dias = parseInt(diasParaComprar) || 0;
+    // R$ 0,60 por dia
+    return (dias * 0.60).toFixed(2);
+  };
+
+  const confirmarCompraDias = async () => {
+    const dias = parseInt(diasParaComprar);
+
+    if (!dias || dias <= 0) {
+      alert("Digite uma quantidade válida de dias!");
+      return;
+    }
+
+    if (dias < 10) {
+      alert("A compra mínima é de 10 dias!");
+      return;
+    }
+
+    try {
+      const valor = parseFloat(calcularValorDias());
+
+      // Criar novo pagamento
+      const novoPagamento: Pagamento = {
+        id: `pag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        usuarioId: operadorId,
+        mesReferencia: `Compra de ${dias} dias`,
+        valor: valor,
+        dataVencimento: new Date(),
+        dataPagamento: new Date(),
+        status: "pago",
+        formaPagamento: formaPagamentoPersonalizada,
+        diasComprados: dias,
+        tipoCompra: "personalizado",
+      };
+
+      await db.addPagamento(novoPagamento);
+
+      alert(`Compra de ${dias} dias confirmada com sucesso!\nValor: R$ ${valor}`);
+      setShowModalCompraDias(false);
+      carregarDados();
+    } catch (err) {
+      console.error("Erro ao processar compra:", err);
+      alert("Erro ao processar compra!");
     }
   };
 
@@ -592,6 +673,78 @@ export default function FinanceiroPage() {
           </div>
         )}
 
+        {/* Seção de Compra Personalizada de Dias */}
+        <div className="bg-gradient-to-br from-cyan-600 via-blue-600 to-indigo-600 rounded-2xl shadow-2xl p-8 border border-white/20">
+          <div className="text-center mb-6">
+            <h2 className="text-3xl font-bold text-white mb-2">Compre Dias Personalizados</h2>
+            <p className="text-white/90 text-lg">
+              Escolha a quantidade de dias que deseja adicionar à sua conta
+            </p>
+            <p className="text-yellow-300 font-semibold text-xl mt-2">
+              R$ 0,60 por dia
+            </p>
+          </div>
+
+          <div className="bg-white/10 backdrop-blur-md rounded-xl p-8 border border-white/20 max-w-2xl mx-auto">
+            <div className="grid md:grid-cols-2 gap-6 mb-6">
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 border border-white/20">
+                <div className="text-center">
+                  <DollarSign className="w-12 h-12 text-yellow-300 mx-auto mb-3" />
+                  <p className="text-white/80 text-sm mb-2">Total de Dias Disponíveis</p>
+                  <p className="text-white text-4xl font-bold">{totalDiasDisponiveis}</p>
+                  <p className="text-white/70 text-xs mt-2">dias de acesso ativo</p>
+                </div>
+              </div>
+
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 border border-white/20">
+                <div className="text-center">
+                  <Calendar className="w-12 h-12 text-green-300 mx-auto mb-3" />
+                  <p className="text-white/80 text-sm mb-2">Dias Restantes</p>
+                  <p className="text-white text-4xl font-bold">{diasRestantes >= 0 ? diasRestantes : 0}</p>
+                  <p className="text-white/70 text-xs mt-2">até o vencimento</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-gradient-to-r from-emerald-500/20 to-green-500/20 border border-green-400/30 rounded-lg p-4">
+                <div className="flex items-start space-x-3">
+                  <CheckCircle className="w-5 h-5 text-green-300 flex-shrink-0 mt-0.5" />
+                  <div className="text-white/90 text-sm">
+                    <p className="font-semibold mb-1">Flexibilidade Total:</p>
+                    <p>✅ Compre a quantidade de dias que precisar (mínimo 10 dias)</p>
+                    <p>✅ Os dias são somados ao seu saldo atual</p>
+                    <p>✅ Sem compromisso de renovação automática</p>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={abrirModalCompraDias}
+                className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white py-4 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
+              >
+                <DollarSign className="w-6 h-6" />
+                <span>Comprar Dias Agora</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20 text-center">
+              <p className="text-white/80 text-sm mb-2">10 dias</p>
+              <p className="text-white text-2xl font-bold">R$ 6,00</p>
+            </div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20 text-center">
+              <p className="text-white/80 text-sm mb-2">30 dias</p>
+              <p className="text-white text-2xl font-bold">R$ 18,00</p>
+            </div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20 text-center">
+              <p className="text-white/80 text-sm mb-2">100 dias</p>
+              <p className="text-white text-2xl font-bold">R$ 60,00</p>
+            </div>
+          </div>
+        </div>
+
         {/* Banner Financeiro - Análise de Ganhos */}
         <div className="bg-gradient-to-br from-emerald-500 via-green-600 to-teal-600 rounded-2xl shadow-2xl p-8 border border-white/20">
           <div className="flex items-center justify-between mb-6">
@@ -802,10 +955,16 @@ export default function FinanceiroPage() {
         {/* Histórico de Pagamentos - Extrato */}
         <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
           <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-8 py-6">
-            <h2 className="text-2xl font-bold text-white flex items-center">
-              <Calendar className="w-7 h-7 mr-3" />
-              Extrato de Pagamentos
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-white flex items-center">
+                <Calendar className="w-7 h-7 mr-3" />
+                Extrato de Pagamentos
+              </h2>
+              <div className="text-right">
+                <p className="text-white/80 text-sm">Total de Dias Comprados</p>
+                <p className="text-white text-3xl font-bold">{totalDiasDisponiveis}</p>
+              </div>
+            </div>
           </div>
 
           <div className="p-8">
@@ -815,53 +974,111 @@ export default function FinanceiroPage() {
                 <p className="text-white/70 text-lg">Nenhum pagamento registrado</p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {pagamentos.map((pagamento) => (
-                  <div
-                    key={pagamento.id}
-                    className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-4 hover:bg-white/10 transition-all flex items-center justify-between"
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div className={`p-2 rounded-lg ${
-                        pagamento.status === "pago" 
-                          ? "bg-green-500/20" 
-                          : "bg-yellow-500/20"
-                      }`}>
-                        {pagamento.status === "pago" ? (
-                          <CheckCircle className="w-5 h-5 text-green-300" />
-                        ) : (
-                          <Clock className="w-5 h-5 text-yellow-300" />
-                        )}
-                      </div>
-                      <div>
-                        <h3 className="text-white font-semibold">
-                          {pagamento.mesReferencia}
-                        </h3>
-                        <p className="text-purple-200 text-sm">
-                          {pagamento.formaPagamento === "cartao" ? "Cartão de Crédito" : "PIX"}
-                        </p>
-                      </div>
+              <>
+                {/* Resumo Financeiro */}
+                <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-400/30 rounded-xl p-6 mb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="text-center">
+                      <p className="text-green-200 text-sm mb-1">Total Investido</p>
+                      <p className="text-white text-2xl font-bold">
+                        R$ {pagamentos.filter(p => p.status === "pago").reduce((sum, p) => sum + p.valor, 0).toFixed(2)}
+                      </p>
                     </div>
-
-                    <div className="flex items-center space-x-6">
-                      <div className="text-right">
-                        <p className="text-white font-bold">
-                          R$ {pagamento.valor.toFixed(2)}
-                        </p>
-                        {getStatusBadge(pagamento.status)}
-                      </div>
-                      <div className="text-right min-w-[100px]">
-                        <p className="text-purple-200 text-sm">
-                          {pagamento.dataPagamento 
-                            ? format(new Date(pagamento.dataPagamento), "dd/MM/yyyy", { locale: ptBR })
-                            : format(new Date(pagamento.dataVencimento), "dd/MM/yyyy", { locale: ptBR })
-                          }
-                        </p>
-                      </div>
+                    <div className="text-center">
+                      <p className="text-green-200 text-sm mb-1">Total de Dias Adquiridos</p>
+                      <p className="text-white text-2xl font-bold">
+                        {totalDiasDisponiveis} dias
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-green-200 text-sm mb-1">Compras Realizadas</p>
+                      <p className="text-white text-2xl font-bold">
+                        {pagamentos.filter(p => p.status === "pago").length}
+                      </p>
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+
+                {/* Lista de Pagamentos */}
+                <div className="space-y-3">
+                  {pagamentos.map((pagamento) => (
+                    <div
+                      key={pagamento.id}
+                      className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-5 hover:bg-white/10 transition-all"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start space-x-4 flex-1">
+                          <div className={`p-3 rounded-lg ${
+                            pagamento.status === "pago"
+                              ? "bg-green-500/20"
+                              : "bg-yellow-500/20"
+                          }`}>
+                            {pagamento.status === "pago" ? (
+                              <CheckCircle className="w-6 h-6 text-green-300" />
+                            ) : (
+                              <Clock className="w-6 h-6 text-yellow-300" />
+                            )}
+                          </div>
+
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-3 mb-2">
+                              <h3 className="text-white font-bold text-lg">
+                                {pagamento.mesReferencia}
+                              </h3>
+                              {getStatusBadge(pagamento.status)}
+                            </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3">
+                              <div>
+                                <p className="text-purple-200 text-xs mb-1">Valor</p>
+                                <p className="text-white font-bold text-lg">
+                                  R$ {pagamento.valor.toFixed(2)}
+                                </p>
+                              </div>
+
+                              {pagamento.diasComprados && (
+                                <div>
+                                  <p className="text-purple-200 text-xs mb-1">Dias Comprados</p>
+                                  <p className="text-cyan-300 font-bold text-lg">
+                                    {pagamento.diasComprados} dias
+                                  </p>
+                                </div>
+                              )}
+
+                              <div>
+                                <p className="text-purple-200 text-xs mb-1">Forma de Pagamento</p>
+                                <p className="text-white text-sm font-semibold">
+                                  {pagamento.formaPagamento === "cartao" ? "Cartão" : "PIX"}
+                                </p>
+                              </div>
+
+                              <div>
+                                <p className="text-purple-200 text-xs mb-1">Data</p>
+                                <p className="text-white text-sm font-semibold">
+                                  {pagamento.dataPagamento
+                                    ? format(new Date(pagamento.dataPagamento), "dd/MM/yyyy", { locale: ptBR })
+                                    : format(new Date(pagamento.dataVencimento), "dd/MM/yyyy", { locale: ptBR })
+                                  }
+                                </p>
+                              </div>
+                            </div>
+
+                            {pagamento.tipoCompra && (
+                              <div className="mt-3">
+                                <span className="inline-block px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-xs font-semibold border border-blue-500/30">
+                                  {pagamento.tipoCompra === "renovacao-100" && "Renovação 100 dias"}
+                                  {pagamento.tipoCompra === "renovacao-365" && "Renovação Anual"}
+                                  {pagamento.tipoCompra === "personalizado" && "Compra Personalizada"}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -910,6 +1127,152 @@ export default function FinanceiroPage() {
                   className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg hover:from-purple-600 hover:to-indigo-700 transition-all font-semibold shadow-lg"
                 >
                   Salvar Meta
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Compra Personalizada de Dias */}
+      {showModalCompraDias && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl max-w-lg w-full border border-white/10">
+            <div className="bg-gradient-to-r from-cyan-600 to-blue-600 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+              <h3 className="text-xl font-bold text-white">Comprar Dias Personalizados</h3>
+              <button
+                onClick={() => setShowModalCompraDias(false)}
+                className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Informações Atuais */}
+              <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-purple-200 text-sm mb-1">Dias Disponíveis</p>
+                    <p className="text-white text-2xl font-bold">{totalDiasDisponiveis}</p>
+                  </div>
+                  <div>
+                    <p className="text-purple-200 text-sm mb-1">Dias Restantes</p>
+                    <p className="text-white text-2xl font-bold">{diasRestantes >= 0 ? diasRestantes : 0}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Input de Quantidade */}
+              <div>
+                <label className="block text-purple-200 text-sm font-semibold mb-2">
+                  Quantos dias deseja comprar? (mínimo 10)
+                </label>
+                <input
+                  type="number"
+                  value={diasParaComprar}
+                  onChange={(e) => setDiasParaComprar(e.target.value)}
+                  placeholder="Ex: 30"
+                  min="10"
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-cyan-500 text-lg font-semibold"
+                />
+              </div>
+
+              {/* Valor Calculado */}
+              {diasParaComprar && parseInt(diasParaComprar) >= 10 && (
+                <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-400/30 rounded-lg p-6">
+                  <div className="text-center">
+                    <p className="text-green-200 text-sm mb-2">Valor Total</p>
+                    <p className="text-white text-4xl font-bold mb-3">
+                      R$ {calcularValorDias()}
+                    </p>
+                    <div className="flex items-center justify-center space-x-2 text-green-200 text-sm">
+                      <span>{diasParaComprar} dias</span>
+                      <span>×</span>
+                      <span>R$ 0,60</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Forma de Pagamento */}
+              <div>
+                <label className="block text-purple-200 text-sm font-semibold mb-3">
+                  Forma de Pagamento
+                </label>
+                <div className="space-y-3">
+                  <button
+                    onClick={() => setFormaPagamentoPersonalizada("pix")}
+                    className={`w-full p-4 rounded-lg border-2 transition-all ${
+                      formaPagamentoPersonalizada === "pix"
+                        ? "border-green-500 bg-green-500/20"
+                        : "border-white/20 bg-white/5 hover:bg-white/10"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-6 h-6 bg-white rounded flex items-center justify-center">
+                          <span className="text-purple-600 font-bold text-xs">PIX</span>
+                        </div>
+                        <div className="text-left">
+                          <p className="text-white font-semibold">PIX</p>
+                          <p className="text-purple-200 text-sm">Pagamento instantâneo</p>
+                        </div>
+                      </div>
+                      {formaPagamentoPersonalizada === "pix" && (
+                        <CheckCircle className="w-6 h-6 text-green-400" />
+                      )}
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => setFormaPagamentoPersonalizada("cartao")}
+                    className={`w-full p-4 rounded-lg border-2 transition-all ${
+                      formaPagamentoPersonalizada === "cartao"
+                        ? "border-green-500 bg-green-500/20"
+                        : "border-white/20 bg-white/5 hover:bg-white/10"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <CreditCard className="w-6 h-6 text-white" />
+                        <div className="text-left">
+                          <p className="text-white font-semibold">Cartão de Crédito</p>
+                          <p className="text-purple-200 text-sm">Débito ou crédito</p>
+                        </div>
+                      </div>
+                      {formaPagamentoPersonalizada === "cartao" && (
+                        <CheckCircle className="w-6 h-6 text-green-400" />
+                      )}
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Informação */}
+              <div className="bg-blue-500/20 border border-blue-500/30 rounded-lg p-4">
+                <div className="flex items-start space-x-3">
+                  <AlertCircle className="w-5 h-5 text-blue-300 flex-shrink-0 mt-0.5" />
+                  <p className="text-blue-200 text-sm">
+                    Os dias comprados serão adicionados ao seu saldo total e aparecerão no extrato de pagamentos.
+                  </p>
+                </div>
+              </div>
+
+              {/* Botões */}
+              <div className="flex space-x-3 pt-4">
+                <button
+                  onClick={() => setShowModalCompraDias(false)}
+                  className="flex-1 px-4 py-3 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmarCompraDias}
+                  disabled={!diasParaComprar || parseInt(diasParaComprar) < 10}
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-lg hover:from-cyan-600 hover:to-blue-700 transition-all font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Confirmar Compra
                 </button>
               </div>
             </div>

@@ -96,6 +96,8 @@ export interface Pagamento {
   dataPagamento?: Date;
   status: "pendente" | "pago";
   formaPagamento: "cartao" | "pix";
+  diasComprados?: number; // Quantidade de dias adquiridos nesta compra
+  tipoCompra?: "renovacao-100" | "renovacao-365" | "personalizado"; // Tipo de compra
 }
 
 export interface CodigoRecuperacao {
