@@ -296,8 +296,8 @@ export default function AdminPage() {
   // Abrir modal de confirmação de pagamento
   const abrirModalConfirmarPagamento = (operador: Operador) => {
     setOperadorParaConfirmar(operador);
-    // Definir dias padrão baseado na forma de pagamento
-    const diasPadrao = operador.formaPagamento === "pix" ? 100 : 365;
+    // Usar diasAssinatura que foi definido ao criar o usuário, ou usar padrão baseado na forma de pagamento
+    const diasPadrao = operador.diasAssinatura || (operador.formaPagamento === "pix" ? 100 : 365);
     setDiasAtivacao(diasPadrao);
     setShowConfirmarPagamentoModal(true);
   };
