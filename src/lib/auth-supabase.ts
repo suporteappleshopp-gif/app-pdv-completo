@@ -87,19 +87,10 @@ export class AuthSupabase {
         nome: operadorData.nome,
         email: operadorData.email,
         senha: "", // Não retornar senha por segurança
-        isAdmin: operadorData.is_admin,
-        ativo: operadorData.ativo,
-        suspenso: operadorData.suspenso,
-        aguardandoPagamento: operadorData.aguardando_pagamento,
-        formaPagamento: operadorData.forma_pagamento,
-        valorMensal: operadorData.valor_mensal,
-        diasAssinatura: operadorData.dias_assinatura,
-        dataProximoVencimento: operadorData.data_proximo_vencimento
-          ? new Date(operadorData.data_proximo_vencimento)
-          : undefined,
-        dataPagamento: operadorData.data_pagamento
-          ? new Date(operadorData.data_pagamento)
-          : undefined,
+        isAdmin: operadorData.is_admin || false,
+        ativo: operadorData.ativo || false,
+        suspenso: operadorData.suspenso || false,
+        aguardandoPagamento: operadorData.aguardando_pagamento || false,
         createdAt: new Date(operadorData.created_at),
       };
 
@@ -157,20 +148,10 @@ export class AuthSupabase {
         };
       }
 
-      // Calcular valores baseado na forma de pagamento
-      const valorPagamento = formaPagamento === "pix" ? 59.90 : 149.70;
-      const diasAcesso = formaPagamento === "pix" ? 100 : 365;
-      const dataVencimento = new Date();
-      dataVencimento.setDate(dataVencimento.getDate() + diasAcesso);
-
       // Atualizar operador criado automaticamente pelo trigger
       const { error: updateError } = await supabase
         .from("operadores")
         .update({
-          forma_pagamento: formaPagamento,
-          valor_mensal: valorPagamento,
-          dias_assinatura: diasAcesso,
-          data_proximo_vencimento: dataVencimento.toISOString(),
           ativo: false, // Inicia desativado até pagamento
           suspenso: true,
           aguardando_pagamento: true,
@@ -197,10 +178,6 @@ export class AuthSupabase {
         ativo: false,
         suspenso: true,
         aguardandoPagamento: true,
-        formaPagamento,
-        valorMensal: valorPagamento,
-        diasAssinatura: diasAcesso,
-        dataProximoVencimento: dataVencimento,
         createdAt: new Date(operadorData.created_at),
       };
 
@@ -258,19 +235,10 @@ export class AuthSupabase {
         nome: operadorData.nome,
         email: operadorData.email,
         senha: "",
-        isAdmin: operadorData.is_admin,
-        ativo: operadorData.ativo,
-        suspenso: operadorData.suspenso,
-        aguardandoPagamento: operadorData.aguardando_pagamento,
-        formaPagamento: operadorData.forma_pagamento,
-        valorMensal: operadorData.valor_mensal,
-        diasAssinatura: operadorData.dias_assinatura,
-        dataProximoVencimento: operadorData.data_proximo_vencimento
-          ? new Date(operadorData.data_proximo_vencimento)
-          : undefined,
-        dataPagamento: operadorData.data_pagamento
-          ? new Date(operadorData.data_pagamento)
-          : undefined,
+        isAdmin: operadorData.is_admin || false,
+        ativo: operadorData.ativo || false,
+        suspenso: operadorData.suspenso || false,
+        aguardandoPagamento: operadorData.aguardando_pagamento || false,
         createdAt: new Date(operadorData.created_at),
       };
     } catch (error) {
@@ -340,10 +308,6 @@ export class AuthSupabase {
           ativo: true,
           suspenso: false,
           aguardando_pagamento: false,
-          forma_pagamento: null, // Sem forma de pagamento = acesso livre
-          valor_mensal: null,
-          dias_assinatura: null,
-          data_proximo_vencimento: null,
         })
         .eq("auth_user_id", authData.user.id);
 
