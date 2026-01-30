@@ -452,6 +452,11 @@ export default function CaixaPage() {
           setTipoPagamento("outros");
           return;
         }
+        if (e.key.toLowerCase() === "x") {
+          e.preventDefault();
+          setMostrarModalFinalizacao(false);
+          return;
+        }
         if (e.key === "Enter") {
           e.preventDefault();
           finalizarVenda();
@@ -1555,7 +1560,7 @@ export default function CaixaPage() {
                 onClick={() => setMostrarModalFinalizacao(false)}
                 className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-lg font-semibold transition-all"
               >
-                Cancelar
+                Cancelar (X)
               </button>
             </div>
           </div>
