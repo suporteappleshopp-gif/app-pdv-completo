@@ -381,10 +381,14 @@ export default function LoginPage() {
       if (authError || !authData.user) {
         console.log("⚠️ Criando usuário diretamente no banco (bypass Auth)");
 
+        // Gerar ID único
+        const novoId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
         // Criar operador direto no banco sem Auth
         const { data: novoOperador, error: insertError } = await supabase
           .from("operadores")
           .insert({
+            id: novoId,
             email: emailTrimmed,
             nome: nomeExtraido,
             senha: novoCadastro.senha,
@@ -414,7 +418,10 @@ export default function LoginPage() {
 
         if (!operadorExistente) {
           // Criar operador manualmente
+          const novoId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
           await supabase.from("operadores").insert({
+            id: novoId,
             auth_user_id: authData.user.id,
             email: emailTrimmed,
             nome: nomeExtraido,
