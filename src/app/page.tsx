@@ -359,6 +359,11 @@ export default function LoginPage() {
       );
 
       if (!resultado.success) {
+        // Verificar se é erro de rate limit
+        if (resultado.error?.includes("rate limit") || resultado.error?.includes("Email rate limit exceeded")) {
+          setError("Muitas tentativas de cadastro. Por favor, aguarde alguns minutos ou entre em contato via WhatsApp para criar sua conta.");
+          return;
+        }
         setError(resultado.error || "Erro ao criar cadastro. Tente novamente.");
         return;
       }
@@ -368,7 +373,14 @@ export default function LoginPage() {
       setCadastroSucesso(true);
     } catch (err) {
       console.error("Erro ao cadastrar:", err);
-      setError("Erro ao criar cadastro. Tente novamente.");
+      const errorMessage = err instanceof Error ? err.message : "Erro desconhecido";
+
+      // Verificar se é erro de rate limit
+      if (errorMessage.includes("rate limit") || errorMessage.includes("Email rate limit exceeded")) {
+        setError("Muitas tentativas de cadastro. Por favor, aguarde alguns minutos ou entre em contato via WhatsApp para criar sua conta.");
+      } else {
+        setError("Erro ao criar cadastro. Tente novamente.");
+      }
     }
   };
 
