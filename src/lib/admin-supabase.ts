@@ -58,62 +58,77 @@ export class AdminSupabase {
    */
   static async getAllOperadores(): Promise<Operador[]> {
     try {
-      // Buscar campos básicos primeiro (SEMPRE existem)
-      const { data, error } = await supabase
+      // Buscar APENAS id primeiro para garantir que funcione
+      const { data: idsData, error: idsError } = await supabase
         .from("operadores")
-        .select("id, nome, email, senha, is_admin, ativo, suspenso, aguardando_pagamento, created_at, auth_user_id")
+        .select("id")
         .order("created_at", { ascending: false });
 
-      if (error) {
-        console.error("Erro ao buscar operadores:", error);
+      if (idsError) {
+        console.error("Erro ao buscar IDs dos operadores:", idsError);
         return [];
       }
 
-      if (!data || data.length === 0) {
+      if (!idsData || idsData.length === 0) {
         return [];
       }
 
-      // Tentar buscar campos extras para todos os operadores
-      let extrasMap = new Map<string, any>();
-      try {
-        const { data: extrasData } = await supabase
-          .from("operadores")
-          .select("id, forma_pagamento, valor_mensal, data_proximo_vencimento, dias_assinatura, data_pagamento");
+      // Para cada ID, buscar campos individualmente
+      const operadores: Operador[] = [];
 
-        if (extrasData) {
-          extrasData.forEach((extra) => {
-            extrasMap.set(extra.id, extra);
-          });
+      for (const { id } of idsData) {
+        try {
+          // Buscar campos básicos
+          const { data: basicData } = await supabase
+            .from("operadores")
+            .select("id, nome, email, senha, is_admin, ativo, suspenso, aguardando_pagamento, created_at")
+            .eq("id", id)
+            .single();
+
+          if (!basicData) continue;
+
+          const operador: Operador = {
+            id: basicData.id,
+            nome: basicData.nome || "Sem nome",
+            email: basicData.email || "sem-email@exemplo.com",
+            senha: basicData.senha || "",
+            isAdmin: basicData.is_admin || false,
+            ativo: basicData.ativo || false,
+            suspenso: basicData.suspenso || false,
+            aguardandoPagamento: basicData.aguardando_pagamento || false,
+            createdAt: basicData.created_at ? new Date(basicData.created_at) : new Date(),
+          };
+
+          // Tentar buscar campos extras (podem não existir)
+          try {
+            const { data: extrasData } = await supabase
+              .from("operadores")
+              .select("forma_pagamento, valor_mensal, data_proximo_vencimento, dias_assinatura, data_pagamento")
+              .eq("id", id)
+              .single();
+
+            if (extrasData) {
+              operador.formaPagamento = extrasData.forma_pagamento || undefined;
+              operador.valorMensal = extrasData.valor_mensal || undefined;
+              operador.dataProximoVencimento = extrasData.data_proximo_vencimento ? new Date(extrasData.data_proximo_vencimento) : undefined;
+              operador.diasAssinatura = extrasData.dias_assinatura || undefined;
+              operador.dataPagamento = extrasData.data_pagamento ? new Date(extrasData.data_pagamento) : undefined;
+            }
+          } catch (extrasError) {
+            // Campos extras não existem - continuar sem eles
+          }
+
+          operadores.push(operador);
+        } catch (opError) {
+          console.warn(`Erro ao buscar operador ${id}:`, opError);
+          continue;
         }
-      } catch (extrasError) {
-        console.log("⚠️ Campos extras não disponíveis (colunas podem não existir)");
       }
 
-      // Montar operadores com todos os campos disponíveis
-      return data.map((op) => {
-        const extras = extrasMap.get(op.id);
-
-        const operador: Operador = {
-          id: op.id,
-          nome: op.nome,
-          email: op.email,
-          senha: op.senha,
-          isAdmin: op.is_admin || false,
-          ativo: op.ativo || false,
-          suspenso: op.suspenso || false,
-          aguardandoPagamento: op.aguardando_pagamento || false,
-          createdAt: new Date(op.created_at),
-          formaPagamento: extras?.forma_pagamento || undefined,
-          valorMensal: extras?.valor_mensal || undefined,
-          dataProximoVencimento: extras?.data_proximo_vencimento ? new Date(extras.data_proximo_vencimento) : undefined,
-          diasAssinatura: extras?.dias_assinatura || undefined,
-          dataPagamento: extras?.data_pagamento ? new Date(extras.data_pagamento) : undefined,
-        };
-
-        return operador;
-      });
+      console.log(`✅ ${operadores.length} operadores carregados`);
+      return operadores;
     } catch (error) {
-      console.error("Erro ao buscar operadores:", error);
+      console.error("Erro crítico ao buscar operadores:", error);
       return [];
     }
   }
