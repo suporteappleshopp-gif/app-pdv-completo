@@ -1086,11 +1086,15 @@ export default function CaixaPage() {
 
             <div className="flex items-center space-x-3">
               {/* Dias restantes - APENAS para usuários COM mensalidade */}
-              {diasRestantes > 0 && diasRestantes < 999 && !usuarioSemMensalidade && (
-                <div className="flex items-center space-x-1 px-3 py-2 rounded-lg bg-blue-100 text-blue-800">
+              {!usuarioSemMensalidade && diasRestantes < 999 && (
+                <div className={`flex items-center space-x-1 px-3 py-2 rounded-lg ${
+                  diasRestantes > 10 ? "bg-blue-100 text-blue-800" :
+                  diasRestantes > 5 ? "bg-yellow-100 text-yellow-800" :
+                  "bg-red-100 text-red-800"
+                }`}>
                   <Calendar className="w-4 h-4" />
                   <span className="text-xs font-semibold">
-                    {diasRestantes} {diasRestantes === 1 ? "dia" : "dias"}
+                    {diasRestantes >= 0 ? diasRestantes : 0} {diasRestantes === 1 ? "dia" : "dias"}
                   </span>
                 </div>
               )}
