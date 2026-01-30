@@ -23,82 +23,116 @@ export class AuthSupabase {
         password,
       });
 
-      if (authError) {
-        console.error("❌ Erro no Auth:", authError.message);
+      // Se o Auth funcionou, usar o fluxo normal
+      if (!authError && authData.user) {
+        console.log("✅ Login no Auth bem-sucedido. User ID:", authData.user.id);
+
+        // Buscar dados do operador
+        const { data: operadorData, error: operadorError } = await supabase
+          .from("operadores")
+          .select("*")
+          .eq("auth_user_id", authData.user.id)
+          .single();
+
+        if (!operadorError && operadorData) {
+          console.log("✅ Operador encontrado:", {
+            id: operadorData.id,
+            nome: operadorData.nome,
+            email: operadorData.email,
+            is_admin: operadorData.is_admin,
+            ativo: operadorData.ativo,
+          });
+
+          // Verificar se o operador está ativo (admins sempre podem logar)
+          if (!operadorData.ativo && !operadorData.is_admin) {
+            console.warn("⚠️ Operador inativo e não é admin");
+            return {
+              success: false,
+              error: "Sua conta está suspensa. Entre em contato com o administrador.",
+            };
+          }
+
+          // Montar objeto Operador
+          const operador: Operador = {
+            id: operadorData.id,
+            nome: operadorData.nome,
+            email: operadorData.email,
+            senha: "", // Não retornar senha por segurança
+            isAdmin: operadorData.is_admin || false,
+            ativo: operadorData.ativo || false,
+            suspenso: operadorData.suspenso || false,
+            aguardandoPagamento: operadorData.aguardando_pagamento || false,
+            createdAt: new Date(operadorData.created_at),
+            formaPagamento: operadorData.forma_pagamento || undefined,
+          };
+
+          console.log("✅ Login bem-sucedido! Operador:", operador.nome, "| Admin:", operador.isAdmin);
+
+          return {
+            success: true,
+            operador,
+          };
+        }
+      }
+
+      // Se Auth falhou ou operador não foi encontrado, tentar login direto no banco
+      console.log("⚠️ Tentando login direto no banco de dados...");
+
+      const { data: operadorDirectData, error: directError } = await supabase
+        .from("operadores")
+        .select("*")
+        .eq("email", email)
+        .maybeSingle();
+
+      if (directError || !operadorDirectData) {
+        console.error("❌ Erro ao buscar operador no banco:", directError?.message);
         return {
           success: false,
           error: "Email ou senha incorretos",
         };
       }
 
-      if (!authData.user) {
-        console.error("❌ Nenhum usuário retornado pelo Auth");
+      // Verificar senha (para operadores sem Auth)
+      if (operadorDirectData.senha && operadorDirectData.senha === password) {
+        console.log("✅ Login direto bem-sucedido:", operadorDirectData.email);
+
+        // Verificar se o operador está ativo (admins sempre podem logar)
+        if (!operadorDirectData.ativo && !operadorDirectData.is_admin) {
+          console.warn("⚠️ Operador inativo e não é admin");
+          return {
+            success: false,
+            error: "Sua conta está suspensa. Entre em contato com o administrador.",
+          };
+        }
+
+        const operador: Operador = {
+          id: operadorDirectData.id,
+          nome: operadorDirectData.nome,
+          email: operadorDirectData.email,
+          senha: "",
+          isAdmin: operadorDirectData.is_admin || false,
+          ativo: operadorDirectData.ativo || false,
+          suspenso: operadorDirectData.suspenso || false,
+          aguardandoPagamento: operadorDirectData.aguardando_pagamento || false,
+          createdAt: new Date(operadorDirectData.created_at),
+          formaPagamento: operadorDirectData.forma_pagamento || undefined,
+        };
+
+        // Criar sessão temporária no localStorage (já que não temos Auth)
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('operador_session', JSON.stringify(operador));
+        }
+
         return {
-          success: false,
-          error: "Erro ao fazer login",
+          success: true,
+          operador,
         };
       }
 
-      console.log("✅ Login no Auth bem-sucedido. User ID:", authData.user.id);
-
-      // Buscar dados do operador
-      const { data: operadorData, error: operadorError } = await supabase
-        .from("operadores")
-        .select("*")
-        .eq("auth_user_id", authData.user.id)
-        .single();
-
-      if (operadorError) {
-        console.error("❌ Erro ao buscar operador:", operadorError.message);
-        return {
-          success: false,
-          error: "Usuário não encontrado no sistema",
-        };
-      }
-
-      if (!operadorData) {
-        console.error("❌ Nenhum operador encontrado para auth_user_id:", authData.user.id);
-        return {
-          success: false,
-          error: "Usuário não encontrado no sistema",
-        };
-      }
-
-      console.log("✅ Operador encontrado:", {
-        id: operadorData.id,
-        nome: operadorData.nome,
-        email: operadorData.email,
-        is_admin: operadorData.is_admin,
-        ativo: operadorData.ativo,
-      });
-
-      // Verificar se o operador está ativo (admins sempre podem logar)
-      if (!operadorData.ativo && !operadorData.is_admin) {
-        console.warn("⚠️ Operador inativo e não é admin");
-        return {
-          success: false,
-          error: "Sua conta está suspensa. Entre em contato com o administrador.",
-        };
-      }
-
-      // Montar objeto Operador
-      const operador: Operador = {
-        id: operadorData.id,
-        nome: operadorData.nome,
-        email: operadorData.email,
-        senha: "", // Não retornar senha por segurança
-        isAdmin: operadorData.is_admin || false,
-        ativo: operadorData.ativo || false,
-        suspenso: operadorData.suspenso || false,
-        aguardandoPagamento: operadorData.aguardando_pagamento || false,
-        createdAt: new Date(operadorData.created_at),
-      };
-
-      console.log("✅ Login bem-sucedido! Operador:", operador.nome, "| Admin:", operador.isAdmin);
-
+      console.error("❌ Senha incorreta para login direto");
       return {
-        success: true,
-        operador,
+        success: false,
+        error: "Email ou senha incorretos",
       };
     } catch (error: any) {
       console.error("❌ Erro no login:", error);
@@ -199,6 +233,10 @@ export class AuthSupabase {
    */
   static async signOut(): Promise<void> {
     await supabase.auth.signOut();
+    // Limpar também a sessão do localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('operador_session');
+    }
   }
 
   /**
@@ -216,31 +254,42 @@ export class AuthSupabase {
     try {
       const { data: { user } } = await supabase.auth.getUser();
 
-      if (!user) {
-        return null;
+      if (user) {
+        const { data: operadorData, error } = await supabase
+          .from("operadores")
+          .select("*")
+          .eq("auth_user_id", user.id)
+          .single();
+
+        if (!error && operadorData) {
+          return {
+            id: operadorData.id,
+            nome: operadorData.nome,
+            email: operadorData.email,
+            senha: "",
+            isAdmin: operadorData.is_admin || false,
+            ativo: operadorData.ativo || false,
+            suspenso: operadorData.suspenso || false,
+            aguardandoPagamento: operadorData.aguardando_pagamento || false,
+            createdAt: new Date(operadorData.created_at),
+            formaPagamento: operadorData.forma_pagamento || undefined,
+          };
+        }
       }
 
-      const { data: operadorData, error } = await supabase
-        .from("operadores")
-        .select("*")
-        .eq("auth_user_id", user.id)
-        .single();
-
-      if (error || !operadorData) {
-        return null;
+      // Tentar buscar sessão do localStorage (login direto)
+      if (typeof window !== 'undefined') {
+        const sessionStr = localStorage.getItem('operador_session');
+        if (sessionStr) {
+          const operador = JSON.parse(sessionStr);
+          return {
+            ...operador,
+            createdAt: new Date(operador.createdAt),
+          };
+        }
       }
 
-      return {
-        id: operadorData.id,
-        nome: operadorData.nome,
-        email: operadorData.email,
-        senha: "",
-        isAdmin: operadorData.is_admin || false,
-        ativo: operadorData.ativo || false,
-        suspenso: operadorData.suspenso || false,
-        aguardandoPagamento: operadorData.aguardando_pagamento || false,
-        createdAt: new Date(operadorData.created_at),
-      };
+      return null;
     } catch (error) {
       console.error("Erro ao buscar operador:", error);
       return null;
