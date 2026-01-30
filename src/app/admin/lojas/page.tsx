@@ -56,19 +56,31 @@ export default function AnaliseLojasPage() {
   const chatPainelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const checkAuth = () => {
-      const adminStatus = localStorage.getItem("isAdmin");
-      if (adminStatus !== "true") {
+    const checkAuth = async () => {
+      // Verificar se é admin master (login direto)
+      const adminMaster = localStorage.getItem("admin_master_session");
+      if (adminMaster === "true") {
+        return true;
+      }
+
+      // Verificar se é admin via Supabase Auth
+      const { AuthSupabase } = await import("@/lib/auth-supabase");
+      const operador = await AuthSupabase.getCurrentOperador();
+
+      if (!operador || !operador.isAdmin) {
         router.push("/");
         return false;
       }
+
       return true;
     };
 
-    if (checkAuth()) {
-      carregarDados();
-      setupRealtimeSync();
-    }
+    checkAuth().then((isAuth) => {
+      if (isAuth) {
+        carregarDados();
+        setupRealtimeSync();
+      }
+    });
   }, [router]);
 
   // Configurar sincronização em tempo real
