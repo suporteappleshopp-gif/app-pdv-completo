@@ -1085,6 +1085,16 @@ export default function CaixaPage() {
             </div>
 
             <div className="flex items-center space-x-3">
+              {/* Dias restantes - APENAS para usuários COM mensalidade */}
+              {diasRestantes > 0 && diasRestantes < 999 && !usuarioSemMensalidade && (
+                <div className="flex items-center space-x-1 px-3 py-2 rounded-lg bg-blue-100 text-blue-800">
+                  <Calendar className="w-4 h-4" />
+                  <span className="text-xs font-semibold">
+                    {diasRestantes} {diasRestantes === 1 ? "dia" : "dias"}
+                  </span>
+                </div>
+              )}
+
               {/* Indicador Online/Offline */}
               <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg ${
                 online ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"
@@ -1109,28 +1119,15 @@ export default function CaixaPage() {
                 </div>
               )}
 
-              {/* Dias restantes e Botão Sair */}
-              <div className="flex items-center space-x-2">
-                {/* Dias restantes à esquerda do botão sair - APENAS para usuários COM mensalidade */}
-                {diasRestantes > 0 && diasRestantes < 999 && !usuarioSemMensalidade && (
-                  <div className="flex items-center space-x-1 px-2 py-1 rounded-md bg-blue-100 text-blue-800">
-                    <Calendar className="w-3 h-3" />
-                    <span className="text-xs font-semibold">
-                      {diasRestantes} {diasRestantes === 1 ? "dia" : "dias"}
-                    </span>
-                  </div>
-                )}
-
-                {/* Botão Sair */}
-                <button
-                  onClick={sair}
-                  className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded-md flex items-center space-x-1 transition-all shadow-sm"
-                  title="Sair"
-                >
-                  <LogOut className="w-3 h-3" />
-                  <span className="text-xs font-semibold">Sair</span>
-                </button>
-              </div>
+              {/* Botão Sair */}
+              <button
+                onClick={sair}
+                className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded-md flex items-center space-x-1 transition-all shadow-sm"
+                title="Sair"
+              >
+                <LogOut className="w-3 h-3" />
+                <span className="text-xs font-semibold">Sair</span>
+              </button>
 
               {/* Relógio pequeno no canto direito */}
               <div className="flex flex-col items-end">
@@ -1628,8 +1625,8 @@ export default function CaixaPage() {
         </div>
       )}
 
-      {/* Botão Renovar Assinatura no rodapé - visível para usuários com mensalidade */}
-      {!usuarioSemMensalidade && diasRestantes < 30 && diasRestantes >= 0 && (
+      {/* Botão Renovar Assinatura no rodapé - visível apenas com 10 dias ou menos */}
+      {!usuarioSemMensalidade && diasRestantes <= 10 && diasRestantes >= 0 && (
         <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-40">
           <button
             onClick={() => router.push("/financeiro")}
