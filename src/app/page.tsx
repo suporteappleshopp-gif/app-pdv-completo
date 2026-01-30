@@ -350,22 +350,93 @@ export default function LoginPage() {
     }
 
     try {
-      // Criar conta com Supabase usando email do usuário
-      const resultado = await AuthSupabase.signUp(
-        novoCadastro.email.trim(),
-        novoCadastro.senha,
-        novoCadastro.email.split("@")[0], // Nome será a parte antes do @
-        novoCadastro.formaPagamento
-      );
+      const { supabase } = await import("@/lib/supabase");
+      const emailTrimmed = novoCadastro.email.trim();
+      const nomeExtraido = emailTrimmed.split("@")[0];
 
-      if (!resultado.success) {
-        // Verificar se é erro de rate limit
-        if (resultado.error?.includes("rate limit") || resultado.error?.includes("Email rate limit exceeded")) {
-          setError("Muitas tentativas de cadastro. Por favor, aguarde alguns minutos ou entre em contato via WhatsApp para criar sua conta.");
+      // Verificar se o email já existe
+      const { data: emailExistente } = await supabase
+        .from("operadores")
+        .select("email")
+        .eq("email", emailTrimmed)
+        .maybeSingle();
+
+      if (emailExistente) {
+        setError("Este email já está cadastrado. Tente fazer login.");
+        return;
+      }
+
+      // Tentar criar no Supabase Auth (pode falhar com rate limit)
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: emailTrimmed,
+        password: novoCadastro.senha,
+        options: {
+          data: {
+            nome: nomeExtraido,
+          },
+        },
+      });
+
+      // Se deu erro de rate limit ou qualquer outro erro, criar direto no banco
+      if (authError || !authData.user) {
+        console.log("⚠️ Criando usuário diretamente no banco (bypass Auth)");
+
+        // Criar operador direto no banco sem Auth
+        const { data: novoOperador, error: insertError } = await supabase
+          .from("operadores")
+          .insert({
+            email: emailTrimmed,
+            nome: nomeExtraido,
+            senha: novoCadastro.senha,
+            is_admin: false,
+            ativo: false,
+            suspenso: true,
+            aguardando_pagamento: true,
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          setError("Erro ao criar cadastro: " + insertError.message);
           return;
         }
-        setError(resultado.error || "Erro ao criar cadastro. Tente novamente.");
-        return;
+
+        console.log("✅ Usuário criado direto no banco:", novoOperador.id);
+      } else {
+        // Auth funcionou, aguardar trigger ou criar operador
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        const { data: operadorExistente } = await supabase
+          .from("operadores")
+          .select("*")
+          .eq("auth_user_id", authData.user.id)
+          .maybeSingle();
+
+        if (!operadorExistente) {
+          // Criar operador manualmente
+          await supabase.from("operadores").insert({
+            auth_user_id: authData.user.id,
+            email: emailTrimmed,
+            nome: nomeExtraido,
+            senha: novoCadastro.senha,
+            is_admin: false,
+            ativo: false,
+            suspenso: true,
+            aguardando_pagamento: true,
+          });
+        } else {
+          // Atualizar operador existente
+          await supabase
+            .from("operadores")
+            .update({
+              ativo: false,
+              suspenso: true,
+              aguardando_pagamento: true,
+            })
+            .eq("auth_user_id", authData.user.id);
+        }
+
+        console.log("✅ Usuário criado via Auth:", authData.user.id);
       }
 
       // Mostrar tela de pagamento
@@ -373,14 +444,7 @@ export default function LoginPage() {
       setCadastroSucesso(true);
     } catch (err) {
       console.error("Erro ao cadastrar:", err);
-      const errorMessage = err instanceof Error ? err.message : "Erro desconhecido";
-
-      // Verificar se é erro de rate limit
-      if (errorMessage.includes("rate limit") || errorMessage.includes("Email rate limit exceeded")) {
-        setError("Muitas tentativas de cadastro. Por favor, aguarde alguns minutos ou entre em contato via WhatsApp para criar sua conta.");
-      } else {
-        setError("Erro ao criar cadastro. Tente novamente.");
-      }
+      setError("Erro ao criar cadastro. Tente novamente.");
     }
   };
 
