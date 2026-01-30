@@ -263,14 +263,15 @@ export class AuthSupabase {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (user) {
+        // Buscar apenas campos básicos (SEMPRE existem)
         const { data: operadorData, error } = await supabase
           .from("operadores")
-          .select("*")
+          .select("id, nome, email, senha, is_admin, ativo, suspenso, aguardando_pagamento, created_at")
           .eq("auth_user_id", user.id)
           .single();
 
         if (!error && operadorData) {
-          return {
+          const operador: Operador = {
             id: operadorData.id,
             nome: operadorData.nome,
             email: operadorData.email,
@@ -280,12 +281,29 @@ export class AuthSupabase {
             suspenso: operadorData.suspenso || false,
             aguardandoPagamento: operadorData.aguardando_pagamento || false,
             createdAt: new Date(operadorData.created_at),
-            formaPagamento: operadorData.forma_pagamento || undefined,
-            valorMensal: operadorData.valor_mensal || undefined,
-            dataProximoVencimento: operadorData.data_proximo_vencimento ? new Date(operadorData.data_proximo_vencimento) : undefined,
-            diasAssinatura: operadorData.dias_assinatura || undefined,
-            dataPagamento: operadorData.data_pagamento ? new Date(operadorData.data_pagamento) : undefined,
           };
+
+          // Tentar buscar campos extras (podem não existir)
+          try {
+            const { data: extrasData } = await supabase
+              .from("operadores")
+              .select("forma_pagamento, valor_mensal, data_proximo_vencimento, dias_assinatura, data_pagamento")
+              .eq("auth_user_id", user.id)
+              .single();
+
+            if (extrasData) {
+              operador.formaPagamento = extrasData.forma_pagamento || undefined;
+              operador.valorMensal = extrasData.valor_mensal || undefined;
+              operador.dataProximoVencimento = extrasData.data_proximo_vencimento ? new Date(extrasData.data_proximo_vencimento) : undefined;
+              operador.diasAssinatura = extrasData.dias_assinatura || undefined;
+              operador.dataPagamento = extrasData.data_pagamento ? new Date(extrasData.data_pagamento) : undefined;
+            }
+          } catch (extrasError) {
+            // Campos extras não existem - continuar sem eles
+            console.log("⚠️ Campos extras não disponíveis (é normal se as colunas não existem no banco)");
+          }
+
+          return operador;
         }
       }
 
@@ -297,6 +315,8 @@ export class AuthSupabase {
           return {
             ...operador,
             createdAt: new Date(operador.createdAt),
+            dataProximoVencimento: operador.dataProximoVencimento ? new Date(operador.dataProximoVencimento) : undefined,
+            dataPagamento: operador.dataPagamento ? new Date(operador.dataPagamento) : undefined,
           };
         }
       }

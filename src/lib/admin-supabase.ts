@@ -58,17 +58,41 @@ export class AdminSupabase {
    */
   static async getAllOperadores(): Promise<Operador[]> {
     try {
+      // Buscar campos básicos primeiro (SEMPRE existem)
       const { data, error } = await supabase
         .from("operadores")
-        .select("*")
+        .select("id, nome, email, senha, is_admin, ativo, suspenso, aguardando_pagamento, created_at, auth_user_id")
         .order("created_at", { ascending: false });
 
       if (error) {
-        // Supabase não configurado - retornar array vazio silenciosamente
+        console.error("Erro ao buscar operadores:", error);
         return [];
       }
 
-      return (data || []).map((op) => {
+      if (!data || data.length === 0) {
+        return [];
+      }
+
+      // Tentar buscar campos extras para todos os operadores
+      let extrasMap = new Map<string, any>();
+      try {
+        const { data: extrasData } = await supabase
+          .from("operadores")
+          .select("id, forma_pagamento, valor_mensal, data_proximo_vencimento, dias_assinatura, data_pagamento");
+
+        if (extrasData) {
+          extrasData.forEach((extra) => {
+            extrasMap.set(extra.id, extra);
+          });
+        }
+      } catch (extrasError) {
+        console.log("⚠️ Campos extras não disponíveis (colunas podem não existir)");
+      }
+
+      // Montar operadores com todos os campos disponíveis
+      return data.map((op) => {
+        const extras = extrasMap.get(op.id);
+
         const operador: Operador = {
           id: op.id,
           nome: op.nome,
@@ -79,11 +103,11 @@ export class AdminSupabase {
           suspenso: op.suspenso || false,
           aguardandoPagamento: op.aguardando_pagamento || false,
           createdAt: new Date(op.created_at),
-          formaPagamento: op.forma_pagamento || undefined,
-          valorMensal: op.valor_mensal || undefined,
-          dataProximoVencimento: op.data_proximo_vencimento ? new Date(op.data_proximo_vencimento) : undefined,
-          diasAssinatura: op.dias_assinatura || undefined,
-          dataPagamento: op.data_pagamento ? new Date(op.data_pagamento) : undefined,
+          formaPagamento: extras?.forma_pagamento || undefined,
+          valorMensal: extras?.valor_mensal || undefined,
+          dataProximoVencimento: extras?.data_proximo_vencimento ? new Date(extras.data_proximo_vencimento) : undefined,
+          diasAssinatura: extras?.dias_assinatura || undefined,
+          dataPagamento: extras?.data_pagamento ? new Date(extras.data_pagamento) : undefined,
         };
 
         return operador;
