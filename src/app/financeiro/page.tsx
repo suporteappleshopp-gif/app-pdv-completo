@@ -99,16 +99,17 @@ export default function FinanceiroPage() {
 
       if (!operador) return;
 
-      // INICIALIZAÇÃO AUTOMÁTICA: Adicionar pagamento inicial para diego2@gmail.com
+      // INICIALIZAÇÃO AUTOMÁTICA: Adicionar pagamentos iniciais para diego2@gmail.com
       if (operador.email === "diego2@gmail.com") {
         const pagamentosExistentes = await db.getPagamentosByUsuario(operador.id);
 
-        // Se não tem nenhum pagamento, adicionar o pagamento inicial
+        // Se não tem nenhum pagamento, adicionar 2 pagamentos de 60 dias
         if (pagamentosExistentes.length === 0) {
-          console.log("Inicializando pagamento para diego2@gmail.com...");
+          console.log("Inicializando pagamentos para diego2@gmail.com...");
 
-          const novoPagamento: Pagamento = {
-            id: `pag_diego_init_${Date.now()}`,
+          // Primeira compra
+          const primeiroPagamento: Pagamento = {
+            id: `pag_diego_1_${Date.now()}`,
             usuarioId: operador.id,
             mesReferencia: "Renovação 60 dias - PIX",
             valor: 59.90,
@@ -120,8 +121,26 @@ export default function FinanceiroPage() {
             tipoCompra: "renovacao-60",
           };
 
-          await db.addPagamento(novoPagamento);
-          console.log("Pagamento inicial adicionado com sucesso!");
+          await db.addPagamento(primeiroPagamento);
+
+          // Segunda compra (1 segundo depois para garantir ordem)
+          await new Promise(resolve => setTimeout(resolve, 1000));
+
+          const segundoPagamento: Pagamento = {
+            id: `pag_diego_2_${Date.now()}`,
+            usuarioId: operador.id,
+            mesReferencia: "Renovação 60 dias - PIX",
+            valor: 59.90,
+            dataVencimento: new Date(),
+            dataPagamento: new Date(),
+            status: "pago",
+            formaPagamento: "pix",
+            diasComprados: 60,
+            tipoCompra: "renovacao-60",
+          };
+
+          await db.addPagamento(segundoPagamento);
+          console.log("2 pagamentos iniciais adicionados com sucesso! Total: 120 dias");
         }
       }
 
@@ -440,15 +459,6 @@ export default function FinanceiroPage() {
     }
   };
 
-  // Filtrar mensalidades que estão a 5 dias ou menos do vencimento
-  const getMensalidadesProximasVencimento = () => {
-    const hoje = new Date();
-    return pagamentos.filter((p) => {
-      if (p.status !== "pendente") return false;
-      const diasParaVencimento = differenceInDays(new Date(p.dataVencimento), hoje);
-      return diasParaVencimento <= 5 && diasParaVencimento >= 0;
-    });
-  };
 
   if (loading) {
     return (
@@ -461,8 +471,6 @@ export default function FinanceiroPage() {
     );
   }
 
-  const mensalidadesProximas = getMensalidadesProximasVencimento();
-  const pagamentosPendentes = pagamentos.filter((p) => p.status === "pendente");
   const metaAtual = getMetaAtual();
   const progressoMeta = (ganhos / metaAtual) * 100;
 
@@ -494,76 +502,6 @@ export default function FinanceiroPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* Alerta de Mensalidades Próximas ao Vencimento */}
-        {mensalidadesProximas.length > 0 && (
-          <div className="bg-gradient-to-r from-orange-500 via-red-500 to-pink-600 rounded-2xl shadow-2xl p-6 border border-white/20 animate-pulse">
-            <div className="flex items-start justify-between">
-              <div className="flex items-start space-x-4 flex-1">
-                <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl">
-                  <AlertCircle className="w-8 h-8 text-white" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-white text-xl font-bold mb-2">
-                    ⚠️ Mensalidade Próxima ao Vencimento
-                  </h3>
-                  <p className="text-white/90 text-sm mb-4">
-                    Você tem {mensalidadesProximas.length} mensalidade(s) vencendo nos próximos 5 dias. Realize o pagamento para manter seu acesso ativo.
-                  </p>
-
-                  <div className="space-y-3">
-                    {mensalidadesProximas.map((pagamento) => {
-                      const diasRestantes = differenceInDays(new Date(pagamento.dataVencimento), new Date());
-                      return (
-                        <div
-                          key={pagamento.id}
-                          className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-white font-bold text-lg">
-                                {pagamento.mesReferencia}
-                              </p>
-                              <p className="text-white/80 text-sm">
-                                Vence em {diasRestantes} {diasRestantes === 1 ? "dia" : "dias"} - {format(new Date(pagamento.dataVencimento), "dd/MM/yyyy", { locale: ptBR })}
-                              </p>
-                              <p className="text-white font-bold text-xl mt-1">
-                                R$ {pagamento.valor.toFixed(2)}
-                              </p>
-                            </div>
-
-                            <div className="flex space-x-2">
-                              <button
-                                onClick={() => {
-                                  abrirModalPagamento(pagamento);
-                                  setFormaPagamento("pix");
-                                }}
-                                className="px-6 py-3 bg-white text-purple-600 rounded-lg hover:bg-white/90 transition-all font-semibold shadow-lg flex items-center space-x-2"
-                              >
-                                <span>PIX</span>
-                              </button>
-
-                              <button
-                                onClick={() => {
-                                  abrirModalPagamento(pagamento);
-                                  setFormaPagamento("cartao");
-                                }}
-                                className="px-6 py-3 bg-white text-purple-600 rounded-lg hover:bg-white/90 transition-all font-semibold shadow-lg flex items-center space-x-2"
-                              >
-                                <CreditCard className="w-5 h-5" />
-                                <span>Cartão</span>
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Banner Financeiro - Análise de Ganhos */}
         <div className="bg-gradient-to-br from-emerald-500 via-green-600 to-teal-600 rounded-2xl shadow-2xl p-8 border border-white/20">
           <div className="flex items-center justify-between mb-6">
@@ -711,63 +649,6 @@ export default function FinanceiroPage() {
             <p className="text-blue-200 text-sm">
               ✅ <strong>Integrado automaticamente:</strong> Os ganhos são calculados em tempo real com base nas vendas realizadas no caixa, incluindo devoluções e cancelamentos.
             </p>
-          </div>
-        </div>
-
-        {/* Mensalidades - Lista */}
-        <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
-          <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-8 py-6">
-            <h2 className="text-2xl font-bold text-white flex items-center">
-              <CreditCard className="w-7 h-7 mr-3" />
-              Mensalidades Pendentes
-            </h2>
-          </div>
-
-          <div className="p-8">
-            {pagamentosPendentes.length === 0 ? (
-              <div className="text-center py-12">
-                <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4" />
-                <p className="text-white/70 text-lg">Todas as mensalidades estão em dia!</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {pagamentosPendentes.map((pagamento) => (
-                  <div
-                    key={pagamento.id}
-                    className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-5 hover:bg-white/10 transition-all flex items-center justify-between"
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div className="bg-purple-500/20 p-3 rounded-lg">
-                        <Calendar className="w-6 h-6 text-purple-300" />
-                      </div>
-                      <div>
-                        <h3 className="text-white font-bold text-lg">
-                          {pagamento.mesReferencia}
-                        </h3>
-                        <p className="text-purple-200 text-sm">
-                          Vencimento: {format(new Date(pagamento.dataVencimento), "dd/MM/yyyy", { locale: ptBR })}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center space-x-4">
-                      <div className="text-right">
-                        <p className="text-white font-bold text-xl">
-                          R$ {pagamento.valor.toFixed(2)}
-                        </p>
-                        {getStatusBadge(pagamento.status)}
-                      </div>
-                      <button
-                        onClick={() => abrirModalPagamento(pagamento)}
-                        className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all font-semibold shadow-lg"
-                      >
-                        Pagar
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>
 
