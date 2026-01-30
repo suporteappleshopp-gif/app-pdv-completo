@@ -82,9 +82,14 @@ export default function LoginPage() {
         },
       });
 
-      // Se o erro for "User already registered", tentar fazer login para obter o ID
-      if (authError?.message?.includes("already registered") || authError?.message?.includes("User already registered")) {
-        console.log("⚠️ Usuário já existe no Auth. Tentando fazer login...");
+      // Se o erro for "User already registered" ou "rate limit", tentar fazer login
+      if (
+        authError?.message?.includes("already registered") ||
+        authError?.message?.includes("User already registered") ||
+        authError?.message?.includes("rate limit") ||
+        authError?.message?.includes("Email rate limit exceeded")
+      ) {
+        console.log("⚠️ Usuário já existe ou rate limit atingido. Tentando fazer login...");
 
         const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
           email: ADMIN_EMAIL,
@@ -92,7 +97,11 @@ export default function LoginPage() {
         });
 
         if (signInError || !signInData.user) {
-          setError("Admin já existe mas a senha está incorreta. Tente fazer login diretamente.");
+          if (authError?.message?.includes("rate limit")) {
+            setError("Limite de tentativas excedido. Aguarde alguns minutos e tente fazer login diretamente com as credenciais.");
+          } else {
+            setError("Admin já existe mas a senha está incorreta. Tente fazer login diretamente.");
+          }
           setLoading(false);
           return;
         }
@@ -102,7 +111,7 @@ export default function LoginPage() {
           .from("operadores")
           .select("*")
           .eq("auth_user_id", signInData.user.id)
-          .single();
+          .maybeSingle();
 
         if (operadorExistente) {
           // Atualizar operador existente para ser admin
@@ -124,6 +133,35 @@ export default function LoginPage() {
 
           await supabase.auth.signOut();
           alert("✅ Admin configurado com sucesso! Agora você pode fazer login.");
+          setLoading(false);
+          return;
+        } else {
+          // Se não existe operador, criar manualmente
+          console.log("⚠️ Operador não existe. Criando manualmente...");
+
+          const { data: novoOperador, error: insertError } = await supabase
+            .from("operadores")
+            .insert({
+              auth_user_id: signInData.user.id,
+              email: ADMIN_EMAIL,
+              nome: "Diego Marques",
+              senha: "",
+              is_admin: true,
+              ativo: true,
+              suspenso: false,
+              aguardando_pagamento: false,
+            })
+            .select()
+            .single();
+
+          if (insertError) {
+            setError("Erro ao criar operador: " + insertError.message);
+            setLoading(false);
+            return;
+          }
+
+          await supabase.auth.signOut();
+          alert("✅ Admin criado com sucesso! Agora você pode fazer login.");
           setLoading(false);
           return;
         }
