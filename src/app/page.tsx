@@ -67,38 +67,11 @@ export default function LoginPage() {
     setError("");
 
     try {
-      // Verificar se admin já existe
-      const { data: existingOperador } = await (await import("@/lib/supabase")).supabase
-        .from("operadores")
-        .select("*")
-        .eq("email", ADMIN_EMAIL)
-        .single();
-
-      if (existingOperador) {
-        // Atualizar para garantir que é admin e está ativo
-        const { error: updateError } = await (await import("@/lib/supabase")).supabase
-          .from("operadores")
-          .update({
-            is_admin: true,
-            ativo: true,
-            suspenso: false,
-            aguardando_pagamento: false,
-          })
-          .eq("email", ADMIN_EMAIL);
-
-        if (updateError) {
-          setError("Erro ao atualizar admin: " + updateError.message);
-          setLoading(false);
-          return;
-        }
-
-        alert("✅ Admin configurado com sucesso! Agora você pode fazer login.");
-        setLoading(false);
-        return;
-      }
-
-      // Criar novo admin
       const { supabase } = await import("@/lib/supabase");
+
+      // Passo 1: Tentar criar o usuário no Supabase Auth
+      console.log("🔐 Criando admin no Supabase Auth...");
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: ADMIN_EMAIL,
         password: ADMIN_PASSWORD,
@@ -109,22 +82,85 @@ export default function LoginPage() {
         },
       });
 
-      if (authError) {
+      // Se o erro for "User already registered", tentar fazer login para obter o ID
+      if (authError?.message?.includes("already registered") || authError?.message?.includes("User already registered")) {
+        console.log("⚠️ Usuário já existe no Auth. Tentando fazer login...");
+
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email: ADMIN_EMAIL,
+          password: ADMIN_PASSWORD,
+        });
+
+        if (signInError || !signInData.user) {
+          setError("Admin já existe mas a senha está incorreta. Tente fazer login diretamente.");
+          setLoading(false);
+          return;
+        }
+
+        // Verificar se operador existe e vincular
+        const { data: operadorExistente } = await supabase
+          .from("operadores")
+          .select("*")
+          .eq("auth_user_id", signInData.user.id)
+          .single();
+
+        if (operadorExistente) {
+          // Atualizar operador existente para ser admin
+          const { error: updateError } = await supabase
+            .from("operadores")
+            .update({
+              is_admin: true,
+              ativo: true,
+              suspenso: false,
+              aguardando_pagamento: false,
+            })
+            .eq("auth_user_id", signInData.user.id);
+
+          if (updateError) {
+            setError("Erro ao atualizar permissões: " + updateError.message);
+            setLoading(false);
+            return;
+          }
+
+          await supabase.auth.signOut();
+          alert("✅ Admin configurado com sucesso! Agora você pode fazer login.");
+          setLoading(false);
+          return;
+        }
+      } else if (authError) {
         setError("Erro ao criar admin: " + authError.message);
         setLoading(false);
         return;
       }
 
-      if (!authData.user) {
+      if (!authData?.user) {
         setError("Erro: usuário não foi criado");
         setLoading(false);
         return;
       }
 
-      // Aguardar trigger criar o operador
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log("✅ Admin criado no Auth! ID:", authData.user.id);
 
-      // Atualizar operador para ser admin
+      // Passo 2: Aguardar trigger criar o operador
+      console.log("⏳ Aguardando criação automática do operador...");
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // Passo 3: Verificar se operador foi criado
+      const { data: operadorCriado } = await supabase
+        .from("operadores")
+        .select("*")
+        .eq("auth_user_id", authData.user.id)
+        .single();
+
+      if (!operadorCriado) {
+        setError("Operador não foi criado automaticamente. Verifique o trigger no banco de dados.");
+        setLoading(false);
+        return;
+      }
+
+      console.log("✅ Operador criado:", operadorCriado.id);
+
+      // Passo 4: Atualizar operador para ser admin
       const { error: updateError } = await supabase
         .from("operadores")
         .update({
@@ -141,11 +177,13 @@ export default function LoginPage() {
         return;
       }
 
+      console.log("✅ Permissões de admin configuradas!");
+
       alert("✅ Administrador criado com sucesso! Agora você pode fazer login.");
       setLoading(false);
     } catch (err) {
       console.error("Erro ao configurar admin:", err);
-      setError("Erro ao configurar administrador");
+      setError("Erro ao configurar administrador: " + (err instanceof Error ? err.message : "Erro desconhecido"));
       setLoading(false);
     }
   };
