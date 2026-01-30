@@ -68,6 +68,10 @@ export class AdminSupabase {
           suspenso: op.suspenso || false,
           aguardandoPagamento: op.aguardando_pagamento || false,
           createdAt: new Date(op.created_at),
+          formaPagamento: op.forma_pagamento || undefined,
+          dataProximoVencimento: op.data_proximo_vencimento ? new Date(op.data_proximo_vencimento) : undefined,
+          diasAssinatura: op.dias_assinatura || undefined,
+          dataPagamento: op.data_pagamento ? new Date(op.data_pagamento) : undefined,
         };
 
         return operador;
@@ -131,18 +135,33 @@ export class AdminSupabase {
    */
   static async updateOperador(operador: Operador): Promise<boolean> {
     try {
+      const updateData: any = {
+        nome: operador.nome,
+        email: operador.email,
+        senha: operador.senha,
+        is_admin: operador.isAdmin,
+        ativo: operador.ativo,
+        suspenso: operador.suspenso || false,
+        aguardando_pagamento: operador.aguardandoPagamento || false,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Adicionar campos opcionais se existirem
+      if (operador.dataProximoVencimento) {
+        updateData.data_proximo_vencimento = operador.dataProximoVencimento instanceof Date
+          ? operador.dataProximoVencimento.toISOString()
+          : operador.dataProximoVencimento;
+      }
+      if (operador.diasAssinatura !== undefined) {
+        updateData.dias_assinatura = operador.diasAssinatura;
+      }
+      if (operador.formaPagamento) {
+        updateData.forma_pagamento = operador.formaPagamento;
+      }
+
       const { error } = await supabase
         .from("operadores")
-        .update({
-          nome: operador.nome,
-          email: operador.email,
-          senha: operador.senha,
-          is_admin: operador.isAdmin,
-          ativo: operador.ativo,
-          suspenso: operador.suspenso || false,
-          aguardando_pagamento: operador.aguardandoPagamento || false,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq("id", operador.id);
 
       if (error) {
@@ -204,6 +223,10 @@ export class AdminSupabase {
         suspenso: data.suspenso || false,
         aguardandoPagamento: data.aguardando_pagamento || false,
         createdAt: new Date(data.created_at),
+        formaPagamento: data.forma_pagamento || undefined,
+        dataProximoVencimento: data.data_proximo_vencimento ? new Date(data.data_proximo_vencimento) : undefined,
+        diasAssinatura: data.dias_assinatura || undefined,
+        dataPagamento: data.data_pagamento ? new Date(data.data_pagamento) : undefined,
       };
     } catch (error) {
       console.error("Erro ao buscar operador:", error);

@@ -55,7 +55,7 @@ export default function AdminPage() {
   const [novoUsuario, setNovoUsuario] = useState({
     email: "",
     senha: "",
-    formaPagamento: "sem-mensalidade" as "cartao" | "pix" | "sem-mensalidade",
+    formaPagamento: "pix" as "cartao" | "pix",
   });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -236,9 +236,6 @@ export default function AdminPage() {
         valorPagamento = 59.90;
         diasAssinatura = 100;
         dataProximoVencimento = addDays(new Date(), diasAssinatura);
-      } else if (novoUsuario.formaPagamento === "sem-mensalidade") {
-        // Sem mensalidade: ativo imediatamente
-        ativo = true;
       }
 
       const novoOperador: Operador = {
@@ -249,11 +246,11 @@ export default function AdminPage() {
         isAdmin: false,
         ativo: ativo,
         createdAt: new Date(),
-        formaPagamento: novoUsuario.formaPagamento === "sem-mensalidade" ? undefined : novoUsuario.formaPagamento,
-        valorMensal: valorPagamento > 0 ? valorPagamento : undefined,
+        formaPagamento: novoUsuario.formaPagamento,
+        valorMensal: valorPagamento,
         dataProximoVencimento: dataProximoVencimento || undefined,
-        aguardandoPagamento: novoUsuario.formaPagamento !== "sem-mensalidade",
-        diasAssinatura: diasAssinatura > 0 ? diasAssinatura : undefined,
+        aguardandoPagamento: true,
+        diasAssinatura: diasAssinatura,
       };
 
       const sucesso = await AdminSupabase.addOperador(novoOperador);
@@ -264,28 +261,22 @@ export default function AdminPage() {
         return;
       }
 
-      // Registrar ganho se for conta com pagamento
-      if (novoUsuario.formaPagamento !== "sem-mensalidade") {
-        await registrarGanho(
-          "conta-criada",
-          novoOperador.id,
-          novoOperador.nome,
-          valorPagamento,
-          novoUsuario.formaPagamento
-        );
-      }
-
-      setSuccess(
-        novoUsuario.formaPagamento === "sem-mensalidade"
-          ? "Usuário criado com sucesso e ativado!"
-          : "Usuário criado com sucesso! Aguardando pagamento."
+      // Registrar ganho
+      await registrarGanho(
+        "conta-criada",
+        novoOperador.id,
+        novoOperador.nome,
+        valorPagamento,
+        novoUsuario.formaPagamento
       );
+
+      setSuccess("Usuário criado com sucesso! Aguardando pagamento.");
       setTimeout(() => setSuccess(""), 3000);
       setShowModal(false);
       setNovoUsuario({
         email: "",
         senha: "",
-        formaPagamento: "sem-mensalidade",
+        formaPagamento: "pix",
       });
     } catch (err) {
       console.error("Erro ao criar usuário:", err);
@@ -558,6 +549,8 @@ export default function AdminPage() {
         setShowGerenciarDiasModal(false);
         setOperadorParaGerenciarDias(null);
         setDiasParaAdicionar(0);
+        // Recarregar operadores para atualizar a lista
+        await carregarOperadores();
       } else {
         setError("Erro ao gerenciar dias");
         setTimeout(() => setError(""), 3000);
@@ -951,6 +944,16 @@ export default function AdminPage() {
                             </button>
                           )}
 
+                          {/* Data de Validade - À ESQUERDA do status */}
+                          {operador.dataProximoVencimento && (
+                            <div className="flex items-center space-x-1 px-3 py-1 bg-indigo-500/20 text-indigo-300 rounded-lg border border-indigo-500/30">
+                              <Calendar className="w-4 h-4" />
+                              <span className="text-xs font-semibold">
+                                {format(new Date(operador.dataProximoVencimento), "dd/MM/yyyy", { locale: ptBR })}
+                              </span>
+                            </div>
+                          )}
+
                           {/* Badge de status */}
                           {operador.suspenso ? (
                             <span className="px-3 py-1 bg-orange-500/20 text-orange-300 rounded-full text-xs font-semibold border border-orange-500/30">
@@ -1085,30 +1088,6 @@ export default function AdminPage() {
                 <div className="space-y-3">
                   <button
                     onClick={() =>
-                      setNovoUsuario({ ...novoUsuario, formaPagamento: "sem-mensalidade" })
-                    }
-                    className={`w-full p-4 rounded-lg border-2 transition-all ${
-                      novoUsuario.formaPagamento === "sem-mensalidade"
-                        ? "border-green-500 bg-green-500/20"
-                        : "border-white/20 bg-white/5 hover:bg-white/10"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <CheckCircle className="w-6 h-6 text-green-400" />
-                        <div className="text-left">
-                          <p className="text-white font-semibold">Sem Mensalidade</p>
-                          <p className="text-purple-200 text-sm">Ativação imediata pelo admin</p>
-                        </div>
-                      </div>
-                      {novoUsuario.formaPagamento === "sem-mensalidade" && (
-                        <CheckCircle className="w-6 h-6 text-green-400" />
-                      )}
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() =>
                       setNovoUsuario({ ...novoUsuario, formaPagamento: "pix" })
                     }
                     className={`w-full p-4 rounded-lg border-2 transition-all ${
@@ -1165,11 +1144,9 @@ export default function AdminPage() {
                   <div className="text-sm text-blue-200">
                     <p className="font-semibold mb-1">Informações de Pagamento</p>
                     <p>
-                      {novoUsuario.formaPagamento === "sem-mensalidade"
-                        ? "Usuário será ativado imediatamente sem necessidade de pagamento."
-                        : novoUsuario.formaPagamento === "pix"
-                        ? "PIX: R$ 59,90 - 100 dias de acesso. Aviso de renovação 5 dias antes do vencimento."
-                        : "Cartão: R$ 149,70 - 365 dias de acesso (1 ano). Parcelamento em até 3x sem juros. Aviso de renovação 5 dias antes do vencimento."}
+                      {novoUsuario.formaPagamento === "pix"
+                        ? "PIX: R$ 59,90 - 100 dias de acesso. Após criar a conta, o usuário receberá o link de pagamento."
+                        : "Cartão: R$ 149,70 - 365 dias de acesso (1 ano). Parcelamento em até 3x sem juros. Após criar a conta, o usuário receberá o link de pagamento."}
                     </p>
                   </div>
                 </div>
