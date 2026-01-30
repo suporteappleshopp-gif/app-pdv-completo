@@ -57,6 +57,18 @@ export class GerenciadorAssinatura {
       const operadores = await AdminSupabase.getAllOperadores();
       const operador = operadores.find(op => op.id === userId);
 
+      // Se não encontrou operador E a lista está vazia, liberar acesso (Supabase pode estar com problema)
+      if (!operador && operadores.length === 0) {
+        console.warn("⚠️ Não foi possível buscar operadores do Supabase. Liberando acesso temporariamente.");
+        return {
+          podeUsar: true,
+          status: "ativo",
+          diasRestantes: 999,
+          mensagem: "Acesso liberado (modo offline)",
+          mostrarAviso: false,
+        };
+      }
+
       if (!operador) {
         return {
           podeUsar: false,

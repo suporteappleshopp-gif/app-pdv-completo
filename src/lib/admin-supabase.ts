@@ -58,77 +58,51 @@ export class AdminSupabase {
    */
   static async getAllOperadores(): Promise<Operador[]> {
     try {
-      // Buscar APENAS id primeiro para garantir que funcione
-      const { data: idsData, error: idsError } = await supabase
+      // Tentar buscar com select("*") primeiro
+      const { data, error } = await supabase
         .from("operadores")
-        .select("id")
-        .order("created_at", { ascending: false });
+        .select("*");
 
-      if (idsError) {
-        console.error("Erro ao buscar IDs dos operadores:", idsError);
+      if (error) {
+        console.error("Erro ao buscar operadores:", error);
+        // Se falhar, retornar array vazio - o sistema continua funcionando
         return [];
       }
 
-      if (!idsData || idsData.length === 0) {
+      if (!data || data.length === 0) {
+        console.log("⚠️ Nenhum operador encontrado no banco");
         return [];
       }
 
-      // Para cada ID, buscar campos individualmente
-      const operadores: Operador[] = [];
+      // Mapear dados com segurança (pode ter ou não ter os campos extras)
+      const operadores = data.map((op) => {
+        const operador: Operador = {
+          id: op.id || `temp-${Date.now()}`,
+          nome: op.nome || "Sem nome",
+          email: op.email || "sem-email@exemplo.com",
+          senha: op.senha || "",
+          isAdmin: op.is_admin || false,
+          ativo: op.ativo !== undefined ? op.ativo : false,
+          suspenso: op.suspenso !== undefined ? op.suspenso : false,
+          aguardandoPagamento: op.aguardando_pagamento !== undefined ? op.aguardando_pagamento : false,
+          createdAt: op.created_at ? new Date(op.created_at) : new Date(),
+        };
 
-      for (const { id } of idsData) {
-        try {
-          // Buscar campos básicos
-          const { data: basicData } = await supabase
-            .from("operadores")
-            .select("id, nome, email, senha, is_admin, ativo, suspenso, aguardando_pagamento, created_at")
-            .eq("id", id)
-            .single();
+        // Adicionar campos extras se existirem
+        if (op.forma_pagamento) operador.formaPagamento = op.forma_pagamento;
+        if (op.valor_mensal !== undefined) operador.valorMensal = op.valor_mensal;
+        if (op.data_proximo_vencimento) operador.dataProximoVencimento = new Date(op.data_proximo_vencimento);
+        if (op.dias_assinatura !== undefined) operador.diasAssinatura = op.dias_assinatura;
+        if (op.data_pagamento) operador.dataPagamento = new Date(op.data_pagamento);
 
-          if (!basicData) continue;
-
-          const operador: Operador = {
-            id: basicData.id,
-            nome: basicData.nome || "Sem nome",
-            email: basicData.email || "sem-email@exemplo.com",
-            senha: basicData.senha || "",
-            isAdmin: basicData.is_admin || false,
-            ativo: basicData.ativo || false,
-            suspenso: basicData.suspenso || false,
-            aguardandoPagamento: basicData.aguardando_pagamento || false,
-            createdAt: basicData.created_at ? new Date(basicData.created_at) : new Date(),
-          };
-
-          // Tentar buscar campos extras (podem não existir)
-          try {
-            const { data: extrasData } = await supabase
-              .from("operadores")
-              .select("forma_pagamento, valor_mensal, data_proximo_vencimento, dias_assinatura, data_pagamento")
-              .eq("id", id)
-              .single();
-
-            if (extrasData) {
-              operador.formaPagamento = extrasData.forma_pagamento || undefined;
-              operador.valorMensal = extrasData.valor_mensal || undefined;
-              operador.dataProximoVencimento = extrasData.data_proximo_vencimento ? new Date(extrasData.data_proximo_vencimento) : undefined;
-              operador.diasAssinatura = extrasData.dias_assinatura || undefined;
-              operador.dataPagamento = extrasData.data_pagamento ? new Date(extrasData.data_pagamento) : undefined;
-            }
-          } catch (extrasError) {
-            // Campos extras não existem - continuar sem eles
-          }
-
-          operadores.push(operador);
-        } catch (opError) {
-          console.warn(`Erro ao buscar operador ${id}:`, opError);
-          continue;
-        }
-      }
+        return operador;
+      });
 
       console.log(`✅ ${operadores.length} operadores carregados`);
       return operadores;
     } catch (error) {
       console.error("Erro crítico ao buscar operadores:", error);
+      // Retornar array vazio - o sistema continua funcionando
       return [];
     }
   }
