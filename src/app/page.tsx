@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AuthSupabase } from "@/lib/auth-supabase";
+import { db } from "@/lib/db";
 import { Operador } from "@/lib/types";
 import { LogIn, Loader2, User, Lock, Shield, UserPlus, CreditCard, Copy, CheckCircle, AlertCircle, ExternalLink, Calendar, MessageCircle } from "lucide-react";
 import { addDays, differenceInDays } from "date-fns";
@@ -341,9 +342,47 @@ export default function LoginPage() {
     }
 
     try {
-      const { supabase } = await import("@/lib/supabase");
       const emailTrimmed = novoCadastro.email.trim();
       const nomeExtraido = emailTrimmed.split("@")[0];
+
+      // Verificar se Supabase está configurado
+      const supabaseConfigured = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+
+      if (!supabaseConfigured) {
+        // Modo local - criar usuário no IndexedDB
+        await db.init();
+
+        // Verificar se o email já existe no IndexedDB
+        const usuarioExistente = await db.getOperadorByEmail(emailTrimmed);
+        if (usuarioExistente) {
+          setError("Este email já está cadastrado. Tente fazer login.");
+          return;
+        }
+
+        // Criar usuário local
+        const novoId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const novoOperador: any = {
+          id: novoId,
+          email: emailTrimmed,
+          nome: nomeExtraido,
+          senha: novoCadastro.senha,
+          isAdmin: false,
+          ativo: false,
+          createdAt: new Date(),
+          aguardandoPagamento: true,
+          formaPagamento: novoCadastro.formaPagamento,
+          valorMensal: novoCadastro.formaPagamento === "pix" ? 59.90 : 149.70,
+        };
+
+        await db.addOperador(novoOperador);
+        setCadastroSucesso(true);
+        setMostrarPagamento(true);
+        console.log("✅ Usuário criado localmente:", novoId);
+        return;
+      }
+
+      // Modo Supabase
+      const { supabase } = await import("@/lib/supabase");
 
       // Verificar se o email já existe
       const { data: emailExistente } = await supabase
