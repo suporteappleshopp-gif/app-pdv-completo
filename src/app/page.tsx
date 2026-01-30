@@ -31,8 +31,8 @@ export default function LoginPage() {
 
   const ADMIN_EMAIL = "diegomarqueshm@icloud.com";
   const ADMIN_PASSWORD = "Sedexdez@1";
-  const LINK_PAGAMENTO_CARTAO = "https://mpago.li/12S6mJE"; // Link para pagamento de R$ 149,70 parcelado em até 3x (1 ano)
-  const LINK_PAGAMENTO_PIX = "https://mpago.la/24Hxr1X"; // Link para pagamento PIX de R$ 59,90 (100 dias)
+  const LINK_PAGAMENTO_CARTAO = "https://mpago.li/12S6mJE"; // Link para pagamento de R$ 149,70 parcelado em até 3x (180 dias)
+  const LINK_PAGAMENTO_PIX = "https://mpago.la/24Hxr1X"; // Link para pagamento PIX de R$ 59,90 (60 dias)
   const WHATSAPP_CONTATO = process.env.NEXT_PUBLIC_WHATSAPP_CONTATO || "5565981032239";
 
   useEffect(() => {
@@ -478,8 +478,8 @@ export default function LoginPage() {
   if (mostrarPagamento && cadastroSucesso) {
     const isPix = novoCadastro.formaPagamento === "pix";
     const valor = isPix ? "59,90" : "149,70";
-    const dias = isPix ? 100 : 365;
-    const periodo = isPix ? "100 dias" : "1 ano";
+    const dias = isPix ? 60 : 180;
+    const periodo = isPix ? "60 dias" : "180 dias";
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -670,7 +670,7 @@ export default function LoginPage() {
                       </div>
                       <div className="text-left">
                         <p className="font-semibold text-gray-800">PIX - R$ 59,90</p>
-                        <p className="text-sm text-gray-600">100 dias de acesso</p>
+                        <p className="text-sm text-gray-600">60 dias de acesso</p>
                       </div>
                     </div>
                     {novoCadastro.formaPagamento === "pix" && (
@@ -693,7 +693,7 @@ export default function LoginPage() {
                       <CreditCard className="w-10 h-10 text-blue-600" />
                       <div className="text-left">
                         <p className="font-semibold text-gray-800">Cartão - R$ 149,70</p>
-                        <p className="text-sm text-gray-600">365 dias (1 ano) | Até 3x sem juros</p>
+                        <p className="text-sm text-gray-600">180 dias | Até 3x sem juros</p>
                       </div>
                     </div>
                     {novoCadastro.formaPagamento === "cartao" && (

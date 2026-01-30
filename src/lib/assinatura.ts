@@ -202,8 +202,8 @@ export class GerenciadorAssinatura {
 
   /**
    * Processar pagamento e ativar assinatura
-   * PIX: R$ 59,90 - 35 dias
-   * Cartão: R$ 49,90 - 105 dias
+   * PIX: R$ 59,90 - 60 dias
+   * Cartão: R$ 149,70 - 180 dias
    */
   static async processarPagamento(
     assinaturaId: string,
@@ -293,8 +293,8 @@ export class GerenciadorAssinatura {
 
   /**
    * Verificar se deve mostrar lembrete de renovação
-   * PIX: aviso aos 30 dias
-   * Cartão: aviso aos 100 dias
+   * PIX: aviso 5 dias antes (após 55 dias)
+   * Cartão: aviso 5 dias antes (após 175 dias)
    */
   static deveMostrarLembrete(diasRestantes: number, metodoPagamento: "pix" | "cartao_credito" = "pix"): boolean {
     if (metodoPagamento === "pix") {
@@ -385,7 +385,7 @@ export class GerenciadorAssinatura {
   }
 
   /**
-   * Processar pagamento via PIX (R$ 59,90 - 35 dias)
+   * Processar pagamento via PIX (R$ 59,90 - 60 dias)
    */
   static async processarPagamentoPix(
     assinaturaId: string,
@@ -395,7 +395,7 @@ export class GerenciadorAssinatura {
   }
 
   /**
-   * Processar pagamento via Cartão de Crédito (R$ 49,90 - 105 dias)
+   * Processar pagamento via Cartão de Crédito (R$ 149,70 - 180 dias)
    */
   static async processarPagamentoCartao(
     assinaturaId: string,

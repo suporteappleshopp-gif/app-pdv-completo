@@ -79,16 +79,16 @@ export async function POST(request: NextRequest) {
 
         // Determinar dias e forma de pagamento baseado no valor
         const valorPago = payment.transaction_amount;
-        let diasAssinatura = 365;
+        let diasAssinatura = 180;
         let formaPagamento = "cartao";
 
-        // Se valor é R$ 59,90 = PIX (100 dias)
-        // Se valor é R$ 149,70 = Cartão (365 dias)
+        // Se valor é R$ 59,90 = PIX (60 dias)
+        // Se valor é R$ 149,70 = Cartão (180 dias)
         if (valorPago >= 59 && valorPago <= 60) {
-          diasAssinatura = 100;
+          diasAssinatura = 60;
           formaPagamento = "pix";
         } else if (valorPago >= 149 && valorPago <= 150) {
-          diasAssinatura = 365;
+          diasAssinatura = 180;
           formaPagamento = "cartao";
         }
 

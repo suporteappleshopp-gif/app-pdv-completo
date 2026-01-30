@@ -179,13 +179,13 @@ export default function AdminPage() {
       let descricao = "";
       
       if (formaPagamento === "pix") {
-        descricao = tipo === "conta-criada" 
-          ? `Conta criada - ${usuarioNome} (PIX) - R$ 59,90 - 100 dias`
-          : `Pagamento confirmado - ${usuarioNome} (PIX) - R$ 59,90 - 100 dias`;
+        descricao = tipo === "conta-criada"
+          ? `Conta criada - ${usuarioNome} (PIX) - R$ 59,90 - 60 dias`
+          : `Pagamento confirmado - ${usuarioNome} (PIX) - R$ 59,90 - 60 dias`;
       } else if (formaPagamento === "cartao") {
-        descricao = tipo === "conta-criada" 
-          ? `Conta criada - ${usuarioNome} (Cartão de Crédito) - R$ 149,70 - Renovação Anual`
-          : `Pagamento confirmado - ${usuarioNome} (Cartão de Crédito) - R$ 149,70 - Renovação Anual`;
+        descricao = tipo === "conta-criada"
+          ? `Conta criada - ${usuarioNome} (Cartão de Crédito) - R$ 149,70 - 180 dias`
+          : `Pagamento confirmado - ${usuarioNome} (Cartão de Crédito) - R$ 149,70 - 180 dias`;
       }
 
       const ganho: GanhoAdmin = {
@@ -238,11 +238,11 @@ export default function AdminPage() {
 
       if (novoUsuario.formaPagamento === "cartao") {
         valorPagamento = 149.70;
-        diasAssinatura = 365;
+        diasAssinatura = 180;
         dataProximoVencimento = addDays(new Date(), diasAssinatura);
       } else if (novoUsuario.formaPagamento === "pix") {
         valorPagamento = 59.90;
-        diasAssinatura = 100;
+        diasAssinatura = 60;
         dataProximoVencimento = addDays(new Date(), diasAssinatura);
       }
 
@@ -297,7 +297,7 @@ export default function AdminPage() {
   const abrirModalConfirmarPagamento = (operador: Operador) => {
     setOperadorParaConfirmar(operador);
     // Usar diasAssinatura que foi definido ao criar o usuário, ou usar padrão baseado na forma de pagamento
-    const diasPadrao = operador.diasAssinatura || (operador.formaPagamento === "pix" ? 100 : 365);
+    const diasPadrao = operador.diasAssinatura || (operador.formaPagamento === "pix" ? 60 : 180);
     setDiasAtivacao(diasPadrao);
     setShowConfirmarPagamentoModal(true);
   };
@@ -886,8 +886,8 @@ export default function AdminPage() {
                               <div className="mt-2 flex items-center space-x-2 text-xs">
                                 <CreditCard className="w-4 h-4 text-purple-300" />
                                 <span className="text-purple-300">
-                                  {operador.formaPagamento === "pix" ? "PIX" : "Cartão"} - R$ {operador.valorMensal?.toFixed(2)} 
-                                  {operador.formaPagamento === "pix" ? " (100 dias)" : " (Anual)"}
+                                  {operador.formaPagamento === "pix" ? "PIX" : "Cartão"} - R$ {operador.valorMensal?.toFixed(2)}
+                                  {operador.formaPagamento === "pix" ? " (60 dias)" : " (180 dias)"}
                                 </span>
                                 {operador.dataProximoVencimento && (
                                   <span className="text-purple-300">
@@ -1101,7 +1101,7 @@ export default function AdminPage() {
                         </div>
                         <div className="text-left">
                           <p className="text-white font-semibold">PIX</p>
-                          <p className="text-purple-200 text-sm">R$ 59,90 - 100 dias de acesso</p>
+                          <p className="text-purple-200 text-sm">R$ 59,90 - 60 dias de acesso</p>
                         </div>
                       </div>
                       {novoUsuario.formaPagamento === "pix" && (
@@ -1125,7 +1125,7 @@ export default function AdminPage() {
                         <CreditCard className="w-6 h-6 text-white" />
                         <div className="text-left">
                           <p className="text-white font-semibold">Cartão de Crédito</p>
-                          <p className="text-purple-200 text-sm">R$ 149,70 - 365 dias (1 ano) | Até 3x sem juros</p>
+                          <p className="text-purple-200 text-sm">R$ 149,70 - 180 dias | Até 3x sem juros</p>
                         </div>
                       </div>
                       {novoUsuario.formaPagamento === "cartao" && (
@@ -1143,8 +1143,8 @@ export default function AdminPage() {
                     <p className="font-semibold mb-1">Informações de Pagamento</p>
                     <p>
                       {novoUsuario.formaPagamento === "pix"
-                        ? "PIX: R$ 59,90 - 100 dias de acesso. Após criar a conta, o usuário receberá o link de pagamento."
-                        : "Cartão: R$ 149,70 - 365 dias de acesso (1 ano). Parcelamento em até 3x sem juros. Após criar a conta, o usuário receberá o link de pagamento."}
+                        ? "PIX: R$ 59,90 - 60 dias de acesso. Após criar a conta, o usuário receberá o link de pagamento."
+                        : "Cartão: R$ 149,70 - 180 dias de acesso. Parcelamento em até 3x sem juros. Após criar a conta, o usuário receberá o link de pagamento."}
                     </p>
                   </div>
                 </div>
@@ -1208,7 +1208,7 @@ export default function AdminPage() {
                   />
                 </div>
                 <p className="text-purple-300 text-xs mt-2">
-                  Padrão: {operadorParaConfirmar.formaPagamento === "pix" ? "100 dias (PIX)" : "365 dias (Cartão)"}. Você pode personalizar conforme necessário.
+                  Padrão: {operadorParaConfirmar.formaPagamento === "pix" ? "60 dias (PIX)" : "180 dias (Cartão)"}. Você pode personalizar conforme necessário.
                 </p>
               </div>
 
