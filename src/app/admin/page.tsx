@@ -102,24 +102,35 @@ export default function AdminPage() {
 
   useEffect(() => {
     // Verificar autenticação
-    const checkAuth = () => {
-      const adminStatus = localStorage.getItem("isAdmin");
-      const nome = localStorage.getItem("operadorNome");
+    const checkAuth = async () => {
+      // Verificar se é admin master (login direto)
+      const adminMaster = localStorage.getItem("admin_master_session");
+      if (adminMaster === "true") {
+        setAdminNome("Administrador");
+        setIsAuthenticated(true);
+        return true;
+      }
 
-      if (adminStatus !== "true") {
+      // Verificar se é admin via Supabase Auth
+      const { AuthSupabase } = await import("@/lib/auth-supabase");
+      const operador = await AuthSupabase.getCurrentOperador();
+
+      if (!operador || !operador.isAdmin) {
         router.push("/");
         return false;
       }
 
-      setAdminNome(nome || "Admin");
+      setAdminNome(operador.nome);
       setIsAuthenticated(true);
       return true;
     };
 
-    if (checkAuth()) {
-      carregarOperadores();
-      setupRealtimeSync();
-    }
+    checkAuth().then((isAuth) => {
+      if (isAuth) {
+        carregarOperadores();
+        setupRealtimeSync();
+      }
+    });
   }, [router]);
 
   // Configurar sincronização em tempo real
@@ -652,9 +663,14 @@ export default function AdminPage() {
               </button>
               
               <button
-                onClick={() => {
-                  localStorage.removeItem("isAdmin");
-                  localStorage.removeItem("operadorNome");
+                onClick={async () => {
+                  // Fazer logout no Supabase (limpa sessão)
+                  const { AuthSupabase } = await import("@/lib/auth-supabase");
+                  await AuthSupabase.signOut();
+
+                  // Limpar localStorage (apenas backup local)
+                  localStorage.clear();
+
                   router.push("/");
                 }}
                 className="px-4 py-3 bg-red-500/20 text-red-300 rounded-xl hover:bg-red-500/30 transition-all border border-red-500/30"

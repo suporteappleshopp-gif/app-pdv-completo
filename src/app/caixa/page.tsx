@@ -301,27 +301,38 @@ export default function CaixaPage() {
 
   useEffect(() => {
     setMounted(true);
-    const nome = localStorage.getItem("operadorNome") || "Operador";
-    const id = localStorage.getItem("operadorId") || "";
-    const semMensalidade = localStorage.getItem("usuarioSemMensalidade") === "true";
-    
-    setOperadorNome(nome);
-    setOperadorId(id);
-    setUsuarioSemMensalidade(semMensalidade);
-    
-    // Se é usuário sem mensalidade, libera acesso imediatamente
-    if (semMensalidade) {
-      setPodeUsarApp(true);
-      setStatusAssinatura("ativo");
-      setDiasRestantes(999);
-    }
-    
+
     // Verificar se Supabase está configurado
     const isConfigured = CloudSync.isConfigured();
     setSupabaseConfigured(isConfigured);
-    
+
     // Inicializar banco e carregar produtos
     const init = async () => {
+      // Buscar operador logado do Supabase (não do localStorage)
+      const { AuthSupabase } = await import("@/lib/auth-supabase");
+      const operador = await AuthSupabase.getCurrentOperador();
+
+      if (!operador) {
+        // Não tem sessão ativa - redirecionar para login
+        router.push("/");
+        return;
+      }
+
+      // Configurar dados do operador a partir do banco
+      setOperadorNome(operador.nome);
+      setOperadorId(operador.id);
+
+      // Verificar se é usuário sem mensalidade (criado pelo admin)
+      const semMensalidade = !operador.formaPagamento;
+      setUsuarioSemMensalidade(semMensalidade);
+
+      // Se é usuário sem mensalidade, libera acesso imediatamente
+      if (semMensalidade) {
+        setPodeUsarApp(true);
+        setStatusAssinatura("ativo");
+        setDiasRestantes(999);
+      }
+
       await db.init();
       
       // Tentar carregar produtos da nuvem primeiro (se configurado)
@@ -346,7 +357,7 @@ export default function CaixaPage() {
       setProdutos(todosProdutos);
 
       // Recuperar carrinho salvo automaticamente
-      const chaveCarrinho = `autosave_carrinho_${id}`;
+      const chaveCarrinho = `autosave_carrinho_${operador.id}`;
       const carrinhoSalvo = localStorage.getItem(chaveCarrinho);
       if (carrinhoSalvo) {
         try {
@@ -362,10 +373,10 @@ export default function CaixaPage() {
       }
 
       // Verificar vencimento (apenas para usuários COM mensalidade)
-      if (id && !semMensalidade) {
-        const operador = await db.getOperador(id);
-        if (operador && operador.dataProximoVencimento) {
-          const dias = differenceInDays(new Date(operador.dataProximoVencimento), new Date());
+      if (!semMensalidade) {
+        const operadorDB = await db.getOperador(operador.id);
+        if (operadorDB && operadorDB.dataProximoVencimento) {
+          const dias = differenceInDays(new Date(operadorDB.dataProximoVencimento), new Date());
           if (dias <= 3 && dias >= 0) {
             setDiasAteVencimento(dias);
             setMostrarLembrete(true);
@@ -916,8 +927,14 @@ export default function CaixaPage() {
     setMostrarVendas(true);
   };
 
-  const sair = () => {
+  const sair = async () => {
+    // Fazer logout no Supabase (limpa sessão em todos os navegadores)
+    const { AuthSupabase } = await import("@/lib/auth-supabase");
+    await AuthSupabase.signOut();
+
+    // Limpar localStorage (apenas backup local)
     localStorage.clear();
+
     router.push("/");
   };
 

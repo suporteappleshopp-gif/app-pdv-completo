@@ -56,24 +56,29 @@ export default function FinanceiroPage() {
   const [cartaoSalvo, setCartaoSalvo] = useState<any>(null);
 
   useEffect(() => {
-    const checkAuth = () => {
-      const id = localStorage.getItem("operadorId");
-      const nome = localStorage.getItem("operadorNome");
-      const isAdmin = localStorage.getItem("isAdmin");
+    const checkAuth = async () => {
+      // Buscar operador logado do Supabase
+      const { AuthSupabase } = await import("@/lib/auth-supabase");
+      const operador = await AuthSupabase.getCurrentOperador();
 
-      if (!id || isAdmin === "true") {
+      // Verificar se é admin (admin não acessa financeiro)
+      const adminMaster = localStorage.getItem("admin_master_session");
+
+      if (!operador || operador.isAdmin || adminMaster === "true") {
         router.push("/");
         return false;
       }
 
-      setOperadorId(id);
-      setOperadorNome(nome || "Usuário");
+      setOperadorId(operador.id);
+      setOperadorNome(operador.nome);
       return true;
     };
 
-    if (checkAuth()) {
-      carregarDados();
-    }
+    checkAuth().then((isAuth) => {
+      if (isAuth) {
+        carregarDados();
+      }
+    });
   }, [router]);
 
   useEffect(() => {
@@ -85,24 +90,28 @@ export default function FinanceiroPage() {
   const carregarDados = async () => {
     try {
       setLoading(true);
-      const id = localStorage.getItem("operadorId");
-      if (!id) return;
+
+      // Buscar operador do Supabase
+      const { AuthSupabase } = await import("@/lib/auth-supabase");
+      const operador = await AuthSupabase.getCurrentOperador();
+
+      if (!operador) return;
 
       // Carregar pagamentos
-      const todosPagamentos = await db.getPagamentosByUsuario(id);
-      todosPagamentos.sort((a, b) => 
+      const todosPagamentos = await db.getPagamentosByUsuario(operador.id);
+      todosPagamentos.sort((a, b) =>
         new Date(b.dataVencimento).getTime() - new Date(a.dataVencimento).getTime()
       );
       setPagamentos(todosPagamentos);
 
-      // Carregar meta salva
-      const metaSalva = localStorage.getItem(`meta_${id}`);
+      // Carregar meta salva (localStorage como cache)
+      const metaSalva = localStorage.getItem(`meta_${operador.id}`);
       if (metaSalva) {
         setMetaDiaria(parseFloat(metaSalva));
       }
-      
-      // Carregar cartão salvo
-      const cartaoSalvoStorage = localStorage.getItem(`cartao_${id}`);
+
+      // Carregar cartão salvo (localStorage como cache)
+      const cartaoSalvoStorage = localStorage.getItem(`cartao_${operador.id}`);
       if (cartaoSalvoStorage) {
         setCartaoSalvo(JSON.parse(cartaoSalvoStorage));
       }
@@ -110,22 +119,18 @@ export default function FinanceiroPage() {
       // Carregar dias restantes do Supabase
       try {
         const { supabase } = await import("@/lib/supabase");
-        const email = localStorage.getItem("operadorEmail");
+        const { data: operadorDB } = await supabase
+          .from("operadores")
+          .select("data_proximo_vencimento")
+          .eq("email", operador.email)
+          .single();
 
-        if (email) {
-          const { data: operador } = await supabase
-            .from("operadores")
-            .select("data_proximo_vencimento")
-            .eq("email", email)
-            .single();
-
-          if (operador?.data_proximo_vencimento) {
-            const vencimento = new Date(operador.data_proximo_vencimento);
-            const hoje = new Date();
-            const dias = differenceInDays(vencimento, hoje);
-            setDiasRestantes(dias);
-            setDataProximoVencimento(vencimento);
-          }
+        if (operadorDB?.data_proximo_vencimento) {
+          const vencimento = new Date(operadorDB.data_proximo_vencimento);
+          const hoje = new Date();
+          const dias = differenceInDays(vencimento, hoje);
+          setDiasRestantes(dias);
+          setDataProximoVencimento(vencimento);
         }
       } catch (error) {
         console.error("Erro ao carregar dias restantes:", error);

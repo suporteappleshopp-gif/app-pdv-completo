@@ -280,15 +280,8 @@ export default function LoginPage() {
 
         const operador = resultado.operador;
 
-        // Verificar se é usuário sem mensalidade (criado pelo admin)
-        const usuarioSemMensalidade = !operador.formaPagamento;
-
-        // Salvar dados no localStorage para compatibilidade
-        localStorage.setItem("operadorId", operador.id);
-        localStorage.setItem("operadorNome", operador.nome);
-        localStorage.setItem("operadorEmail", operador.email);
-        localStorage.setItem("isAdmin", "false");
-        localStorage.setItem("usuarioSemMensalidade", usuarioSemMensalidade ? "true" : "false");
+        // NÃO salvar no localStorage - usar APENAS sessão Supabase
+        // Os dados virão sempre do banco de dados
 
         router.push("/caixa");
       } else {
@@ -303,11 +296,9 @@ export default function LoginPage() {
 
         // Verificar senha diretamente
         if (senhaAdminDigitada === ADMIN_PASSWORD) {
-          // Login admin bem-sucedido - sem Supabase Auth
-          localStorage.setItem("operadorId", "admin-master");
-          localStorage.setItem("operadorNome", "Administrador");
-          localStorage.setItem("operadorEmail", "admin@sistema.com");
-          localStorage.setItem("isAdmin", "true");
+          // Login admin bem-sucedido
+          // Criar sessão temporária no localStorage apenas para o admin master
+          localStorage.setItem("admin_master_session", "true");
 
           console.log("✅ Login de administrador bem-sucedido!");
           router.push("/admin");
