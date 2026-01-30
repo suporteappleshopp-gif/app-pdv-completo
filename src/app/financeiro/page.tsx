@@ -438,7 +438,7 @@ export default function FinanceiroPage() {
                   <p className="text-white/90 text-sm mb-4">
                     Você tem {mensalidadesProximas.length} mensalidade(s) vencendo nos próximos 5 dias. Realize o pagamento para manter seu acesso ativo.
                   </p>
-                  
+
                   <div className="space-y-3">
                     {mensalidadesProximas.map((pagamento) => {
                       const diasRestantes = differenceInDays(new Date(pagamento.dataVencimento), new Date());
@@ -459,7 +459,7 @@ export default function FinanceiroPage() {
                                 R$ {pagamento.valor.toFixed(2)}
                               </p>
                             </div>
-                            
+
                             <div className="flex space-x-2">
                               <button
                                 onClick={() => {
@@ -470,7 +470,7 @@ export default function FinanceiroPage() {
                               >
                                 <span>PIX</span>
                               </button>
-                              
+
                               <button
                                 onClick={() => {
                                   abrirModalPagamento(pagamento);
@@ -487,175 +487,6 @@ export default function FinanceiroPage() {
                       );
                     })}
                   </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Seção de Renovação de Assinatura */}
-        {diasRestantes >= 0 && (
-          <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 rounded-2xl shadow-2xl p-8 border border-white/20">
-            <div className="text-center mb-6">
-              <h2 className="text-3xl font-bold text-white mb-2">Renovar Assinatura</h2>
-              {dataProximoVencimento && (
-                <p className="text-white/90 text-lg">
-                  Você tem <span className="font-bold text-yellow-300">{diasRestantes} {diasRestantes === 1 ? "dia" : "dias"}</span> restantes
-                  <br />
-                  Vencimento: <span className="font-bold">{format(dataProximoVencimento, "dd/MM/yyyy", { locale: ptBR })}</span>
-                </p>
-              )}
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-6">
-              {/* Plano PIX - 100 dias */}
-              <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border-2 border-white/30 hover:border-green-400 transition-all">
-                <div className="text-center mb-4">
-                  <div className="inline-block bg-green-500 text-white px-4 py-2 rounded-full font-bold text-lg mb-3">
-                    PIX
-                  </div>
-                  <h3 className="text-4xl font-bold text-white mb-2">R$ 59,90</h3>
-                  <p className="text-white/80">100 dias de acesso</p>
-                </div>
-
-                <div className="space-y-2 mb-6">
-                  <div className="flex items-center space-x-2 text-white/90">
-                    <CheckCircle className="w-4 h-4 text-green-400" />
-                    <span className="text-sm">Acesso completo ao sistema</span>
-                  </div>
-                  <div className="flex items-center space-x-2 text-white/90">
-                    <CheckCircle className="w-4 h-4 text-green-400" />
-                    <span className="text-sm">Sincronização na nuvem</span>
-                  </div>
-                  <div className="flex items-center space-x-2 text-white/90">
-                    <CheckCircle className="w-4 h-4 text-green-400" />
-                    <span className="text-sm">Suporte técnico</span>
-                  </div>
-                  <div className="flex items-center space-x-2 text-white/90">
-                    <CheckCircle className="w-4 h-4 text-green-400" />
-                    <span className="text-sm">Pagamento instantâneo</span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={async () => {
-                    window.open("https://mpago.la/24Hxr1X", "_blank");
-
-                    // Registrar pagamento no banco
-                    try {
-                      const novoPagamento: Pagamento = {
-                        id: `pag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                        usuarioId: operadorId,
-                        mesReferencia: "Renovação 100 dias - PIX",
-                        valor: 59.90,
-                        dataVencimento: new Date(),
-                        dataPagamento: new Date(),
-                        status: "pago",
-                        formaPagamento: "pix",
-                        diasComprados: 100,
-                        tipoCompra: "renovacao-100",
-                      };
-
-                      await db.addPagamento(novoPagamento);
-                      carregarDados();
-                    } catch (err) {
-                      console.error("Erro ao registrar pagamento:", err);
-                    }
-                  }}
-                  className="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
-                >
-                  <span>Renovar com PIX</span>
-                  <CheckCircle className="w-5 h-5" />
-                </button>
-
-                {diasRestantes > 0 && (
-                  <p className="text-xs text-white/70 text-center mt-3">
-                    Novo vencimento: {format(new Date(Date.now() + (diasRestantes + 100) * 24 * 60 * 60 * 1000), "dd/MM/yyyy")}
-                  </p>
-                )}
-              </div>
-
-              {/* Plano Cartão - 365 dias (1 ano) */}
-              <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border-2 border-yellow-400 hover:border-yellow-300 transition-all relative">
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-yellow-400 text-gray-900 px-4 py-1 rounded-full font-bold text-sm">
-                  MAIS VANTAJOSO
-                </div>
-
-                <div className="text-center mb-4">
-                  <div className="inline-block bg-blue-500 text-white px-4 py-2 rounded-full font-bold text-lg mb-3">
-                    CARTÃO
-                  </div>
-                  <h3 className="text-4xl font-bold text-white mb-2">R$ 149,70</h3>
-                  <p className="text-white/80">365 dias (1 ano)</p>
-                  <p className="text-yellow-300 font-semibold text-sm mt-1">Parcele em até 3x sem juros</p>
-                </div>
-
-                <div className="space-y-2 mb-6">
-                  <div className="flex items-center space-x-2 text-white/90">
-                    <CheckCircle className="w-4 h-4 text-yellow-400" />
-                    <span className="text-sm font-semibold">Tudo do plano PIX +</span>
-                  </div>
-                  <div className="flex items-center space-x-2 text-white/90">
-                    <CheckCircle className="w-4 h-4 text-yellow-400" />
-                    <span className="text-sm">1 ano completo de acesso</span>
-                  </div>
-                  <div className="flex items-center space-x-2 text-white/90">
-                    <CheckCircle className="w-4 h-4 text-yellow-400" />
-                    <span className="text-sm">Economia de R$ 69,20</span>
-                  </div>
-                  <div className="flex items-center space-x-2 text-white/90">
-                    <CheckCircle className="w-4 h-4 text-yellow-400" />
-                    <span className="text-sm">Parcelamento facilitado</span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={async () => {
-                    window.open("https://mpago.li/12S6mJE", "_blank");
-
-                    // Registrar pagamento no banco
-                    try {
-                      const novoPagamento: Pagamento = {
-                        id: `pag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                        usuarioId: operadorId,
-                        mesReferencia: "Renovação Anual 365 dias - Cartão",
-                        valor: 149.70,
-                        dataVencimento: new Date(),
-                        dataPagamento: new Date(),
-                        status: "pago",
-                        formaPagamento: "cartao",
-                        diasComprados: 365,
-                        tipoCompra: "renovacao-365",
-                      };
-
-                      await db.addPagamento(novoPagamento);
-                      carregarDados();
-                    } catch (err) {
-                      console.error("Erro ao registrar pagamento:", err);
-                    }
-                  }}
-                  className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-4 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
-                >
-                  <CreditCard className="w-5 h-5" />
-                  <span>Renovar Anual</span>
-                </button>
-
-                {diasRestantes > 0 && (
-                  <p className="text-xs text-white/70 text-center mt-3">
-                    Novo vencimento: {format(new Date(Date.now() + (diasRestantes + 365) * 24 * 60 * 60 * 1000), "dd/MM/yyyy")}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-6 bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
-              <div className="flex items-start space-x-3">
-                <AlertCircle className="w-5 h-5 text-yellow-300 flex-shrink-0 mt-0.5" />
-                <div className="text-white/90 text-sm">
-                  <p className="font-semibold mb-1">Como funciona a renovação:</p>
-                  <p>✅ Os dias restantes da sua assinatura atual serão somados aos novos dias</p>
-                  <p>✅ Sua conta é ativada automaticamente após a confirmação do pagamento</p>
-                  <p>✅ Se o pagamento não for confirmado até o vencimento, sua conta será suspensa</p>
                 </div>
               </div>
             </div>
@@ -999,6 +830,175 @@ export default function FinanceiroPage() {
             )}
           </div>
         </div>
+
+        {/* Seção de Renovação de Assinatura */}
+        {diasRestantes >= 0 && (
+          <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 rounded-2xl shadow-2xl p-8 border border-white/20">
+            <div className="text-center mb-6">
+              <h2 className="text-3xl font-bold text-white mb-2">Renovar Assinatura</h2>
+              {dataProximoVencimento && (
+                <p className="text-white/90 text-lg">
+                  Você tem <span className="font-bold text-yellow-300">{diasRestantes} {diasRestantes === 1 ? "dia" : "dias"}</span> restantes
+                  <br />
+                  Vencimento: <span className="font-bold">{format(dataProximoVencimento, "dd/MM/yyyy", { locale: ptBR })}</span>
+                </p>
+              )}
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Plano PIX - 100 dias */}
+              <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border-2 border-white/30 hover:border-green-400 transition-all">
+                <div className="text-center mb-4">
+                  <div className="inline-block bg-green-500 text-white px-4 py-2 rounded-full font-bold text-lg mb-3">
+                    PIX
+                  </div>
+                  <h3 className="text-4xl font-bold text-white mb-2">R$ 59,90</h3>
+                  <p className="text-white/80">100 dias de acesso</p>
+                </div>
+
+                <div className="space-y-2 mb-6">
+                  <div className="flex items-center space-x-2 text-white/90">
+                    <CheckCircle className="w-4 h-4 text-green-400" />
+                    <span className="text-sm">Acesso completo ao sistema</span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-white/90">
+                    <CheckCircle className="w-4 h-4 text-green-400" />
+                    <span className="text-sm">Sincronização na nuvem</span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-white/90">
+                    <CheckCircle className="w-4 h-4 text-green-400" />
+                    <span className="text-sm">Suporte técnico</span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-white/90">
+                    <CheckCircle className="w-4 h-4 text-green-400" />
+                    <span className="text-sm">Pagamento instantâneo</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={async () => {
+                    window.open("https://mpago.la/24Hxr1X", "_blank");
+
+                    // Registrar pagamento no banco
+                    try {
+                      const novoPagamento: Pagamento = {
+                        id: `pag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                        usuarioId: operadorId,
+                        mesReferencia: "Renovação 100 dias - PIX",
+                        valor: 59.90,
+                        dataVencimento: new Date(),
+                        dataPagamento: new Date(),
+                        status: "pago",
+                        formaPagamento: "pix",
+                        diasComprados: 100,
+                        tipoCompra: "renovacao-100",
+                      };
+
+                      await db.addPagamento(novoPagamento);
+                      carregarDados();
+                    } catch (err) {
+                      console.error("Erro ao registrar pagamento:", err);
+                    }
+                  }}
+                  className="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
+                >
+                  <span>Renovar com PIX</span>
+                  <CheckCircle className="w-5 h-5" />
+                </button>
+
+                {diasRestantes > 0 && (
+                  <p className="text-xs text-white/70 text-center mt-3">
+                    Novo vencimento: {format(new Date(Date.now() + (diasRestantes + 100) * 24 * 60 * 60 * 1000), "dd/MM/yyyy")}
+                  </p>
+                )}
+              </div>
+
+              {/* Plano Cartão - 365 dias (1 ano) */}
+              <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border-2 border-yellow-400 hover:border-yellow-300 transition-all relative">
+                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-yellow-400 text-gray-900 px-4 py-1 rounded-full font-bold text-sm">
+                  MAIS VANTAJOSO
+                </div>
+
+                <div className="text-center mb-4">
+                  <div className="inline-block bg-blue-500 text-white px-4 py-2 rounded-full font-bold text-lg mb-3">
+                    CARTÃO
+                  </div>
+                  <h3 className="text-4xl font-bold text-white mb-2">R$ 149,70</h3>
+                  <p className="text-white/80">365 dias (1 ano)</p>
+                  <p className="text-yellow-300 font-semibold text-sm mt-1">Parcele em até 3x sem juros</p>
+                </div>
+
+                <div className="space-y-2 mb-6">
+                  <div className="flex items-center space-x-2 text-white/90">
+                    <CheckCircle className="w-4 h-4 text-yellow-400" />
+                    <span className="text-sm font-semibold">Tudo do plano PIX +</span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-white/90">
+                    <CheckCircle className="w-4 h-4 text-yellow-400" />
+                    <span className="text-sm">1 ano completo de acesso</span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-white/90">
+                    <CheckCircle className="w-4 h-4 text-yellow-400" />
+                    <span className="text-sm">Economia de R$ 69,20</span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-white/90">
+                    <CheckCircle className="w-4 h-4 text-yellow-400" />
+                    <span className="text-sm">Parcelamento facilitado</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={async () => {
+                    window.open("https://mpago.li/12S6mJE", "_blank");
+
+                    // Registrar pagamento no banco
+                    try {
+                      const novoPagamento: Pagamento = {
+                        id: `pag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                        usuarioId: operadorId,
+                        mesReferencia: "Renovação Anual 365 dias - Cartão",
+                        valor: 149.70,
+                        dataVencimento: new Date(),
+                        dataPagamento: new Date(),
+                        status: "pago",
+                        formaPagamento: "cartao",
+                        diasComprados: 365,
+                        tipoCompra: "renovacao-365",
+                      };
+
+                      await db.addPagamento(novoPagamento);
+                      carregarDados();
+                    } catch (err) {
+                      console.error("Erro ao registrar pagamento:", err);
+                    }
+                  }}
+                  className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-4 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
+                >
+                  <CreditCard className="w-5 h-5" />
+                  <span>Renovar Anual</span>
+                </button>
+
+                {diasRestantes > 0 && (
+                  <p className="text-xs text-white/70 text-center mt-3">
+                    Novo vencimento: {format(new Date(Date.now() + (diasRestantes + 365) * 24 * 60 * 60 * 1000), "dd/MM/yyyy")}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-6 bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
+              <div className="flex items-start space-x-3">
+                <AlertCircle className="w-5 h-5 text-yellow-300 flex-shrink-0 mt-0.5" />
+                <div className="text-white/90 text-sm">
+                  <p className="font-semibold mb-1">Como funciona a renovação:</p>
+                  <p>✅ Os dias restantes da sua assinatura atual serão somados aos novos dias</p>
+                  <p>✅ Sua conta é ativada automaticamente após a confirmação do pagamento</p>
+                  <p>✅ Se o pagamento não for confirmado até o vencimento, sua conta será suspensa</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modal de Meta */}
