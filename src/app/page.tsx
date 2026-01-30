@@ -213,28 +213,35 @@ export default function LoginPage() {
           return;
         }
 
-        const resultado = await AuthSupabase.signIn(emailAdmin, senhaAdminDigitada);
+        try {
+          const resultado = await AuthSupabase.signIn(emailAdmin, senhaAdminDigitada);
 
-        if (!resultado.success || !resultado.operador) {
-          setError("Email ou senha de administrador inválidos");
+          if (!resultado.success || !resultado.operador) {
+            setError(resultado.error || "Email ou senha de administrador inválidos");
+            setLoading(false);
+            return;
+          }
+
+          const operador = resultado.operador;
+
+          if (!operador.isAdmin) {
+            setError("Acesso negado: usuário não é administrador");
+            setLoading(false);
+            return;
+          }
+
+          // Login bem-sucedido
+          localStorage.setItem("operadorId", operador.id);
+          localStorage.setItem("operadorNome", operador.nome);
+          localStorage.setItem("operadorEmail", operador.email);
+          localStorage.setItem("isAdmin", "true");
+
+          router.push("/admin");
+        } catch (err) {
+          console.error("Erro no login admin:", err);
+          setError("Erro ao conectar com o servidor. Verifique se o admin está configurado.");
           setLoading(false);
-          return;
         }
-
-        const operador = resultado.operador;
-
-        if (!operador.isAdmin) {
-          setError("Acesso negado: usuário não é administrador");
-          setLoading(false);
-          return;
-        }
-
-        localStorage.setItem("operadorId", operador.id);
-        localStorage.setItem("operadorNome", operador.nome);
-        localStorage.setItem("operadorEmail", operador.email);
-        localStorage.setItem("isAdmin", "true");
-
-        router.push("/admin");
       }
     } catch (err) {
       console.error("Erro no acesso:", err);
@@ -743,25 +750,35 @@ export default function LoginPage() {
         )}
 
         <div className="mt-6 pt-6 border-t border-gray-200 space-y-4">
-          {/* Botão de Configuração do Admin - Aparece apenas no modo admin */}
+          {/* Botão de Diagnóstico do Admin - Aparece apenas no modo admin */}
           {modoAcesso === "admin" && (
-            <button
-              onClick={configurarAdminAgora}
-              disabled={loading}
-              className="w-full bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white py-3 rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2 disabled:opacity-50"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Configurando...</span>
-                </>
-              ) : (
-                <>
-                  <Shield className="w-5 h-5" />
-                  <span>🔧 Configurar Admin (Primeira vez)</span>
-                </>
-              )}
-            </button>
+            <>
+              <button
+                onClick={() => router.push("/diagnostico-admin")}
+                className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white py-3 rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
+              >
+                <Shield className="w-5 h-5" />
+                <span>🔍 Diagnosticar Admin</span>
+              </button>
+
+              <button
+                onClick={configurarAdminAgora}
+                disabled={loading}
+                className="w-full bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white py-3 rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2 disabled:opacity-50"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Configurando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Shield className="w-5 h-5" />
+                    <span>🔧 Configurar Admin (Primeira vez)</span>
+                  </>
+                )}
+              </button>
+            </>
           )}
 
           <button

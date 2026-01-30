@@ -21,15 +21,17 @@ export default function SetupAdminPage() {
     setMessage("");
 
     try {
-      // Verificar se admin já existe
+      // Passo 1: Verificar se admin já existe na tabela operadores
+      setMessage("Verificando se administrador já existe...");
+
       const { data: existingOperador } = await supabase
         .from("operadores")
         .select("*")
         .eq("email", ADMIN_EMAIL)
-        .single();
+        .maybeSingle();
 
       if (existingOperador) {
-        setMessage("Administrador já existe! Atualizando permissões...");
+        setMessage("Administrador encontrado! Atualizando permissões...");
 
         // Atualizar para garantir que é admin e está ativo
         const { error: updateError } = await supabase
@@ -54,15 +56,14 @@ export default function SetupAdminPage() {
         }
 
         setStatus("success");
-        setMessage("Administrador atualizado com sucesso! Você pode fazer login agora.");
+        setMessage("✅ Administrador atualizado com sucesso! Você pode fazer login agora com as credenciais acima.");
         setLoading(false);
         return;
       }
 
-      // Criar novo admin
-      setMessage("Criando novo administrador...");
+      // Passo 2: Criar novo admin no Auth
+      setMessage("Criando novo administrador no sistema de autenticação...");
 
-      // Criar usuário no Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: ADMIN_EMAIL,
         password: ADMIN_PASSWORD,
@@ -70,12 +71,61 @@ export default function SetupAdminPage() {
           data: {
             nome: ADMIN_NAME,
           },
+          emailRedirectTo: undefined,
         },
       });
 
       if (authError) {
+        // Se erro for "User already registered", tentar fazer login para pegar o ID
+        if (authError.message.includes("already registered")) {
+          setMessage("Usuário já existe no Auth. Tentando conectar ao operador...");
+
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email: ADMIN_EMAIL,
+            password: ADMIN_PASSWORD,
+          });
+
+          if (signInError || !signInData.user) {
+            setStatus("error");
+            setMessage("Admin existe no Auth mas não consegui conectar. Tente fazer login diretamente.");
+            setLoading(false);
+            return;
+          }
+
+          // Verificar se existe operador vinculado
+          const { data: operadorVinculado } = await supabase
+            .from("operadores")
+            .select("*")
+            .eq("auth_user_id", signInData.user.id)
+            .maybeSingle();
+
+          if (operadorVinculado) {
+            // Atualizar operador existente
+            const { error: updateError2 } = await supabase
+              .from("operadores")
+              .update({
+                is_admin: true,
+                ativo: true,
+                suspenso: false,
+                aguardando_pagamento: false,
+                forma_pagamento: null,
+                valor_mensal: null,
+                dias_assinatura: null,
+                data_proximo_vencimento: null,
+              })
+              .eq("auth_user_id", signInData.user.id);
+
+            if (!updateError2) {
+              setStatus("success");
+              setMessage("✅ Administrador configurado com sucesso! Faça login agora.");
+              setLoading(false);
+              return;
+            }
+          }
+        }
+
         setStatus("error");
-        setMessage("Erro ao criar admin no Auth: " + authError.message);
+        setMessage("Erro ao criar admin: " + authError.message);
         setLoading(false);
         return;
       }
@@ -87,12 +137,30 @@ export default function SetupAdminPage() {
         return;
       }
 
-      setMessage("Admin criado no sistema de autenticação. Configurando permissões...");
+      setMessage("✅ Admin criado no Auth. Aguardando criação do operador...");
 
-      // Aguardar trigger criar o operador
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Passo 3: Aguardar trigger criar o operador (mais tempo para garantir)
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
-      // Atualizar operador para ser admin
+      // Passo 4: Verificar se operador foi criado e atualizar permissões
+      setMessage("Verificando criação do operador...");
+
+      const { data: operadorCriado, error: checkError } = await supabase
+        .from("operadores")
+        .select("*")
+        .eq("auth_user_id", authData.user.id)
+        .maybeSingle();
+
+      if (!operadorCriado) {
+        setStatus("error");
+        setMessage("Operador não foi criado automaticamente. Verifique o trigger do banco de dados.");
+        setLoading(false);
+        return;
+      }
+
+      // Passo 5: Atualizar operador para ser admin
+      setMessage("Configurando permissões de administrador...");
+
       const { error: updateError } = await supabase
         .from("operadores")
         .update({
@@ -115,12 +183,12 @@ export default function SetupAdminPage() {
       }
 
       setStatus("success");
-      setMessage("Administrador criado com sucesso! Você já pode fazer login.");
+      setMessage("✅ Administrador criado com sucesso! Você já pode fazer login com as credenciais acima.");
       setLoading(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao configurar admin:", error);
       setStatus("error");
-      setMessage("Erro inesperado ao configurar administrador");
+      setMessage("Erro inesperado: " + (error?.message || "Tente novamente"));
       setLoading(false);
     }
   };

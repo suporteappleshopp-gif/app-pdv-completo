@@ -15,6 +15,8 @@ export class AuthSupabase {
     error?: string;
   }> {
     try {
+      console.log("🔐 Tentando fazer login com email:", email);
+
       // Tentar fazer login no Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
@@ -22,6 +24,7 @@ export class AuthSupabase {
       });
 
       if (authError) {
+        console.error("❌ Erro no Auth:", authError.message);
         return {
           success: false,
           error: "Email ou senha incorretos",
@@ -29,11 +32,14 @@ export class AuthSupabase {
       }
 
       if (!authData.user) {
+        console.error("❌ Nenhum usuário retornado pelo Auth");
         return {
           success: false,
           error: "Erro ao fazer login",
         };
       }
+
+      console.log("✅ Login no Auth bem-sucedido. User ID:", authData.user.id);
 
       // Buscar dados do operador
       const { data: operadorData, error: operadorError } = await supabase
@@ -42,15 +48,33 @@ export class AuthSupabase {
         .eq("auth_user_id", authData.user.id)
         .single();
 
-      if (operadorError || !operadorData) {
+      if (operadorError) {
+        console.error("❌ Erro ao buscar operador:", operadorError.message);
         return {
           success: false,
           error: "Usuário não encontrado no sistema",
         };
       }
 
-      // Verificar se o operador está ativo
+      if (!operadorData) {
+        console.error("❌ Nenhum operador encontrado para auth_user_id:", authData.user.id);
+        return {
+          success: false,
+          error: "Usuário não encontrado no sistema",
+        };
+      }
+
+      console.log("✅ Operador encontrado:", {
+        id: operadorData.id,
+        nome: operadorData.nome,
+        email: operadorData.email,
+        is_admin: operadorData.is_admin,
+        ativo: operadorData.ativo,
+      });
+
+      // Verificar se o operador está ativo (admins sempre podem logar)
       if (!operadorData.ativo && !operadorData.is_admin) {
+        console.warn("⚠️ Operador inativo e não é admin");
         return {
           success: false,
           error: "Sua conta está suspensa. Entre em contato com o administrador.",
@@ -79,15 +103,17 @@ export class AuthSupabase {
         createdAt: new Date(operadorData.created_at),
       };
 
+      console.log("✅ Login bem-sucedido! Operador:", operador.nome, "| Admin:", operador.isAdmin);
+
       return {
         success: true,
         operador,
       };
-    } catch (error) {
-      console.error("Erro no login:", error);
+    } catch (error: any) {
+      console.error("❌ Erro no login:", error);
       return {
         success: false,
-        error: "Erro ao conectar com o servidor",
+        error: "Erro ao conectar com o servidor: " + (error?.message || "Erro desconhecido"),
       };
     }
   }
