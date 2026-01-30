@@ -32,7 +32,7 @@ export default function LoginPage() {
   const ADMIN_EMAIL = "diegomarqueshm@icloud.com";
   const ADMIN_PASSWORD = "Sedexdez@1";
   const LINK_PAGAMENTO_CARTAO = "https://mpago.li/12S6mJE"; // Link para pagamento de R$ 149,70 parcelado em até 3x (1 ano)
-  const LINK_PAGAMENTO_PIX = "https://pag.ae/SEU_LINK_PIX_AQUI"; // Link para pagamento PIX de R$ 59,90
+  const LINK_PAGAMENTO_PIX = "https://mpago.li/2vLP2Au"; // Link para pagamento PIX de R$ 59,90 (100 dias)
   const WHATSAPP_CONTATO = process.env.NEXT_PUBLIC_WHATSAPP_CONTATO || "5565981032239";
 
   useEffect(() => {

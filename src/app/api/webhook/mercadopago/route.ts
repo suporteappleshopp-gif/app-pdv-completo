@@ -77,10 +77,27 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: "Operador não encontrado" }, { status: 404 });
         }
 
-        // Calcular data de vencimento (1 ano = 365 dias)
+        // Determinar dias e forma de pagamento baseado no valor
+        const valorPago = payment.transaction_amount;
+        let diasAssinatura = 365;
+        let formaPagamento = "cartao";
+
+        // Se valor é R$ 59,90 = PIX (100 dias)
+        // Se valor é R$ 149,70 = Cartão (365 dias)
+        if (valorPago >= 59 && valorPago <= 60) {
+          diasAssinatura = 100;
+          formaPagamento = "pix";
+        } else if (valorPago >= 149 && valorPago <= 150) {
+          diasAssinatura = 365;
+          formaPagamento = "cartao";
+        }
+
+        console.log(`💰 Valor pago: R$ ${valorPago} | Forma: ${formaPagamento} | Dias: ${diasAssinatura}`);
+
+        // Calcular data de vencimento
         const dataAtivacao = new Date();
         const dataVencimento = new Date(dataAtivacao);
-        dataVencimento.setDate(dataVencimento.getDate() + 365);
+        dataVencimento.setDate(dataVencimento.getDate() + diasAssinatura);
 
         // Atualizar operador: ativar conta e remover flags de suspensão
         const { error: updateError } = await supabase
@@ -89,10 +106,10 @@ export async function POST(request: NextRequest) {
             ativo: true,
             suspenso: false,
             aguardando_pagamento: false,
-            forma_pagamento: "cartao",
+            forma_pagamento: formaPagamento,
             data_pagamento: dataAtivacao.toISOString(),
             data_proximo_vencimento: dataVencimento.toISOString(),
-            dias_assinatura: 365,
+            dias_assinatura: diasAssinatura,
             updated_at: new Date().toISOString(),
           })
           .eq("email", payerEmail);
