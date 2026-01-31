@@ -819,19 +819,26 @@ export default function CaixaPage() {
         alert("Venda cancelada por defeito! Os produtos foram registrados em perdas (não voltaram ao estoque).");
       } else {
         // Para outros motivos, devolver ao estoque
+        const produtosAtualizados = [...produtos];
+
         for (const item of carrinho) {
-          const produto = await db.getProduto(item.produtoId);
-          if (produto) {
-            produto.estoque += item.quantidade;
-            await db.updateProduto(produto);
+          const produtoIndex = produtosAtualizados.findIndex(p => p.id === item.produtoId);
+          if (produtoIndex !== -1) {
+            produtosAtualizados[produtoIndex] = {
+              ...produtosAtualizados[produtoIndex],
+              estoque: produtosAtualizados[produtoIndex].estoque + item.quantidade
+            };
+            console.log(`📦 Devolvido ${item.quantidade}x ${produtosAtualizados[produtoIndex].nome}`);
           }
         }
 
-        // Sincronizar TODOS os produtos com Supabase após devolver ao estoque
+        // Sincronizar produtos atualizados com Supabase
         console.log("☁️ Sincronizando estoque com Supabase...");
-        const todosProdutos = await db.getAllProdutos();
-        await SupabaseSync.syncProdutos(operadorId, todosProdutos);
+        await SupabaseSync.syncProdutos(operadorId, produtosAtualizados);
         console.log("✅ Estoque devolvido e sincronizado");
+
+        // Atualizar lista de produtos na tela
+        setProdutos(produtosAtualizados);
 
         alert("Venda cancelada com sucesso! Os produtos foram devolvidos ao estoque.");
       }
@@ -844,10 +851,6 @@ export default function CaixaPage() {
       // Limpar carrinho salvo
       const chaveCarrinho = `autosave_carrinho_${operadorId}`;
       localStorage.removeItem(chaveCarrinho);
-
-      // Atualizar lista de produtos na tela
-      const todosProdutos = await db.getAllProdutos();
-      setProdutos(todosProdutos);
     } catch (error) {
       console.error("Erro ao cancelar venda:", error);
       alert("Erro ao cancelar venda!");
@@ -959,22 +962,26 @@ export default function CaixaPage() {
       
       // Atualizar estoque - produtos saem automaticamente
       console.log("📦 Atualizando estoque...");
+      const produtosAtualizados = [...produtos];
+
       for (const item of carrinho) {
-        const produto = await db.getProduto(item.produtoId);
-        if (produto) {
-          produto.estoque -= item.quantidade;
-          await db.updateProduto(produto);
+        const produtoIndex = produtosAtualizados.findIndex(p => p.id === item.produtoId);
+        if (produtoIndex !== -1) {
+          produtosAtualizados[produtoIndex] = {
+            ...produtosAtualizados[produtoIndex],
+            estoque: produtosAtualizados[produtoIndex].estoque - item.quantidade
+          };
+          console.log(`📦 ${produtosAtualizados[produtoIndex].nome}: ${produtosAtualizados[produtoIndex].estoque + item.quantidade} → ${produtosAtualizados[produtoIndex].estoque}`);
         }
       }
 
-      // Sincronizar TODOS os produtos com Supabase após atualizar estoque
+      // Sincronizar produtos atualizados com Supabase
       console.log("☁️ Sincronizando estoque com Supabase...");
-      const todosProdutos = await db.getAllProdutos();
-      await SupabaseSync.syncProdutos(operadorId, todosProdutos);
+      await SupabaseSync.syncProdutos(operadorId, produtosAtualizados);
       console.log("✅ Estoque atualizado e sincronizado");
 
       // Atualizar lista de produtos na tela
-      setProdutos(todosProdutos);
+      setProdutos(produtosAtualizados);
 
       // Guardar venda para impressão
       setVendaFinalizada(venda);
