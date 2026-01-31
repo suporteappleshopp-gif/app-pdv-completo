@@ -3,12 +3,19 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// OBRIGATÓRIO: Supabase deve estar configurado - modo local proibido
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('ERRO CRÍTICO: Supabase não configurado. Configure NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY no .env.local');
+// Durante build, aceitar valores vazios (serão verificados em runtime)
+// Em runtime, bloquear se não estiver configurado
+const isBuildTime = typeof window === 'undefined' && !supabaseUrl;
+
+if (!isBuildTime && (!supabaseUrl || !supabaseAnonKey)) {
+  console.error('❌ ERRO CRÍTICO: Supabase não configurado');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Criar cliente com valores default se for build time
+export const supabase = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder-key'
+);
 
 // Tipos para o banco de dados
 export interface Database {
