@@ -1,37 +1,67 @@
--- Criar tabela de operadores/usuários com perfis únicos
-CREATE TABLE IF NOT EXISTS public.operadores (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  auth_user_id UUID UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
-  nome TEXT NOT NULL,
-  email TEXT UNIQUE NOT NULL,
-  senha TEXT,
-  is_admin BOOLEAN DEFAULT false,
-  ativo BOOLEAN DEFAULT false,
-  suspenso BOOLEAN DEFAULT false,
-  aguardando_pagamento BOOLEAN DEFAULT true,
-  forma_pagamento TEXT,
-  valor_mensal NUMERIC(10,2),
-  data_proximo_vencimento TIMESTAMPTZ,
-  dias_assinatura INTEGER,
-  data_pagamento TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- PASSO 1: Adicionar coluna auth_user_id
+ALTER TABLE public.operadores ADD COLUMN IF NOT EXISTS auth_user_id UUID;
 
--- Criar índices para performance
+-- PASSO 2: Criar índice
 CREATE INDEX IF NOT EXISTS idx_operadores_auth_user_id ON public.operadores(auth_user_id);
-CREATE INDEX IF NOT EXISTS idx_operadores_email ON public.operadores(email);
-CREATE INDEX IF NOT EXISTS idx_operadores_ativo ON public.operadores(ativo);
 
--- Habilitar Row Level Security (RLS)
+-- PASSO 3: Vincular operadores existentes com usuários auth por email
+UPDATE public.operadores o
+SET auth_user_id = u.id
+FROM auth.users u
+WHERE o.email = u.email AND o.auth_user_id IS NULL;
+
+-- PASSO 4: Adicionar constraint UNIQUE e FOREIGN KEY
+-- (Primeiro remove se já existir)
+ALTER TABLE public.operadores DROP CONSTRAINT IF EXISTS operadores_auth_user_id_fkey;
+ALTER TABLE public.operadores DROP CONSTRAINT IF EXISTS operadores_auth_user_id_key;
+
+-- Adicionar constraints
+ALTER TABLE public.operadores ADD CONSTRAINT operadores_auth_user_id_key UNIQUE (auth_user_id);
+ALTER TABLE public.operadores ADD CONSTRAINT operadores_auth_user_id_fkey FOREIGN KEY (auth_user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+-- PASSO 5: Criar função para criar operador automaticamente após signup
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.operadores (auth_user_id, nome, email, ativo, suspenso, aguardando_pagamento)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'nome', SPLIT_PART(NEW.email, '@', 1)),
+    NEW.email,
+    false,
+    true,
+    true
+  )
+  ON CONFLICT (email) DO NOTHING;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- PASSO 6: Criar trigger para criar operador automaticamente
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_new_user();
+
+-- PASSO 7: Habilitar Row Level Security (RLS) se ainda não estiver
 ALTER TABLE public.operadores ENABLE ROW LEVEL SECURITY;
 
--- Políticas de segurança: usuários só podem ver e editar seus próprios dados
+-- PASSO 8: Remover políticas antigas se existirem
+DROP POLICY IF EXISTS "Usuários podem ver seu próprio perfil" ON public.operadores;
+DROP POLICY IF EXISTS "Usuários podem atualizar seu próprio perfil" ON public.operadores;
+DROP POLICY IF EXISTS "Admins podem ver todos os perfis" ON public.operadores;
+DROP POLICY IF EXISTS "Admins podem atualizar todos os perfis" ON public.operadores;
+DROP POLICY IF EXISTS "Permitir inserção durante signup" ON public.operadores;
+
+-- PASSO 9: Criar políticas de segurança
+-- Usuários podem ver seu próprio perfil
 CREATE POLICY "Usuários podem ver seu próprio perfil"
   ON public.operadores
   FOR SELECT
   USING (auth.uid() = auth_user_id);
 
+-- Usuários podem atualizar seu próprio perfil
 CREATE POLICY "Usuários podem atualizar seu próprio perfil"
   ON public.operadores
   FOR UPDATE
@@ -65,31 +95,7 @@ CREATE POLICY "Permitir inserção durante signup"
   FOR INSERT
   WITH CHECK (true);
 
--- Função para criar operador automaticamente após signup
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
-BEGIN
-  INSERT INTO public.operadores (auth_user_id, nome, email, ativo, suspenso, aguardando_pagamento)
-  VALUES (
-    NEW.id,
-    COALESCE(NEW.raw_user_meta_data->>'nome', SPLIT_PART(NEW.email, '@', 1)),
-    NEW.email,
-    false,
-    true,
-    true
-  );
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Trigger para criar operador automaticamente
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW
-  EXECUTE FUNCTION public.handle_new_user();
-
--- Função para atualizar updated_at automaticamente
+-- PASSO 10: Função para atualizar updated_at automaticamente
 CREATE OR REPLACE FUNCTION public.handle_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -98,14 +104,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Trigger para atualizar updated_at
+-- PASSO 11: Trigger para atualizar updated_at
 DROP TRIGGER IF EXISTS set_updated_at ON public.operadores;
 CREATE TRIGGER set_updated_at
   BEFORE UPDATE ON public.operadores
   FOR EACH ROW
   EXECUTE FUNCTION public.handle_updated_at();
-
--- Comentários
-COMMENT ON TABLE public.operadores IS 'Tabela de operadores/usuários do sistema - cada usuário tem um perfil único sincronizado em tempo real';
-COMMENT ON COLUMN public.operadores.auth_user_id IS 'ID do usuário no Supabase Auth - único e imutável';
-COMMENT ON COLUMN public.operadores.email IS 'Email único do usuário - não pode haver duplicatas';
