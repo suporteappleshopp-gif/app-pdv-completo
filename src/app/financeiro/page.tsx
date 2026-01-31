@@ -901,11 +901,45 @@ export default function FinanceiroPage() {
                       return;
                     }
 
+                    // Criar operação pendente no extrato
+                    const dataAtualCompra = new Date();
+                    const pagamentoPendente: Pagamento = {
+                      id: `pendente_pix_60_${Date.now()}`,
+                      usuarioId: operador.id,
+                      mesReferencia: "Renovação 60 dias - PIX",
+                      valor: 59.90,
+                      dataVencimento: dataAtualCompra,
+                      dataPagamento: undefined,
+                      status: "pendente",
+                      formaPagamento: "pix",
+                      diasComprados: 60,
+                      tipoCompra: "renovacao-60",
+                    };
+
+                    await db.addPagamento(pagamentoPendente);
+
+                    // Registrar no Supabase também
+                    const { supabase } = await import("@/lib/supabase");
+                    await supabase.from("historico_pagamentos").insert({
+                      id: pagamentoPendente.id,
+                      usuario_id: operador.id,
+                      mes_referencia: pagamentoPendente.mesReferencia,
+                      valor: pagamentoPendente.valor,
+                      data_vencimento: dataAtualCompra.toISOString(),
+                      status: "pendente",
+                      forma_pagamento: "pix",
+                      dias_comprados: 60,
+                      tipo_compra: "renovacao-60",
+                    });
+
+                    // Atualizar lista
+                    await carregarDados();
+
                     // Abrir Mercado Pago com email do usuário como referência
                     const linkPagamento = `https://mpago.la/24Hxr1X?external_reference=${encodeURIComponent(operador.email)}`;
                     window.open(linkPagamento, "_blank");
 
-                    alert("⏳ Após realizar o pagamento, aguarde alguns minutos. Sua conta será ativada AUTOMATICAMENTE quando o pagamento for confirmado pelo Mercado Pago!");
+                    alert("✅ Operação registrada no seu extrato!\n⏳ Após realizar o pagamento, aguarde alguns minutos. Sua conta será ativada AUTOMATICAMENTE quando o pagamento for confirmado pelo Mercado Pago!");
                   }}
                   className="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
                 >
@@ -965,11 +999,45 @@ export default function FinanceiroPage() {
                       return;
                     }
 
+                    // Criar operação pendente no extrato
+                    const dataAtualCompra = new Date();
+                    const pagamentoPendente: Pagamento = {
+                      id: `pendente_cartao_180_${Date.now()}`,
+                      usuarioId: operador.id,
+                      mesReferencia: "Renovação 180 dias - CARTÃO",
+                      valor: 149.70,
+                      dataVencimento: dataAtualCompra,
+                      dataPagamento: undefined,
+                      status: "pendente",
+                      formaPagamento: "cartao",
+                      diasComprados: 180,
+                      tipoCompra: "renovacao-180",
+                    };
+
+                    await db.addPagamento(pagamentoPendente);
+
+                    // Registrar no Supabase também
+                    const { supabase } = await import("@/lib/supabase");
+                    await supabase.from("historico_pagamentos").insert({
+                      id: pagamentoPendente.id,
+                      usuario_id: operador.id,
+                      mes_referencia: pagamentoPendente.mesReferencia,
+                      valor: pagamentoPendente.valor,
+                      data_vencimento: dataAtualCompra.toISOString(),
+                      status: "pendente",
+                      forma_pagamento: "cartao",
+                      dias_comprados: 180,
+                      tipo_compra: "renovacao-180",
+                    });
+
+                    // Atualizar lista
+                    await carregarDados();
+
                     // Abrir Mercado Pago com email do usuário como referência
                     const linkPagamento = `https://mpago.li/12S6mJE?external_reference=${encodeURIComponent(operador.email)}`;
                     window.open(linkPagamento, "_blank");
 
-                    alert("⏳ Após realizar o pagamento, aguarde alguns minutos. Sua conta será ativada AUTOMATICAMENTE quando o pagamento for confirmado pelo Mercado Pago!");
+                    alert("✅ Operação registrada no seu extrato!\n⏳ Após realizar o pagamento, aguarde alguns minutos. Sua conta será ativada AUTOMATICAMENTE quando o pagamento for confirmado pelo Mercado Pago!");
                   }}
                   className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-4 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
                 >

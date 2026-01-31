@@ -40,10 +40,9 @@ export default function RegistrarPagamentoDiego() {
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
           );
         `,
-      }).catch(() => {
-        // Tabela pode já existir, ignorar erro
-        console.log("Tabela já existe ou sem permissão para criar via RPC");
       });
+
+      // Tabela pode já existir, ignorar erro
 
       // 2. Buscar operador diegomarqueshm
       const { data: operador, error: findError } = await supabase

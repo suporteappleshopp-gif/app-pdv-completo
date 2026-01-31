@@ -255,41 +255,84 @@ export async function POST(request: NextRequest) {
         console.log("📅 Novo vencimento:", novaDataVencimento.toLocaleDateString("pt-BR"));
         console.log(`📊 Dias adicionados: ${diasComprados}`);
 
-        // 🔥 NOVO: Registrar no histórico de pagamentos do usuário
+        // 🔥 NOVO: Atualizar ou registrar no histórico de pagamentos
         console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        console.log("📝 REGISTRANDO NO HISTÓRICO DE PAGAMENTOS");
+        console.log("📝 ATUALIZANDO HISTÓRICO DE PAGAMENTOS");
         console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-        const pagamentoId = `mp_${payment.id}_${Date.now()}`;
-        const dadosHistorico = {
-          id: pagamentoId,
-          usuario_id: operador.id,
-          mes_referencia: `Renovação ${diasComprados} dias - ${formaPagamento.toUpperCase()}`,
-          valor: valorPago,
-          data_vencimento: novaDataVencimento.toISOString(),
-          data_pagamento: dataAtual.toISOString(),
-          status: "pago",
-          forma_pagamento: formaPagamento,
-          dias_comprados: diasComprados,
-          tipo_compra: `renovacao-${diasComprados}`,
-          mercadopago_payment_id: payment.id.toString(),
-          created_at: dataAtual.toISOString(),
-          updated_at: dataAtual.toISOString(),
-        };
-
-        console.log("📋 Dados do histórico:", JSON.stringify(dadosHistorico, null, 2));
-
-        const { error: historyError } = await supabase
+        // Primeiro, verificar se existe um pagamento pendente para atualizar
+        const { data: pagamentosPendentes } = await supabase
           .from("historico_pagamentos")
-          .insert(dadosHistorico);
+          .select("*")
+          .eq("usuario_id", operador.id)
+          .eq("status", "pendente")
+          .eq("dias_comprados", diasComprados)
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        let historyError = null;
+
+        if (pagamentosPendentes && pagamentosPendentes.length > 0) {
+          // Atualizar o pagamento pendente para pago
+          const pagamentoPendente = pagamentosPendentes[0];
+          console.log("✅ Encontrado pagamento pendente:", pagamentoPendente.id);
+          console.log("🔄 Atualizando status para PAGO...");
+
+          const { error: updateError } = await supabase
+            .from("historico_pagamentos")
+            .update({
+              status: "pago",
+              data_pagamento: dataAtual.toISOString(),
+              mercadopago_payment_id: payment.id.toString(),
+              updated_at: dataAtual.toISOString(),
+            })
+            .eq("id", pagamentoPendente.id);
+
+          historyError = updateError;
+
+          if (!updateError) {
+            console.log("✅ PAGAMENTO PENDENTE ATUALIZADO PARA PAGO!");
+            console.log("🆔 ID do registro:", pagamentoPendente.id);
+          }
+        } else {
+          // Criar novo registro se não houver pendente
+          console.log("ℹ️ Nenhum pagamento pendente encontrado. Criando novo registro...");
+
+          const pagamentoId = `mp_${payment.id}_${Date.now()}`;
+          const dadosHistorico = {
+            id: pagamentoId,
+            usuario_id: operador.id,
+            mes_referencia: `Renovação ${diasComprados} dias - ${formaPagamento.toUpperCase()}`,
+            valor: valorPago,
+            data_vencimento: novaDataVencimento.toISOString(),
+            data_pagamento: dataAtual.toISOString(),
+            status: "pago",
+            forma_pagamento: formaPagamento,
+            dias_comprados: diasComprados,
+            tipo_compra: `renovacao-${diasComprados}`,
+            mercadopago_payment_id: payment.id.toString(),
+            created_at: dataAtual.toISOString(),
+            updated_at: dataAtual.toISOString(),
+          };
+
+          console.log("📋 Dados do histórico:", JSON.stringify(dadosHistorico, null, 2));
+
+          const { error: insertError } = await supabase
+            .from("historico_pagamentos")
+            .insert(dadosHistorico);
+
+          historyError = insertError;
+
+          if (!insertError) {
+            console.log("✅ NOVO HISTÓRICO REGISTRADO!");
+            console.log("🆔 ID do registro:", pagamentoId);
+          }
+        }
 
         if (historyError) {
-          console.error("⚠️ ERRO ao registrar no histórico:", historyError.message);
+          console.error("⚠️ ERRO ao processar histórico:", historyError.message);
           console.error("📦 Detalhes:", JSON.stringify(historyError, null, 2));
           // Não falhar o webhook por isso - conta já foi ativada
-        } else {
-          console.log("✅ HISTÓRICO REGISTRADO!");
-          console.log("🆔 ID do registro:", pagamentoId);
         }
 
         // 🔥 NOVO: Registrar nos ganhos do admin
