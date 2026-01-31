@@ -84,7 +84,7 @@ export default function AdminPage() {
   // Modal de confirmação de pagamento
   const [showConfirmarPagamentoModal, setShowConfirmarPagamentoModal] = useState(false);
   const [operadorParaConfirmar, setOperadorParaConfirmar] = useState<Operador | null>(null);
-  const [diasAtivacao, setDiasAtivacao] = useState(365);
+  const [diasAtivacao, setDiasAtivacao] = useState(60);
 
   // Modal de edição de data de vencimento
   const [showEditVencimentoModal, setShowEditVencimentoModal] = useState(false);
@@ -356,7 +356,8 @@ export default function AdminPage() {
         setTimeout(() => setSuccess(""), 3000);
         setShowConfirmarPagamentoModal(false);
         setOperadorParaConfirmar(null);
-        setDiasAtivacao(365);
+        // Resetar para o padrão inicial (será redefinido ao abrir modal novamente)
+        setDiasAtivacao(60);
       } else {
         setError("Erro ao confirmar pagamento");
         setTimeout(() => setError(""), 3000);
@@ -948,12 +949,12 @@ export default function AdminPage() {
                             {/* Dias Restantes - SEMPRE MOSTRAR */}
                             {(() => {
                               if (!operador.dataProximoVencimento) {
-                                // Usuário sem data de vencimento (sem mensalidade)
+                                // Usuário sem data de vencimento - aguardando pagamento
                                 return (
-                                  <div className="flex items-center space-x-1 px-3 py-1 bg-gray-500/20 text-gray-300 rounded-lg border border-gray-500/30">
+                                  <div className="flex items-center space-x-1 px-3 py-1 bg-orange-500/20 text-orange-300 rounded-lg border border-orange-500/30">
                                     <Calendar className="w-4 h-4" />
                                     <span className="text-xs font-semibold">
-                                      Acesso ilimitado
+                                      Aguardando pagamento
                                     </span>
                                   </div>
                                 );
@@ -1197,7 +1198,7 @@ export default function AdminPage() {
                 onClick={() => {
                   setShowConfirmarPagamentoModal(false);
                   setOperadorParaConfirmar(null);
-                  setDiasAtivacao(365);
+                  setDiasAtivacao(60);
                 }}
                 className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
               >
@@ -1219,9 +1220,9 @@ export default function AdminPage() {
                   <input
                     type="number"
                     value={diasAtivacao}
-                    onChange={(e) => setDiasAtivacao(parseInt(e.target.value) || 365)}
+                    onChange={(e) => setDiasAtivacao(parseInt(e.target.value) || 60)}
                     className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-purple-300 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-                    placeholder="365"
+                    placeholder="60"
                     min="1"
                   />
                 </div>
@@ -1248,7 +1249,7 @@ export default function AdminPage() {
                   onClick={() => {
                     setShowConfirmarPagamentoModal(false);
                     setOperadorParaConfirmar(null);
-                    setDiasAtivacao(365);
+                    setDiasAtivacao(60);
                   }}
                   className="flex-1 px-4 py-3 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors font-semibold"
                 >
