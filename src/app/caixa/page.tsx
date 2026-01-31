@@ -304,14 +304,21 @@ export default function CaixaPage() {
   useEffect(() => {
     setMounted(true);
 
-    // Verificar se Supabase está configurado
+    // OBRIGATÓRIO: Verificar se Supabase está configurado
     const isConfigured = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-    setSupabaseConfigured(isConfigured);
 
-    // Inicializar banco e carregar produtos
+    if (!isConfigured) {
+      alert("ERRO CRÍTICO: Sistema requer Supabase configurado. Configure as variáveis de ambiente.");
+      router.push("/");
+      return;
+    }
+
+    setSupabaseConfigured(true);
+
+    // Inicializar e carregar dados SEMPRE do Supabase (perfil único)
     const init = async () => {
       try {
-        // Buscar operador logado do Supabase
+        // Buscar operador logado do Supabase (OBRIGATÓRIO)
         const { AuthSupabase } = await import("@/lib/auth-supabase");
         const operador = await AuthSupabase.getCurrentOperador();
 
@@ -327,36 +334,28 @@ export default function CaixaPage() {
         setOperadorNome(operador.nome);
         setOperadorId(operador.id);
 
-      // Verificar se é usuário sem mensalidade (criado pelo admin)
-      const semMensalidade = !operador.formaPagamento;
-      setUsuarioSemMensalidade(semMensalidade);
+        // Verificar se é usuário sem mensalidade (criado pelo admin)
+        const semMensalidade = !operador.formaPagamento;
+        setUsuarioSemMensalidade(semMensalidade);
 
-      // Se é usuário sem mensalidade, libera acesso imediatamente
-      if (semMensalidade) {
-        setPodeUsarApp(true);
-        setStatusAssinatura("ativo");
-        setDiasRestantes(999);
-      }
+        // Se é usuário sem mensalidade, libera acesso imediatamente
+        if (semMensalidade) {
+          setPodeUsarApp(true);
+          setStatusAssinatura("ativo");
+          setDiasRestantes(999);
+        }
 
-      await db.init();
+        await db.init();
 
-      // Tentar carregar produtos da nuvem primeiro isolados por usuário
-      if (isConfigured) {
+        // SEMPRE carregar produtos da nuvem (perfil único garantido)
         try {
           const produtosNuvem = await SupabaseSync.loadProdutos(operador.id);
-          if (produtosNuvem.length > 0) {
-            setProdutos(produtosNuvem);
-            console.log("✅ Produtos carregados da nuvem para usuário:", operador.id);
-            return;
-          }
+          setProdutos(produtosNuvem);
+          console.log("✅ Produtos carregados da nuvem para usuário:", operador.id);
         } catch (error) {
-          console.error("⚠️ Erro ao carregar da nuvem, usando dados locais:", error);
+          console.error("❌ Erro ao carregar produtos da nuvem:", error);
+          alert("Erro ao carregar dados. Verifique sua conexão com a internet.");
         }
-      }
-      
-      // Fallback: carregar produtos locais
-      const todosProdutos = await db.getAllProdutos();
-      setProdutos(todosProdutos);
 
       // Recuperar carrinho salvo automaticamente
       const chaveCarrinho = `autosave_carrinho_${operador.id}`;

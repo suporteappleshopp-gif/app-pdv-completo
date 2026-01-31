@@ -345,39 +345,12 @@ export default function LoginPage() {
       const emailTrimmed = novoCadastro.email.trim();
       const nomeExtraido = emailTrimmed.split("@")[0];
 
-      // Verificar se Supabase está configurado
+      // OBRIGATÓRIO: Verificar se Supabase está configurado
       const supabaseConfigured = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
       if (!supabaseConfigured) {
-        // Modo local - criar usuário no IndexedDB
-        await db.init();
-
-        // Verificar se o email já existe no IndexedDB
-        const usuarioExistente = await db.getOperadorByEmail(emailTrimmed);
-        if (usuarioExistente) {
-          setError("Este email já está cadastrado. Tente fazer login.");
-          return;
-        }
-
-        // Criar usuário local
-        const novoId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        const novoOperador: any = {
-          id: novoId,
-          email: emailTrimmed,
-          nome: nomeExtraido,
-          senha: novoCadastro.senha,
-          isAdmin: false,
-          ativo: false,
-          createdAt: new Date(),
-          aguardandoPagamento: true,
-          formaPagamento: novoCadastro.formaPagamento,
-          valorMensal: novoCadastro.formaPagamento === "pix" ? 59.90 : 149.70,
-        };
-
-        await db.addOperador(novoOperador);
-        setCadastroSucesso(true);
-        setMostrarPagamento(true);
-        console.log("✅ Usuário criado localmente:", novoId);
+        // PROIBIDO: Modo local desabilitado - apenas Supabase
+        setError("Sistema requer conexão com a nuvem. Configure o Supabase para criar contas.");
         return;
       }
 

@@ -17,49 +17,15 @@ export class AuthSupabase {
     try {
       console.log("🔐 Tentando fazer login com email:", email);
 
-      // Verificar se Supabase está configurado
+      // OBRIGATÓRIO: Verificar se Supabase está configurado
       const supabaseConfigured = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
       if (!supabaseConfigured) {
-        // Modo local - buscar no IndexedDB
-        console.log("🔍 Modo local ativado - buscando no IndexedDB");
-        const { db } = await import("./db");
-        await db.init();
-
-        const operadorLocal = await db.getOperadorByEmail(email);
-
-        if (!operadorLocal) {
-          return {
-            success: false,
-            error: "Email ou senha incorretos",
-          };
-        }
-
-        // Verificar senha
-        if (operadorLocal.senha !== password) {
-          return {
-            success: false,
-            error: "Email ou senha incorretos",
-          };
-        }
-
-        // Verificar se está ativo
-        if (!operadorLocal.ativo && !operadorLocal.isAdmin) {
-          return {
-            success: false,
-            error: "Sua conta está suspensa. Entre em contato com o administrador.",
-          };
-        }
-
-        // Salvar sessão no localStorage
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('operador_session', JSON.stringify(operadorLocal));
-        }
-
-        console.log("✅ Login local bem-sucedido:", operadorLocal.email);
+        // PROIBIDO: Modo local desabilitado - apenas Supabase
+        console.error("❌ Supabase não configurado - login bloqueado");
         return {
-          success: true,
-          operador: operadorLocal,
+          success: false,
+          error: "Sistema requer conexão com a nuvem. Configure o Supabase para continuar.",
         };
       }
 
