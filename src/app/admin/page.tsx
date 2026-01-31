@@ -177,7 +177,7 @@ export default function AdminPage() {
     try {
       // Determinar descrição baseada na forma de pagamento e dias
       let descricao = "";
-      
+
       if (formaPagamento === "pix") {
         descricao = tipo === "conta-criada"
           ? `Conta criada - ${usuarioNome} (PIX) - R$ 59,90 - 60 dias`
@@ -188,8 +188,26 @@ export default function AdminPage() {
           : `Pagamento confirmado - ${usuarioNome} (Cartão de Crédito) - R$ 149,70 - 180 dias`;
       }
 
+      const ganhoId = `ganho-${Date.now()}`;
+
+      // Salvar no Supabase primeiro
+      const sucessoSupabase = await AdminSupabase.addGanhoAdmin({
+        id: ganhoId,
+        tipo,
+        usuario_id: usuarioId,
+        usuario_nome: usuarioNome,
+        valor,
+        forma_pagamento: formaPagamento,
+        descricao,
+      });
+
+      if (sucessoSupabase) {
+        console.log("✅ Ganho registrado no Supabase!");
+      }
+
+      // Salvar também localmente como backup
       const ganho: GanhoAdmin = {
-        id: `ganho-${Date.now()}`,
+        id: ganhoId,
         tipo,
         usuarioId,
         usuarioNome,
@@ -200,7 +218,7 @@ export default function AdminPage() {
       };
 
       await db.addGanhoAdmin(ganho);
-      console.log("✅ Ganho registrado:", ganho);
+      console.log("✅ Ganho registrado localmente!");
     } catch (err) {
       console.error("Erro ao registrar ganho:", err);
     }

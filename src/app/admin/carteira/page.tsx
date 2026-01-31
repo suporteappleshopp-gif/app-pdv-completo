@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/db";
 import { GanhoAdmin } from "@/lib/types";
+import { AdminSupabase } from "@/lib/admin-supabase";
+import { supabase } from "@/lib/supabase";
 import {
   ArrowLeft,
   Wallet,
@@ -41,16 +43,53 @@ export default function CarteiraPage() {
 
     if (checkAuth()) {
       carregarDados();
+      setupRealtimeSync();
     }
   }, [router]);
+
+  // Configurar sincronização em tempo real
+  const setupRealtimeSync = () => {
+    // Watch ganhos em tempo real
+    const channel = AdminSupabase.watchGanhosAdmin((ganhosAtualizados) => {
+      setGanhos(ganhosAtualizados);
+    });
+
+    // Cleanup ao desmontar
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  };
 
   const carregarDados = async () => {
     try {
       setLoading(true);
 
-      // Buscar todos os ganhos (retorna array vazio se não houver)
+      // Tentar buscar do Supabase primeiro
+      console.log("📡 Carregando ganhos do Supabase...");
+      const ganhosSupabase = await AdminSupabase.getAllGanhosAdmin();
+
+      if (ganhosSupabase && ganhosSupabase.length > 0) {
+        console.log("✅ Ganhos carregados do Supabase:", ganhosSupabase.length);
+        setGanhos(ganhosSupabase);
+        return;
+      }
+
+      // Fallback: tentar buscar do IndexedDB local
+      console.log("📦 Tentando carregar ganhos locais (IndexedDB)...");
+
+      // Verificar se o banco foi inicializado
+      if (!db) {
+        console.warn("⚠️ Banco de dados local não inicializado");
+        setGanhos([]);
+        return;
+      }
+
+      // Garantir que o banco está pronto
+      await db.init();
+
+      // Buscar todos os ganhos locais
       const todosGanhos = await db.getAllGanhosAdmin();
-      console.log("✅ Ganhos carregados:", todosGanhos.length);
+      console.log("✅ Ganhos carregados do IndexedDB:", todosGanhos ? todosGanhos.length : 0);
       setGanhos(todosGanhos || []);
     } catch (err) {
       console.error("⚠️ Erro ao carregar ganhos:", err);

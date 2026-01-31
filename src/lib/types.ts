@@ -22,6 +22,11 @@ export interface Operador {
     valor: number;
     forma_pagamento: string;
   }>;
+  // Campos adicionais de mensalidade
+  valorMensal?: number;
+  dataProximoVencimento?: Date;
+  diasAssinatura?: number;
+  dataPagamento?: Date;
 }
 
 export interface Produto {

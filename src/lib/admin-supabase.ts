@@ -531,4 +531,96 @@ export class AdminSupabase {
 
     return channel;
   }
+
+  /**
+   * Adicionar ganho do admin ao Supabase
+   */
+  static async addGanhoAdmin(ganho: {
+    id: string;
+    tipo: "conta-criada" | "mensalidade-paga";
+    usuario_id: string;
+    usuario_nome: string;
+    valor: number;
+    forma_pagamento: "pix" | "cartao";
+    descricao: string;
+  }): Promise<boolean> {
+    try {
+      const { error } = await supabase.from("ganhos_admin").insert({
+        id: ganho.id,
+        tipo: ganho.tipo,
+        usuario_id: ganho.usuario_id,
+        usuario_nome: ganho.usuario_nome,
+        valor: ganho.valor,
+        forma_pagamento: ganho.forma_pagamento,
+        descricao: ganho.descricao,
+        created_at: new Date().toISOString(),
+      });
+
+      if (error) {
+        console.error("Erro ao registrar ganho no Supabase:", error);
+        return false;
+      }
+
+      console.log("✅ Ganho registrado no Supabase!");
+      return true;
+    } catch (error) {
+      console.error("Erro ao registrar ganho no Supabase:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Buscar todos os ganhos do admin no Supabase
+   */
+  static async getAllGanhosAdmin(): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from("ganhos_admin")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Erro ao buscar ganhos:", error);
+        return [];
+      }
+
+      return (data || []).map((g) => ({
+        id: g.id,
+        tipo: g.tipo as "conta-criada" | "mensalidade-paga",
+        usuarioId: g.usuario_id,
+        usuarioNome: g.usuario_nome,
+        valor: parseFloat(g.valor),
+        formaPagamento: g.forma_pagamento as "pix" | "cartao",
+        descricao: g.descricao,
+        dataHora: new Date(g.created_at),
+      }));
+    } catch (error) {
+      console.error("Erro ao buscar ganhos:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Observar ganhos em tempo real
+   */
+  static watchGanhosAdmin(callback: (ganhos: any[]) => void) {
+    const channel = supabase
+      .channel("ganhos-admin-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "ganhos_admin",
+        },
+        async () => {
+          // Recarregar ganhos quando houver mudança
+          const ganhos = await this.getAllGanhosAdmin();
+          callback(ganhos);
+        }
+      )
+      .subscribe();
+
+    return channel;
+  }
 }
