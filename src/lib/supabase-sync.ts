@@ -11,6 +11,12 @@ export class SupabaseSync {
    */
   static async syncProdutos(userId: string, produtos: Produto[]): Promise<boolean> {
     try {
+      // Se não há produtos, não sincronizar (evita erros)
+      if (!produtos || produtos.length === 0) {
+        console.log("⚠️ Nenhum produto para sincronizar");
+        return true;
+      }
+
       // Deletar produtos antigos do usuário
       await supabase.from("produtos").delete().eq("user_id", userId);
 
@@ -30,13 +36,15 @@ export class SupabaseSync {
       const { error } = await supabase.from("produtos").insert(produtosParaInserir);
 
       if (error) {
-        console.error("Erro ao sincronizar produtos:", error);
+        console.error("Erro ao sincronizar produtos:", error.message || error.code || "Erro desconhecido");
+        console.error("Detalhes do erro:", JSON.stringify(error));
         return false;
       }
 
+      console.log(`✅ ${produtos.length} produto(s) sincronizado(s) com sucesso para usuário ${userId}`);
       return true;
     } catch (error) {
-      console.error("Erro ao sincronizar produtos:", error);
+      console.error("Erro crítico ao sincronizar produtos:", error);
       return false;
     }
   }
@@ -53,9 +61,13 @@ export class SupabaseSync {
         .order("nome", { ascending: true });
 
       if (error) {
-        console.error("Erro ao carregar produtos:", error);
+        console.error("Erro ao carregar produtos:", error.message || error.code || "Erro desconhecido");
+        console.error("Detalhes do erro:", JSON.stringify(error));
         return [];
       }
+
+      // Sucesso - retornar produtos (mesmo que vazio)
+      console.log(`✅ Produtos carregados com sucesso para usuário ${userId}: ${data?.length || 0} produtos`);
 
       return (data || []).map((p) => ({
         id: p.id,
@@ -68,7 +80,7 @@ export class SupabaseSync {
         descricao: p.descricao,
       }));
     } catch (error) {
-      console.error("Erro ao carregar produtos:", error);
+      console.error("Erro crítico ao carregar produtos:", error);
       return [];
     }
   }

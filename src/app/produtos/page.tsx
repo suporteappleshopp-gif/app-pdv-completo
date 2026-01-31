@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/db";
+import { SupabaseSync } from "@/lib/supabase-sync";
 import { Produto } from "@/lib/types";
 import {
   Package,
@@ -22,6 +23,7 @@ import {
 export default function ProdutosPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  const [operadorId, setOperadorId] = useState("");
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [busca, setBusca] = useState("");
   const [produtosFiltrados, setProdutosFiltrados] = useState<Produto[]>([]);
@@ -42,7 +44,28 @@ export default function ProdutosPage() {
 
   useEffect(() => {
     setMounted(true);
-    carregarProdutos();
+
+    const init = async () => {
+      try {
+        // Buscar operador logado do Supabase
+        const { AuthSupabase } = await import("@/lib/auth-supabase");
+        const operador = await AuthSupabase.getCurrentOperador();
+
+        if (!operador) {
+          console.error("❌ Operador não encontrado - redirecionando para login");
+          router.push("/");
+          return;
+        }
+
+        setOperadorId(operador.id);
+        await carregarProdutos(operador.id);
+      } catch (error) {
+        console.error("❌ Erro ao inicializar:", error);
+        router.push("/");
+      }
+    };
+
+    init();
   }, []);
 
   useEffect(() => {
@@ -71,11 +94,34 @@ export default function ProdutosPage() {
     setProdutosFiltrados(filtrados);
   }, [busca, produtos, ordenacao]);
 
-  const carregarProdutos = async () => {
+  const carregarProdutos = async (userId?: string) => {
     try {
+      const userIdFinal = userId || operadorId;
+
+      if (!userIdFinal) {
+        console.error("❌ userId não disponível");
+        return;
+      }
+
       await db.init();
-      const todosProdutos = await db.getAllProdutos();
-      setProdutos(Array.isArray(todosProdutos) ? todosProdutos : []);
+
+      // SEMPRE carregar produtos da nuvem (perfil único garantido)
+      console.log("☁️ Carregando produtos da nuvem...");
+      const produtosNuvem = await SupabaseSync.loadProdutos(userIdFinal);
+
+      if (produtosNuvem && produtosNuvem.length > 0) {
+        // Salvar no IndexedDB como cache local
+        for (const produto of produtosNuvem) {
+          await db.addProduto(produto);
+        }
+        setProdutos(produtosNuvem);
+        console.log(`✅ ${produtosNuvem.length} produtos carregados da nuvem`);
+      } else {
+        // Fallback: tentar carregar do IndexedDB local
+        console.log("⚠️ Nenhum produto na nuvem, tentando local...");
+        const todosProdutos = await db.getAllProdutos();
+        setProdutos(Array.isArray(todosProdutos) ? todosProdutos : []);
+      }
     } catch (error) {
       console.error("Erro ao carregar produtos:", error);
       setProdutos([]);
@@ -113,6 +159,11 @@ export default function ProdutosPage() {
   const salvarProduto = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!operadorId) {
+      alert("Erro: Usuário não identificado!");
+      return;
+    }
+
     try {
       const produto: Produto = {
         id: editando?.id || `produto-${Date.now()}`,
@@ -123,12 +174,22 @@ export default function ProdutosPage() {
         estoqueMinimo: estoqueMinimo ? parseInt(estoqueMinimo) : 0,
       };
 
+      // Salvar no IndexedDB local
       if (editando) {
         await db.updateProduto(produto);
-        alert("Produto atualizado com sucesso!");
       } else {
         await db.addProduto(produto);
-        alert("Produto cadastrado com sucesso!");
+      }
+
+      // Sincronizar com Supabase (perfil único)
+      console.log("☁️ Sincronizando produto com Supabase...");
+      const todosProdutos = await db.getAllProdutos();
+      const sucesso = await SupabaseSync.syncProdutos(operadorId, todosProdutos);
+
+      if (sucesso) {
+        alert(editando ? "Produto atualizado com sucesso!" : "Produto cadastrado com sucesso!");
+      } else {
+        alert("Produto salvo localmente, mas falhou ao sincronizar com a nuvem. Tente novamente.");
       }
 
       fecharFormulario();
@@ -145,10 +206,17 @@ export default function ProdutosPage() {
   };
 
   const confirmarExclusao = async () => {
-    if (!produtoParaExcluir) return;
+    if (!produtoParaExcluir || !operadorId) return;
 
     try {
+      // Excluir do IndexedDB local
       await db.deleteProduto(produtoParaExcluir.id);
+
+      // Sincronizar com Supabase (perfil único)
+      console.log("☁️ Sincronizando exclusão com Supabase...");
+      const todosProdutos = await db.getAllProdutos();
+      await SupabaseSync.syncProdutos(operadorId, todosProdutos);
+
       alert("Produto excluído com sucesso!");
       carregarProdutos();
       setMostrarConfirmacaoExcluir(false);
