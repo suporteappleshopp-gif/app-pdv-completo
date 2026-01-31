@@ -201,6 +201,28 @@ export class SupabaseSync {
         return false;
       }
 
+      // Inserir itens das vendas na tabela itens_venda
+      for (const venda of vendasNovas) {
+        if (venda.itens && venda.itens.length > 0) {
+          const itensParaInserir = venda.itens.map((item) => ({
+            id: `item-${Date.now()}-${Math.random()}`,
+            venda_id: venda.id,
+            produto_id: item.produtoId,
+            produto_nome: item.nome,
+            quantidade: item.quantidade,
+            preco_unitario: item.precoUnitario,
+            subtotal: item.subtotal,
+          }));
+
+          const { error: errorItens } = await supabase.from("itens_venda").insert(itensParaInserir);
+
+          if (errorItens) {
+            console.error("Erro ao sincronizar itens da venda:", errorItens.message);
+          }
+        }
+      }
+
+      console.log(`✅ ${vendasNovas.length} venda(s) sincronizada(s) com sucesso`);
       return true;
     } catch (error) {
       console.error("Erro crítico ao sincronizar vendas:", error);
@@ -225,18 +247,36 @@ export class SupabaseSync {
         return [];
       }
 
-      return (data || []).map((v) => ({
-        id: v.id,
-        numero: v.numero || 'SEM-NUMERO',
-        operadorId: v.operador_id,
-        operadorNome: v.operador_nome,
-        itens: [], // Itens não estão mais na tabela vendas
-        total: v.total,
-        dataHora: new Date(v.created_at || v.data_hora),
-        status: v.status as "concluida" | "cancelada",
-        tipoPagamento: v.forma_pagamento,
-        motivoCancelamento: undefined,
-      }));
+      // Carregar itens para cada venda
+      const vendasComItens = await Promise.all(
+        (data || []).map(async (v) => {
+          const { data: itens } = await supabase
+            .from("itens_venda")
+            .select("*")
+            .eq("venda_id", v.id);
+
+          return {
+            id: v.id,
+            numero: v.numero || 'SEM-NUMERO',
+            operadorId: v.operador_id,
+            operadorNome: v.operador_nome,
+            itens: (itens || []).map((item) => ({
+              produtoId: item.produto_id,
+              nome: item.produto_nome,
+              quantidade: item.quantidade,
+              precoUnitario: item.preco_unitario,
+              subtotal: item.subtotal,
+            })),
+            total: v.total,
+            dataHora: new Date(v.created_at),
+            status: v.status as "concluida" | "cancelada",
+            tipoPagamento: v.forma_pagamento,
+            motivoCancelamento: undefined,
+          };
+        })
+      );
+
+      return vendasComItens;
     } catch (error) {
       console.error("Erro crítico ao carregar vendas:", error);
       return [];

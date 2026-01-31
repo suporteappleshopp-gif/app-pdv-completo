@@ -51,13 +51,29 @@ export default function HistoricoPage() {
   const carregarVendas = async () => {
     try {
       setLoading(true);
-      await db.init();
-      const todasVendas = await db.getAllVendas();
+
+      // Buscar operador logado
+      const { AuthSupabase } = await import("@/lib/auth-supabase");
+      const operador = await AuthSupabase.getCurrentOperador();
+
+      if (!operador) {
+        setErro("Usuário não autenticado");
+        router.push("/");
+        return;
+      }
+
+      // Carregar vendas do Supabase
+      console.log("☁️ Carregando vendas do Supabase...");
+      const { SupabaseSync } = await import("@/lib/supabase-sync");
+      const vendasNuvem = await SupabaseSync.loadVendas(operador.id);
+
       // Ordenar por data mais recente
-      const vendasOrdenadas = todasVendas.sort(
+      const vendasOrdenadas = vendasNuvem.sort(
         (a, b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime()
       );
+
       setVendas(vendasOrdenadas);
+      console.log(`✅ ${vendasOrdenadas.length} vendas carregadas`);
     } catch (err) {
       console.error("Erro ao carregar vendas:", err);
       setErro("Erro ao carregar histórico de vendas");
