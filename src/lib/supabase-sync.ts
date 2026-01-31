@@ -190,7 +190,6 @@ export class SupabaseSync {
         forma_pagamento: v.tipoPagamento,
         status: v.status,
         created_at: v.dataHora instanceof Date ? v.dataHora.toISOString() : new Date(v.dataHora).toISOString(),
-        updated_at: v.dataHora instanceof Date ? v.dataHora.toISOString() : new Date(v.dataHora).toISOString(),
       }));
 
       const { error } = await supabase.from("vendas").insert(vendasParaInserir);
@@ -208,7 +207,7 @@ export class SupabaseSync {
             id: `item-${Date.now()}-${Math.random()}`,
             venda_id: venda.id,
             produto_id: item.produtoId,
-            produto_nome: item.nome,
+            nome: item.nome,
             quantidade: item.quantidade,
             preco_unitario: item.precoUnitario,
             subtotal: item.subtotal,
@@ -239,7 +238,7 @@ export class SupabaseSync {
         .from("vendas")
         .select("*")
         .eq("operador_id", userId)
-        .order("data_hora", { ascending: false });
+        .order("created_at", { ascending: false });
 
       if (error) {
         console.error("Erro ao carregar vendas:", error.message || error.code || "Erro desconhecido");
@@ -262,7 +261,7 @@ export class SupabaseSync {
             operadorNome: v.operador_nome,
             itens: (itens || []).map((item) => ({
               produtoId: item.produto_id,
-              nome: item.produto_nome,
+              nome: item.nome,
               quantidade: item.quantidade,
               precoUnitario: item.preco_unitario,
               subtotal: item.subtotal,
@@ -293,9 +292,7 @@ export class SupabaseSync {
         numero: venda.numero,
         operador_id: venda.operadorId,
         operador_nome: venda.operadorNome,
-        itens: venda.itens,
         total: venda.total,
-        data_hora: venda.dataHora.toISOString(),
         status: venda.status,
         tipo_pagamento: venda.tipoPagamento,
         motivo_cancelamento: venda.motivoCancelamento,

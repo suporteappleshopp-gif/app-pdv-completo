@@ -59,16 +59,13 @@ export interface Database {
           numero: number;
           operador_id: string;
           operador_nome: string;
-          itens: any;
           total: number;
-          data_hora: string;
+          forma_pagamento: string | null;
           status: string;
-          tipo_pagamento: string | null;
           motivo_cancelamento: string | null;
           created_at: string;
-          updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['vendas']['Row'], 'created_at' | 'updated_at'>;
+        Insert: Omit<Database['public']['Tables']['vendas']['Row'], 'created_at'>;
         Update: Partial<Database['public']['Tables']['vendas']['Insert']>;
       };
       operadores: {
