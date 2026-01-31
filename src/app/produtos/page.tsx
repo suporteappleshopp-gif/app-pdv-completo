@@ -103,33 +103,16 @@ export default function ProdutosPage() {
         return;
       }
 
-      await db.init();
-
-      // SEMPRE carregar produtos da nuvem (perfil único garantido)
+      // SEMPRE carregar produtos APENAS da nuvem (sem cache local)
       console.log("☁️ Carregando produtos da nuvem...");
       const produtosNuvem = await SupabaseSync.loadProdutos(userIdFinal);
 
-      if (produtosNuvem && produtosNuvem.length > 0) {
-        // Limpar IndexedDB antes de sincronizar (evita dados desatualizados)
-        console.log("🧹 Limpando cache local...");
-        const todosLocal = await db.getAllProdutos();
-        for (const p of todosLocal) {
-          await db.deleteProduto(p.id);
-        }
-
-        // Salvar produtos da nuvem no IndexedDB como cache atualizado
-        console.log("💾 Atualizando cache local...");
-        for (const produto of produtosNuvem) {
-          await db.addProduto(produto);
-        }
-
+      if (produtosNuvem) {
         setProdutos(produtosNuvem);
-        console.log(`✅ ${produtosNuvem.length} produtos carregados e sincronizados`);
+        console.log(`✅ ${produtosNuvem.length} produtos carregados da nuvem`);
       } else {
-        // Fallback: tentar carregar do IndexedDB local
-        console.log("⚠️ Nenhum produto na nuvem, tentando local...");
-        const todosProdutos = await db.getAllProdutos();
-        setProdutos(Array.isArray(todosProdutos) ? todosProdutos : []);
+        console.log("⚠️ Erro ao carregar produtos da nuvem");
+        setProdutos([]);
       }
     } catch (error) {
       console.error("Erro ao carregar produtos:", error);
@@ -183,26 +166,25 @@ export default function ProdutosPage() {
         estoqueMinimo: estoqueMinimo ? parseInt(estoqueMinimo) : 0,
       };
 
-      // Salvar no IndexedDB local
+      // Atualizar lista local
+      let produtosAtualizados;
       if (editando) {
-        await db.updateProduto(produto);
+        produtosAtualizados = produtos.map(p => p.id === produto.id ? produto : p);
       } else {
-        await db.addProduto(produto);
+        produtosAtualizados = [...produtos, produto];
       }
 
-      // Sincronizar com Supabase (perfil único)
-      console.log("☁️ Sincronizando produto com Supabase...");
-      const todosProdutos = await db.getAllProdutos();
-      const sucesso = await SupabaseSync.syncProdutos(operadorId, todosProdutos);
+      // Salvar APENAS no Supabase
+      console.log("☁️ Salvando produto no Supabase...");
+      const sucesso = await SupabaseSync.syncProdutos(operadorId, produtosAtualizados);
 
       if (sucesso) {
         alert(editando ? "Produto atualizado com sucesso!" : "Produto cadastrado com sucesso!");
+        fecharFormulario();
+        carregarProdutos();
       } else {
-        alert("Produto salvo localmente, mas falhou ao sincronizar com a nuvem. Tente novamente.");
+        alert("Erro ao salvar produto no Supabase. Tente novamente.");
       }
-
-      fecharFormulario();
-      carregarProdutos();
     } catch (error) {
       console.error("Erro ao salvar produto:", error);
       alert("Erro ao salvar produto!");
@@ -218,13 +200,12 @@ export default function ProdutosPage() {
     if (!produtoParaExcluir || !operadorId) return;
 
     try {
-      // Excluir do IndexedDB local
-      await db.deleteProduto(produtoParaExcluir.id);
+      // Remover da lista local
+      const produtosAtualizados = produtos.filter(p => p.id !== produtoParaExcluir.id);
 
-      // Sincronizar com Supabase (perfil único)
+      // Sincronizar com Supabase
       console.log("☁️ Sincronizando exclusão com Supabase...");
-      const todosProdutos = await db.getAllProdutos();
-      await SupabaseSync.syncProdutos(operadorId, todosProdutos);
+      await SupabaseSync.syncProdutos(operadorId, produtosAtualizados);
 
       alert("Produto excluído com sucesso!");
       carregarProdutos();
