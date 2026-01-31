@@ -166,7 +166,7 @@ export class AuthSupabase {
   }
 
   /**
-   * Registrar novo usuário
+   * Registrar novo usuário com email e senha segura
    */
   static async signUp(
     email: string,
@@ -179,7 +179,9 @@ export class AuthSupabase {
     error?: string;
   }> {
     try {
-      // Criar usuário no Supabase Auth
+      console.log("📝 Criando conta com email e senha:", email);
+
+      // PASSO 1: Criar usuário no Supabase Auth (email + senha)
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -187,10 +189,12 @@ export class AuthSupabase {
           data: {
             nome,
           },
+          emailRedirectTo: undefined, // Sem confirmação de email por enquanto
         },
       });
 
       if (authError) {
+        console.error("❌ Erro ao criar usuário no Auth:", authError.message);
         return {
           success: false,
           error: authError.message || "Erro ao criar conta",
@@ -198,32 +202,44 @@ export class AuthSupabase {
       }
 
       if (!authData.user) {
+        console.error("❌ Nenhum usuário foi criado");
         return {
           success: false,
           error: "Erro ao criar conta",
         };
       }
 
-      // Atualizar operador criado automaticamente pelo trigger
-      const { error: updateError } = await supabase
+      console.log("✅ Usuário criado no Auth:", authData.user.id);
+
+      // PASSO 2: Criar operador manualmente (sem trigger)
+      const { data: operadorData, error: insertError } = await supabase
         .from("operadores")
-        .update({
-          ativo: false, // Inicia desativado até pagamento
+        .insert({
+          auth_user_id: authData.user.id,
+          nome: nome,
+          email: email,
+          senha: null, // Senha gerenciada pelo Auth
+          ativo: false,
           suspenso: true,
           aguardando_pagamento: true,
+          is_admin: false,
         })
-        .eq("auth_user_id", authData.user.id);
+        .select()
+        .single();
 
-      if (updateError) {
-        console.error("Erro ao atualizar operador:", updateError);
+      if (insertError) {
+        console.error("❌ Erro ao criar operador:", insertError.message);
+
+        // Se falhou ao criar operador, deletar usuário do Auth para manter consistência
+        await supabase.auth.admin.deleteUser(authData.user.id);
+
+        return {
+          success: false,
+          error: "Erro ao criar perfil de operador. Tente novamente.",
+        };
       }
 
-      // Buscar operador atualizado
-      const { data: operadorData } = await supabase
-        .from("operadores")
-        .select("*")
-        .eq("auth_user_id", authData.user.id)
-        .single();
+      console.log("✅ Operador criado:", operadorData.id);
 
       const operador: Operador = {
         id: operadorData.id,
@@ -241,8 +257,8 @@ export class AuthSupabase {
         success: true,
         operador,
       };
-    } catch (error) {
-      console.error("Erro no cadastro:", error);
+    } catch (error: any) {
+      console.error("❌ Erro no cadastro:", error);
       return {
         success: false,
         error: "Erro ao criar conta. Tente novamente.",
