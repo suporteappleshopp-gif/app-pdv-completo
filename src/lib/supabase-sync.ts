@@ -186,24 +186,24 @@ export class SupabaseSync {
         numero: v.numero,
         operador_id: v.operadorId,
         operador_nome: v.operadorNome,
-        itens: v.itens,
         total: v.total,
-        data_hora: v.dataHora.toISOString(),
+        forma_pagamento: v.tipoPagamento,
         status: v.status,
-        tipo_pagamento: v.tipoPagamento,
-        motivo_cancelamento: v.motivoCancelamento,
+        created_at: v.dataHora instanceof Date ? v.dataHora.toISOString() : new Date(v.dataHora).toISOString(),
+        updated_at: v.dataHora instanceof Date ? v.dataHora.toISOString() : new Date(v.dataHora).toISOString(),
       }));
 
       const { error } = await supabase.from("vendas").insert(vendasParaInserir);
 
       if (error) {
-        console.error("Erro ao sincronizar vendas:", error);
+        console.error("Erro ao sincronizar vendas:", error.message || error.code || "Erro desconhecido");
+        console.error("Detalhes do erro:", JSON.stringify(error));
         return false;
       }
 
       return true;
     } catch (error) {
-      console.error("Erro ao sincronizar vendas:", error);
+      console.error("Erro crítico ao sincronizar vendas:", error);
       return false;
     }
   }
@@ -220,24 +220,25 @@ export class SupabaseSync {
         .order("data_hora", { ascending: false });
 
       if (error) {
-        console.error("Erro ao carregar vendas:", error);
+        console.error("Erro ao carregar vendas:", error.message || error.code || "Erro desconhecido");
+        console.error("Detalhes do erro:", JSON.stringify(error));
         return [];
       }
 
       return (data || []).map((v) => ({
         id: v.id,
-        numero: v.numero,
+        numero: v.numero || 'SEM-NUMERO',
         operadorId: v.operador_id,
         operadorNome: v.operador_nome,
-        itens: v.itens,
+        itens: [], // Itens não estão mais na tabela vendas
         total: v.total,
-        dataHora: new Date(v.data_hora),
+        dataHora: new Date(v.created_at || v.data_hora),
         status: v.status as "concluida" | "cancelada",
-        tipoPagamento: v.tipo_pagamento,
-        motivoCancelamento: v.motivo_cancelamento,
+        tipoPagamento: v.forma_pagamento,
+        motivoCancelamento: undefined,
       }));
     } catch (error) {
-      console.error("Erro ao carregar vendas:", error);
+      console.error("Erro crítico ao carregar vendas:", error);
       return [];
     }
   }
