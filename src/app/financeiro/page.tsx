@@ -261,11 +261,22 @@ export default function FinanceiroPage() {
   const calcularGanhos = async () => {
     try {
       await db.init();
-      
-      // Buscar todas as vendas do operador
-      const todasVendas = await db.getAllVendas();
-      const vendasOperador = todasVendas.filter(v => v.operadorId === operadorId);
-      
+
+      // SEMPRE buscar vendas do Supabase (dados atualizados)
+      let vendasOperador: Venda[] = [];
+
+      try {
+        const { SupabaseSync } = await import("@/lib/supabase-sync");
+        const vendasNuvem = await SupabaseSync.loadVendas(operadorId);
+        vendasOperador = vendasNuvem;
+        console.log("✅ Vendas carregadas do Supabase para análise de ganhos");
+      } catch (error) {
+        console.error("⚠️ Erro ao carregar vendas do Supabase, usando dados locais:", error);
+        // Fallback: usar dados locais
+        const todasVendas = await db.getAllVendas();
+        vendasOperador = todasVendas.filter(v => v.operadorId === operadorId);
+      }
+
       const agora = new Date();
       let inicio: Date;
       let fim: Date;
@@ -293,6 +304,7 @@ export default function FinanceiroPage() {
 
       const totalGanhos = vendasPeriodo.reduce((acc, venda) => acc + venda.total, 0);
       setGanhos(totalGanhos);
+      console.log(`📊 Ganhos calculados (${filtroTempo}): R$ ${totalGanhos.toFixed(2)}`);
     } catch (err) {
       console.error("Erro ao calcular ganhos:", err);
       setGanhos(0);
@@ -514,13 +526,23 @@ export default function FinanceiroPage() {
                 <p className="text-green-100 text-sm">Acompanhe seu desempenho em tempo real</p>
               </div>
             </div>
-            <button
-              onClick={() => setShowModalMeta(true)}
-              className="flex items-center space-x-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-all backdrop-blur-sm"
-            >
-              <Target className="w-5 h-5" />
-              <span>Definir Meta</span>
-            </button>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => calcularGanhos()}
+                className="flex items-center space-x-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-all backdrop-blur-sm"
+                title="Atualizar ganhos"
+              >
+                <TrendingUp className="w-5 h-5" />
+                <span>Atualizar</span>
+              </button>
+              <button
+                onClick={() => setShowModalMeta(true)}
+                className="flex items-center space-x-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-all backdrop-blur-sm"
+              >
+                <Target className="w-5 h-5" />
+                <span>Definir Meta</span>
+              </button>
+            </div>
           </div>
 
           {/* Filtros de Tempo */}
