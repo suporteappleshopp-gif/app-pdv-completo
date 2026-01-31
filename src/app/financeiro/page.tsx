@@ -481,6 +481,13 @@ export default function FinanceiroPage() {
             <span>Pendente</span>
           </span>
         );
+      case "cancelado":
+        return (
+          <span className="px-3 py-1 bg-red-500/20 text-red-300 rounded-full text-xs font-semibold border border-red-500/30 flex items-center space-x-1">
+            <X className="w-3 h-3" />
+            <span>Cancelado</span>
+          </span>
+        );
       default:
         return null;
     }
@@ -754,6 +761,11 @@ export default function FinanceiroPage() {
                       <p className="text-white text-2xl font-bold">
                         {pagamentos.filter(p => p.status === "pago").length}
                       </p>
+                      {pagamentos.filter(p => p.status === "pendente").length > 0 && (
+                        <p className="text-yellow-300 text-xs mt-1">
+                          {pagamentos.filter(p => p.status === "pendente").length} pendente(s)
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -939,7 +951,39 @@ export default function FinanceiroPage() {
                     const linkPagamento = `https://mpago.la/24Hxr1X?external_reference=${encodeURIComponent(operador.email)}`;
                     window.open(linkPagamento, "_blank");
 
-                    alert("✅ Operação registrada no seu extrato!\n⏳ Após realizar o pagamento, aguarde alguns minutos. Sua conta será ativada AUTOMATICAMENTE quando o pagamento for confirmado pelo Mercado Pago!");
+                    alert(`✅ Operação registrada no seu extrato!\n\n🔗 Link de pagamento:\n${linkPagamento}\n\n⏳ Você tem 4 minutos para realizar o pagamento.\nApós esse tempo, a operação será cancelada automaticamente e você poderá tentar novamente.\n\n✅ Sua conta será ativada AUTOMATICAMENTE quando o pagamento for confirmado pelo Mercado Pago!`);
+
+                    // Cancelar automaticamente após 4 minutos se não houver pagamento
+                    setTimeout(async () => {
+                      try {
+                        // Verificar se ainda está pendente
+                        const { supabase } = await import("@/lib/supabase");
+                        const { data: pagamentoAtual } = await supabase
+                          .from("historico_pagamentos")
+                          .select("status")
+                          .eq("id", pagamentoPendente.id)
+                          .single();
+
+                        if (pagamentoAtual && pagamentoAtual.status === "pendente") {
+                          // Cancelar no Supabase
+                          await supabase
+                            .from("historico_pagamentos")
+                            .update({ status: "cancelado", updated_at: new Date().toISOString() })
+                            .eq("id", pagamentoPendente.id);
+
+                          // Cancelar no IndexedDB
+                          const pagamentoCancelado = { ...pagamentoPendente, status: "cancelado" as const };
+                          await db.updatePagamento(pagamentoCancelado);
+
+                          console.log("⏰ Operação cancelada automaticamente após 4 minutos:", pagamentoPendente.id);
+
+                          // Recarregar dados se o usuário ainda estiver na página
+                          await carregarDados();
+                        }
+                      } catch (error) {
+                        console.error("Erro ao cancelar operação:", error);
+                      }
+                    }, 4 * 60 * 1000); // 4 minutos
                   }}
                   className="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
                 >
@@ -1037,7 +1081,39 @@ export default function FinanceiroPage() {
                     const linkPagamento = `https://mpago.li/12S6mJE?external_reference=${encodeURIComponent(operador.email)}`;
                     window.open(linkPagamento, "_blank");
 
-                    alert("✅ Operação registrada no seu extrato!\n⏳ Após realizar o pagamento, aguarde alguns minutos. Sua conta será ativada AUTOMATICAMENTE quando o pagamento for confirmado pelo Mercado Pago!");
+                    alert(`✅ Operação registrada no seu extrato!\n\n🔗 Link de pagamento:\n${linkPagamento}\n\n⏳ Você tem 4 minutos para realizar o pagamento.\nApós esse tempo, a operação será cancelada automaticamente e você poderá tentar novamente.\n\n✅ Sua conta será ativada AUTOMATICAMENTE quando o pagamento for confirmado pelo Mercado Pago!`);
+
+                    // Cancelar automaticamente após 4 minutos se não houver pagamento
+                    setTimeout(async () => {
+                      try {
+                        // Verificar se ainda está pendente
+                        const { supabase } = await import("@/lib/supabase");
+                        const { data: pagamentoAtual } = await supabase
+                          .from("historico_pagamentos")
+                          .select("status")
+                          .eq("id", pagamentoPendente.id)
+                          .single();
+
+                        if (pagamentoAtual && pagamentoAtual.status === "pendente") {
+                          // Cancelar no Supabase
+                          await supabase
+                            .from("historico_pagamentos")
+                            .update({ status: "cancelado", updated_at: new Date().toISOString() })
+                            .eq("id", pagamentoPendente.id);
+
+                          // Cancelar no IndexedDB
+                          const pagamentoCancelado = { ...pagamentoPendente, status: "cancelado" as const };
+                          await db.updatePagamento(pagamentoCancelado);
+
+                          console.log("⏰ Operação cancelada automaticamente após 4 minutos:", pagamentoPendente.id);
+
+                          // Recarregar dados se o usuário ainda estiver na página
+                          await carregarDados();
+                        }
+                      } catch (error) {
+                        console.error("Erro ao cancelar operação:", error);
+                      }
+                    }, 4 * 60 * 1000); // 4 minutos
                   }}
                   className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-4 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
                 >
