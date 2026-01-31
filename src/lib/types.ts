@@ -101,12 +101,14 @@ export interface ConfiguracaoNFCe {
 export interface Pagamento {
   id: string;
   usuarioId: string;
+  mesReferencia?: string; // Descrição do pagamento (ex: "Renovação 60 dias - PIX")
   valor: number;
-  dataPagamento: Date;
+  dataVencimento?: Date; // Data de vencimento do boleto/pagamento
+  dataPagamento?: Date | null; // Data em que foi pago
   status: "pendente" | "pago";
   formaPagamento: "pix" | "cartao";
-  diasComprados: number; // R$ 59,90 = 60 dias | R$ 149,70 = 180 dias
-  tipoCompra: "60-dias" | "180-dias"; // Apenas 2 opções
+  diasComprados: number; // Dias adicionados à conta (60, 100, 180, 365, etc)
+  tipoCompra: "60-dias" | "180-dias" | "renovacao-60" | "renovacao-100" | "renovacao-180" | "renovacao-365" | "personalizado";
 }
 
 export interface CodigoRecuperacao {

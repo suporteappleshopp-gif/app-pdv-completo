@@ -471,8 +471,11 @@ export default function LoginPage() {
   };
 
   const abrirPagamento = () => {
-    const link = novoCadastro.formaPagamento === "pix" ? LINK_PAGAMENTO_PIX : LINK_PAGAMENTO_CARTAO;
-    window.open(link, "_blank");
+    // Enviar email do usuário como external_reference para o Mercado Pago
+    const email = novoCadastro.email.trim();
+    const linkBase = novoCadastro.formaPagamento === "pix" ? LINK_PAGAMENTO_PIX : LINK_PAGAMENTO_CARTAO;
+    const linkComEmail = `${linkBase}?external_reference=${encodeURIComponent(email)}`;
+    window.open(linkComEmail, "_blank");
   };
 
   if (!dbReady) {

@@ -146,9 +146,11 @@ export default function FinanceiroPage() {
 
       // Carregar pagamentos
       const todosPagamentos = await db.getPagamentosByUsuario(operador.id);
-      todosPagamentos.sort((a, b) =>
-        new Date(b.dataVencimento).getTime() - new Date(a.dataVencimento).getTime()
-      );
+      todosPagamentos.sort((a, b) => {
+        const dataA = a.dataVencimento ? new Date(a.dataVencimento).getTime() : 0;
+        const dataB = b.dataVencimento ? new Date(b.dataVencimento).getTime() : 0;
+        return dataB - dataA;
+      });
       setPagamentos(todosPagamentos);
 
       // Carregar meta salva (localStorage como cache)
@@ -176,9 +178,13 @@ export default function FinanceiroPage() {
         }, 0);
 
         // Pegar a data do primeiro pagamento
-        const datasPagamento = pagamentosPagos.map(p =>
-          p.dataPagamento ? new Date(p.dataPagamento) : new Date(p.dataVencimento)
-        );
+        const datasPagamento = pagamentosPagos
+          .map(p => {
+            if (p.dataPagamento) return new Date(p.dataPagamento);
+            if (p.dataVencimento) return new Date(p.dataVencimento);
+            return new Date();
+          })
+          .filter(d => !isNaN(d.getTime()));
         const primeiroPagamento = new Date(Math.min(...datasPagamento.map(d => d.getTime())));
 
         // Calcular dias já usados desde o primeiro pagamento
@@ -779,7 +785,9 @@ export default function FinanceiroPage() {
                                 <p className="text-white text-sm font-semibold">
                                   {pagamento.dataPagamento
                                     ? format(new Date(pagamento.dataPagamento), "dd/MM/yyyy", { locale: ptBR })
-                                    : format(new Date(pagamento.dataVencimento), "dd/MM/yyyy", { locale: ptBR })
+                                    : pagamento.dataVencimento
+                                      ? format(new Date(pagamento.dataVencimento), "dd/MM/yyyy", { locale: ptBR })
+                                      : "N/A"
                                   }
                                 </p>
                               </div>
@@ -853,28 +861,20 @@ export default function FinanceiroPage() {
 
                 <button
                   onClick={async () => {
-                    window.open("https://mpago.la/24Hxr1X", "_blank");
+                    // Buscar operador atual para enviar email no link
+                    const { AuthSupabase } = await import("@/lib/auth-supabase");
+                    const operador = await AuthSupabase.getCurrentOperador();
 
-                    // Registrar pagamento no banco
-                    try {
-                      const novoPagamento: Pagamento = {
-                        id: `pag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                        usuarioId: operadorId,
-                        mesReferencia: "Renovação 60 dias - PIX",
-                        valor: 59.90,
-                        dataVencimento: new Date(),
-                        dataPagamento: new Date(),
-                        status: "pago",
-                        formaPagamento: "pix",
-                        diasComprados: 60,
-                        tipoCompra: "renovacao-60",
-                      };
-
-                      await db.addPagamento(novoPagamento);
-                      carregarDados();
-                    } catch (err) {
-                      console.error("Erro ao registrar pagamento:", err);
+                    if (!operador) {
+                      alert("Erro: usuário não encontrado");
+                      return;
                     }
+
+                    // Abrir Mercado Pago com email do usuário como referência
+                    const linkPagamento = `https://mpago.la/24Hxr1X?external_reference=${encodeURIComponent(operador.email)}`;
+                    window.open(linkPagamento, "_blank");
+
+                    alert("⏳ Após realizar o pagamento, aguarde alguns minutos. Sua conta será ativada AUTOMATICAMENTE quando o pagamento for confirmado pelo Mercado Pago!");
                   }}
                   className="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
                 >
@@ -925,28 +925,20 @@ export default function FinanceiroPage() {
 
                 <button
                   onClick={async () => {
-                    window.open("https://mpago.li/12S6mJE", "_blank");
+                    // Buscar operador atual para enviar email no link
+                    const { AuthSupabase } = await import("@/lib/auth-supabase");
+                    const operador = await AuthSupabase.getCurrentOperador();
 
-                    // Registrar pagamento no banco
-                    try {
-                      const novoPagamento: Pagamento = {
-                        id: `pag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                        usuarioId: operadorId,
-                        mesReferencia: "Renovação Semestral 180 dias - Cartão",
-                        valor: 149.70,
-                        dataVencimento: new Date(),
-                        dataPagamento: new Date(),
-                        status: "pago",
-                        formaPagamento: "cartao",
-                        diasComprados: 180,
-                        tipoCompra: "renovacao-180",
-                      };
-
-                      await db.addPagamento(novoPagamento);
-                      carregarDados();
-                    } catch (err) {
-                      console.error("Erro ao registrar pagamento:", err);
+                    if (!operador) {
+                      alert("Erro: usuário não encontrado");
+                      return;
                     }
+
+                    // Abrir Mercado Pago com email do usuário como referência
+                    const linkPagamento = `https://mpago.li/12S6mJE?external_reference=${encodeURIComponent(operador.email)}`;
+                    window.open(linkPagamento, "_blank");
+
+                    alert("⏳ Após realizar o pagamento, aguarde alguns minutos. Sua conta será ativada AUTOMATICAMENTE quando o pagamento for confirmado pelo Mercado Pago!");
                   }}
                   className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-4 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
                 >

@@ -79,27 +79,48 @@ export async function POST(request: NextRequest) {
 
         // Determinar dias e forma de pagamento baseado no valor
         const valorPago = payment.transaction_amount;
-        let diasAssinatura = 180;
-        let formaPagamento = "cartao";
+        let diasComprados = 60;
+        let formaPagamento = "pix";
 
         // Se valor é R$ 59,90 = PIX (60 dias)
         // Se valor é R$ 149,70 = Cartão (180 dias)
         if (valorPago >= 59 && valorPago <= 60) {
-          diasAssinatura = 60;
+          diasComprados = 60;
           formaPagamento = "pix";
         } else if (valorPago >= 149 && valorPago <= 150) {
-          diasAssinatura = 180;
+          diasComprados = 180;
           formaPagamento = "cartao";
         }
 
-        console.log(`💰 Valor pago: R$ ${valorPago} | Forma: ${formaPagamento} | Dias: ${diasAssinatura}`);
+        console.log(`💰 Valor pago: R$ ${valorPago} | Forma: ${formaPagamento} | Dias comprados: ${diasComprados}`);
 
-        // Calcular data de vencimento
-        const dataAtivacao = new Date();
-        const dataVencimento = new Date(dataAtivacao);
-        dataVencimento.setDate(dataVencimento.getDate() + diasAssinatura);
+        // IMPORTANTE: SOMAR dias à assinatura existente (não substituir)
+        const dataAtual = new Date();
+        let novaDataVencimento: Date;
 
-        // Atualizar operador: ativar conta e remover flags de suspensão
+        // Se já tem data de vencimento E ainda não expirou, SOMAR os dias
+        if (operador.data_proximo_vencimento) {
+          const vencimentoAtual = new Date(operador.data_proximo_vencimento);
+
+          // Se vencimento ainda está no futuro, somar a partir do vencimento atual
+          if (vencimentoAtual > dataAtual) {
+            novaDataVencimento = new Date(vencimentoAtual);
+            novaDataVencimento.setDate(novaDataVencimento.getDate() + diasComprados);
+            console.log(`✅ Somando ${diasComprados} dias ao vencimento atual (${vencimentoAtual.toLocaleDateString()})`);
+          } else {
+            // Se já expirou, começar de hoje
+            novaDataVencimento = new Date(dataAtual);
+            novaDataVencimento.setDate(novaDataVencimento.getDate() + diasComprados);
+            console.log(`⚠️ Assinatura expirada. Iniciando ${diasComprados} dias a partir de hoje`);
+          }
+        } else {
+          // Primeira compra - começar de hoje
+          novaDataVencimento = new Date(dataAtual);
+          novaDataVencimento.setDate(novaDataVencimento.getDate() + diasComprados);
+          console.log(`🆕 Primeira compra: ${diasComprados} dias a partir de hoje`);
+        }
+
+        // Atualizar operador: ativar conta, remover flags de suspensão e SOMAR dias
         const { error: updateError } = await supabase
           .from("operadores")
           .update({
@@ -107,9 +128,9 @@ export async function POST(request: NextRequest) {
             suspenso: false,
             aguardando_pagamento: false,
             forma_pagamento: formaPagamento,
-            data_pagamento: dataAtivacao.toISOString(),
-            data_proximo_vencimento: dataVencimento.toISOString(),
-            dias_assinatura: diasAssinatura,
+            data_pagamento: dataAtual.toISOString(),
+            data_proximo_vencimento: novaDataVencimento.toISOString(),
+            dias_assinatura: diasComprados,
             updated_at: new Date().toISOString(),
           })
           .eq("email", payerEmail);
@@ -120,13 +141,15 @@ export async function POST(request: NextRequest) {
         }
 
         console.log("✅ Conta ativada com sucesso para:", payerEmail);
-        console.log("📅 Vencimento:", dataVencimento.toISOString());
+        console.log("📅 Novo vencimento:", novaDataVencimento.toISOString());
+        console.log(`📊 Dias adicionados: ${diasComprados}`);
 
         return NextResponse.json({
           success: true,
-          message: "Pagamento processado e conta ativada",
+          message: "Pagamento processado e conta ativada automaticamente",
           email: payerEmail,
-          vencimento: dataVencimento.toISOString(),
+          diasAdicionados: diasComprados,
+          vencimento: novaDataVencimento.toISOString(),
         });
       } else {
         console.log(`⚠️ Pagamento com status: ${payment.status}`);
