@@ -85,25 +85,27 @@ export async function POST(request: NextRequest) {
         console.log("✅ PAGAMENTO APROVADO!");
         console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-        // Buscar email do pagador ou usar external_reference
-        const payerEmail = payment.payer?.email || payment.external_reference;
+        // 🔥 CORREÇÃO: Buscar por external_reference (ID do usuário) em vez de email
+        const usuarioId = payment.external_reference;
+        const payerEmail = payment.payer?.email;
 
         console.log("🔍 Identificando usuário...");
+        console.log("🆔 External Reference (Usuario ID):", usuarioId);
         console.log("📧 Email do pagador:", payerEmail);
 
-        if (!payerEmail) {
-          console.error("❌ ERRO: Email do pagador não encontrado no pagamento");
-          console.error("📦 Dados do pagador:", JSON.stringify(payment.payer, null, 2));
-          return NextResponse.json({ error: "Email não encontrado" }, { status: 400 });
+        if (!usuarioId) {
+          console.error("❌ ERRO: external_reference não encontrado no pagamento");
+          console.error("📦 Dados completos:", JSON.stringify(payment, null, 2));
+          return NextResponse.json({ error: "ID do usuário não encontrado no pagamento" }, { status: 400 });
         }
 
-        console.log("👤 Buscando operador no banco com email:", payerEmail);
+        console.log("👤 Buscando operador no banco com ID:", usuarioId);
 
-        // Buscar operador no banco
+        // Buscar operador no banco pelo ID (external_reference)
         const { data: operador, error: findError } = await supabase
           .from("operadores")
           .select("*")
-          .eq("email", payerEmail)
+          .eq("id", usuarioId)
           .maybeSingle();
 
         if (findError) {
@@ -114,8 +116,8 @@ export async function POST(request: NextRequest) {
 
         if (!operador) {
           console.error("❌ OPERADOR NÃO ENCONTRADO");
-          console.error("📧 Email buscado:", payerEmail);
-          console.error("⚠️ Verifique se o usuário está cadastrado no banco com este email");
+          console.error("🆔 ID buscado:", usuarioId);
+          console.error("⚠️ Verifique se o usuário existe no banco com este ID");
           return NextResponse.json({ error: "Operador não encontrado" }, { status: 404 });
         }
 
@@ -242,7 +244,7 @@ export async function POST(request: NextRequest) {
         const { error: updateError } = await supabase
           .from("operadores")
           .update(dadosAtualizacao)
-          .eq("email", payerEmail);
+          .eq("id", operador.id);
 
         if (updateError) {
           console.error("❌ ERRO ao atualizar operador:", updateError.message);
@@ -251,7 +253,9 @@ export async function POST(request: NextRequest) {
         }
 
         console.log("✅ CONTA ATIVADA COM SUCESSO!");
-        console.log("👤 Email:", payerEmail);
+        console.log("🆔 Usuario ID:", operador.id);
+        console.log("👤 Nome:", operador.nome);
+        console.log("📧 Email:", operador.email);
         console.log("📅 Novo vencimento:", novaDataVencimento.toLocaleDateString("pt-BR"));
         console.log(`📊 Dias adicionados: ${diasComprados}`);
 
@@ -371,7 +375,8 @@ export async function POST(request: NextRequest) {
         console.log("🎉 PROCESSAMENTO CONCLUÍDO COM SUCESSO!");
         console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         console.log("📊 RESUMO:");
-        console.log("  ✅ Conta ativada:", payerEmail);
+        console.log("  ✅ Conta ativada:", operador.email);
+        console.log("  ✅ Usuário:", operador.nome);
         console.log("  ✅ Dias adicionados:", diasComprados);
         console.log("  ✅ Novo vencimento:", novaDataVencimento.toLocaleDateString("pt-BR"));
         console.log("  ✅ Histórico registrado:", !historyError ? "SIM" : "NÃO");
@@ -381,7 +386,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           success: true,
           message: "Pagamento processado e conta ativada automaticamente",
-          email: payerEmail,
+          usuario_id: operador.id,
+          usuario_nome: operador.nome,
+          email: operador.email,
           diasAdicionados: diasComprados,
           vencimento: novaDataVencimento.toISOString(),
           historico_registrado: !historyError,

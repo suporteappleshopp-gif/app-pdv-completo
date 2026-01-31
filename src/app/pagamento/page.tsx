@@ -2,33 +2,64 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { CreditCard, Copy, CheckCircle, AlertCircle, ExternalLink, ArrowLeft } from "lucide-react";
+import { CreditCard, Copy, CheckCircle, AlertCircle, ExternalLink, ArrowLeft, Loader2 } from "lucide-react";
 
 export default function PagamentoPage() {
   const router = useRouter();
   const [formaPagamento, setFormaPagamento] = useState<"pix" | "cartao">("pix");
   const [pixCopiado, setPixCopiado] = useState(false);
   const [operadorNome, setOperadorNome] = useState("");
+  const [operadorId, setOperadorId] = useState("");
+  const [carregandoPagamento, setCarregandoPagamento] = useState(false);
+  const [linkPagamento, setLinkPagamento] = useState("");
 
-  const PIX_CODE = "00020101021226880014br.gov.bcb.pix2566api.pagseguro.com/pix/v2/cobv/F0B3FDB4-FD2E-480E-B18E-0C4CE653253427600016BR.COM.PAGSEGURO0136F0B3FDB4-FD2E-480E-B18E-0C4CE6532534520417995303986540559.905802BR5919DIEGO MARQUES GOMES6006Cuiaba62070503***6304E229";
-  const LINK_PAGAMENTO_PIX = "https://mpago.la/24Hxr1X"; // Mercado Pago - R$ 59,90 PIX (60 dias)
-  const LINK_PAGAMENTO_CARTAO = "https://mpago.li/12S6mJE"; // Mercado Pago - R$ 149,70 em até 3x (180 dias - 6 meses)
   const WHATSAPP_CONTATO = "5565981032239";
 
   useEffect(() => {
     const nome = localStorage.getItem("operadorNome") || "Usuário";
+    const id = localStorage.getItem("operadorId") || "";
     setOperadorNome(nome);
+    setOperadorId(id);
   }, []);
 
-  const copiarPixCode = () => {
-    navigator.clipboard.writeText(PIX_CODE);
-    setPixCopiado(true);
-    setTimeout(() => setPixCopiado(false), 3000);
+  const gerarLinkPagamento = async (tipo: "pix" | "cartao") => {
+    if (!operadorId) {
+      alert("Erro: Usuário não identificado. Por favor, faça login novamente.");
+      router.push("/");
+      return;
+    }
+
+    setCarregandoPagamento(true);
+
+    try {
+      const response = await fetch("/api/create-payment-preference", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          usuario_id: operadorId,
+          forma_pagamento: tipo,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Erro ao gerar link de pagamento");
+      }
+
+      // Abrir link de pagamento
+      window.open(data.init_point, "_blank");
+      setLinkPagamento(data.init_point);
+    } catch (error: any) {
+      console.error("Erro ao gerar link:", error);
+      alert("Erro ao gerar link de pagamento. Tente novamente ou entre em contato pelo WhatsApp.");
+    } finally {
+      setCarregandoPagamento(false);
+    }
   };
 
-  const abrirPagamentoCartao = () => {
-    window.open(LINK_PAGAMENTO_CARTAO, "_blank");
-  };
+  const abrirPagamentoPix = () => gerarLinkPagamento("pix");
+  const abrirPagamentoCartao = () => gerarLinkPagamento("cartao");
 
   const abrirWhatsApp = () => {
     window.open(`https://wa.me/${WHATSAPP_CONTATO}`, "_blank");
@@ -97,36 +128,37 @@ export default function PagamentoPage() {
               <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
                 <span className="text-white font-bold text-sm">PIX</span>
               </div>
-              <span>Pagamento via PIX - R$ 59,90</span>
+              <span>Pagamento via PIX - R$ 59,90 (60 dias)</span>
             </h3>
-            
-            <div className="bg-gray-50 rounded-lg p-4 mb-4">
-              <p className="text-xs text-gray-500 mb-2 text-center font-semibold">Código PIX Copia e Cola</p>
-              <div className="bg-white rounded p-3 break-all text-xs font-mono text-gray-700 max-h-32 overflow-y-auto border border-gray-300">
-                {PIX_CODE}
-              </div>
-            </div>
+
+            <p className="text-sm text-gray-600 mb-4">
+              Clique no botão abaixo para gerar seu link de pagamento personalizado via PIX.
+            </p>
 
             <button
-              onClick={copiarPixCode}
-              className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg font-semibold"
+              onClick={abrirPagamentoPix}
+              disabled={carregandoPagamento}
+              className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {pixCopiado ? (
+              {carregandoPagamento ? (
                 <>
-                  <CheckCircle className="w-5 h-5" />
-                  <span>Código Copiado!</span>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Gerando link...</span>
                 </>
               ) : (
                 <>
-                  <Copy className="w-5 h-5" />
-                  <span>Copiar Código PIX</span>
+                  <div className="w-5 h-5 bg-white rounded-sm flex items-center justify-center">
+                    <span className="text-blue-600 font-bold text-xs">PIX</span>
+                  </div>
+                  <span>Pagar com PIX</span>
+                  <ExternalLink className="w-4 h-4" />
                 </>
               )}
             </button>
 
             <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-sm text-blue-800">
-                <strong>Como pagar:</strong> Abra o app do seu banco, escolha "Pagar com PIX", selecione "Copia e Cola" e cole o código acima.
+                <strong>Rápido e fácil:</strong> O pagamento via PIX é aprovado instantaneamente e sua conta será ativada automaticamente.
               </p>
             </div>
           </div>
@@ -137,25 +169,35 @@ export default function PagamentoPage() {
           <div className="bg-white rounded-xl border-2 border-blue-200 p-6 mb-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center space-x-2">
               <CreditCard className="w-8 h-8 text-blue-600" />
-              <span>Pagamento via Cartão - R$ 49,90</span>
+              <span>Pagamento via Cartão - R$ 149,70 (180 dias - 6 meses)</span>
             </h3>
-            
+
             <p className="text-sm text-gray-600 mb-4">
-              Clique no botão abaixo para ser redirecionado à página segura de pagamento do PagSeguro.
+              Clique no botão abaixo para gerar seu link de pagamento personalizado via Cartão de Crédito.
             </p>
 
             <button
               onClick={abrirPagamentoCartao}
-              className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg font-semibold"
+              disabled={carregandoPagamento}
+              className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <CreditCard className="w-5 h-5" />
-              <span>Pagar com Cartão de Crédito</span>
-              <ExternalLink className="w-4 h-4" />
+              {carregandoPagamento ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Gerando link...</span>
+                </>
+              ) : (
+                <>
+                  <CreditCard className="w-5 h-5" />
+                  <span>Pagar com Cartão de Crédito</span>
+                  <ExternalLink className="w-4 h-4" />
+                </>
+              )}
             </button>
 
             <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-sm text-blue-800">
-                <strong>Seguro e rápido:</strong> Você será redirecionado para o ambiente seguro do PagSeguro para finalizar o pagamento.
+                <strong>Parcele em até 3x:</strong> Você será redirecionado para o ambiente seguro do Mercado Pago para finalizar o pagamento.
               </p>
             </div>
           </div>
