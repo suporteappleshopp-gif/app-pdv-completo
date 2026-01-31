@@ -1,21 +1,25 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// Durante build, aceitar valores vazios (serão verificados em runtime)
-// Em runtime, avisar se não estiver configurado
-const isBuildTime = typeof window === 'undefined' && !supabaseUrl;
+// Verificar se as credenciais são válidas
+const hasValidCredentials =
+  supabaseUrl &&
+  supabaseAnonKey &&
+  supabaseUrl !== 'your_supabase_url_here' &&
+  supabaseAnonKey !== 'your_supabase_anon_key_here' &&
+  (supabaseUrl.startsWith('http://') || supabaseUrl.startsWith('https://'));
 
-if (!isBuildTime && (!supabaseUrl || !supabaseAnonKey)) {
-  console.warn('⚠️ Supabase não configurado. Configure as variáveis NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY no arquivo .env.local');
+// Avisar se não estiver configurado
+if (!hasValidCredentials && typeof window !== 'undefined') {
+  console.warn('⚠️ Supabase não configurado. Selecione um projeto Supabase no ícone do chat.');
 }
 
-// Criar cliente com valores default se for build time
-export const supabase = createClient(
-  supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-key'
-);
+// Criar cliente somente se tiver credenciais válidas
+export const supabase: SupabaseClient = hasValidCredentials
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : createClient('https://placeholder.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYWNlaG9sZGVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE2NDUxOTI4MDAsImV4cCI6MTk2MDc2ODgwMH0.placeholder');
 
 // Tipos para o banco de dados
 export interface Database {
