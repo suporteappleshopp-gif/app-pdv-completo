@@ -4,11 +4,11 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 // Durante build, aceitar valores vazios (serão verificados em runtime)
-// Em runtime, bloquear se não estiver configurado
+// Em runtime, avisar se não estiver configurado
 const isBuildTime = typeof window === 'undefined' && !supabaseUrl;
 
 if (!isBuildTime && (!supabaseUrl || !supabaseAnonKey)) {
-  console.error('❌ ERRO CRÍTICO: Supabase não configurado');
+  console.warn('⚠️ Supabase não configurado. Configure as variáveis NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY no arquivo .env.local');
 }
 
 // Criar cliente com valores default se for build time
