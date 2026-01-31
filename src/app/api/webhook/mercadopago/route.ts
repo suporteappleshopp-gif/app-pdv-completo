@@ -144,12 +144,63 @@ export async function POST(request: NextRequest) {
         console.log("📅 Novo vencimento:", novaDataVencimento.toISOString());
         console.log(`📊 Dias adicionados: ${diasComprados}`);
 
+        // 🔥 NOVO: Registrar no histórico de pagamentos do usuário
+        const pagamentoId = `mp_${payment.id}_${Date.now()}`;
+        const { error: historyError } = await supabase
+          .from("historico_pagamentos")
+          .insert({
+            id: pagamentoId,
+            usuario_id: operador.id,
+            mes_referencia: `Renovação ${diasComprados} dias - ${formaPagamento.toUpperCase()}`,
+            valor: valorPago,
+            data_vencimento: dataAtual.toISOString(),
+            data_pagamento: dataAtual.toISOString(),
+            status: "pago",
+            forma_pagamento: formaPagamento,
+            dias_comprados: diasComprados,
+            tipo_compra: `renovacao-${diasComprados}`,
+            mercadopago_payment_id: payment.id.toString(),
+            created_at: dataAtual.toISOString(),
+            updated_at: dataAtual.toISOString(),
+          });
+
+        if (historyError) {
+          console.error("⚠️ Erro ao registrar no histórico:", historyError.message);
+          // Não falhar o webhook por isso - conta já foi ativada
+        } else {
+          console.log("✅ Pagamento registrado no histórico:", pagamentoId);
+        }
+
+        // 🔥 NOVO: Registrar nos ganhos do admin
+        const ganhoId = `ganho_${payment.id}_${Date.now()}`;
+        const { error: ganhoError } = await supabase
+          .from("ganhos_admin")
+          .insert({
+            id: ganhoId,
+            tipo: "mensalidade-paga",
+            usuario_id: operador.id,
+            usuario_nome: operador.nome,
+            valor: valorPago,
+            forma_pagamento: formaPagamento,
+            descricao: `Pagamento de ${diasComprados} dias via ${formaPagamento.toUpperCase()} - MP ID: ${payment.id}`,
+            created_at: dataAtual.toISOString(),
+          });
+
+        if (ganhoError) {
+          console.error("⚠️ Erro ao registrar ganho do admin:", ganhoError.message);
+          // Não falhar o webhook por isso
+        } else {
+          console.log("✅ Ganho registrado para o admin:", ganhoId);
+        }
+
         return NextResponse.json({
           success: true,
           message: "Pagamento processado e conta ativada automaticamente",
           email: payerEmail,
           diasAdicionados: diasComprados,
           vencimento: novaDataVencimento.toISOString(),
+          historico_registrado: !historyError,
+          ganho_registrado: !ganhoError,
         });
       } else {
         console.log(`⚠️ Pagamento com status: ${payment.status}`);

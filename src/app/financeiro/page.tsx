@@ -144,14 +144,45 @@ export default function FinanceiroPage() {
         }
       }
 
-      // Carregar pagamentos
-      const todosPagamentos = await db.getPagamentosByUsuario(operador.id);
+      // 🔥 NOVO: Carregar pagamentos do Supabase e mesclar com IndexedDB
+      const { supabase } = await import("@/lib/supabase");
+      const { data: pagamentosSupabase } = await supabase
+        .from("historico_pagamentos")
+        .select("*")
+        .eq("usuario_id", operador.id)
+        .order("data_pagamento", { ascending: false });
+
+      // Converter pagamentos do Supabase para o formato local
+      const pagamentosSupabaseFormatados: Pagamento[] = (pagamentosSupabase || []).map((pag) => ({
+        id: pag.id,
+        usuarioId: pag.usuario_id,
+        mesReferencia: pag.mes_referencia,
+        valor: parseFloat(pag.valor.toString()),
+        dataVencimento: pag.data_vencimento ? new Date(pag.data_vencimento) : new Date(),
+        dataPagamento: new Date(pag.data_pagamento),
+        status: pag.status as "pendente" | "pago" | "vencido" | "cancelado",
+        formaPagamento: pag.forma_pagamento as "pix" | "cartao",
+        diasComprados: pag.dias_comprados,
+        tipoCompra: pag.tipo_compra,
+      }));
+
+      // Carregar pagamentos do IndexedDB
+      const pagamentosIndexedDB = await db.getPagamentosByUsuario(operador.id);
+
+      // Mesclar: usar Set para evitar duplicatas (se um pagamento com mesmo ID existe nos dois)
+      const idsSupabase = new Set(pagamentosSupabaseFormatados.map((p) => p.id));
+      const pagamentosUnicos = pagamentosIndexedDB.filter((p) => !idsSupabase.has(p.id));
+      const todosPagamentos = [...pagamentosSupabaseFormatados, ...pagamentosUnicos];
+
+      // Ordenar por data
       todosPagamentos.sort((a, b) => {
         const dataA = a.dataVencimento ? new Date(a.dataVencimento).getTime() : 0;
         const dataB = b.dataVencimento ? new Date(b.dataVencimento).getTime() : 0;
         return dataB - dataA;
       });
+
       setPagamentos(todosPagamentos);
+      console.log(`📊 Total de pagamentos carregados: ${todosPagamentos.length} (${pagamentosSupabaseFormatados.length} do Supabase + ${pagamentosUnicos.length} do IndexedDB)`);
 
       // Carregar meta salva (localStorage como cache)
       const metaSalva = localStorage.getItem(`meta_${operador.id}`);
