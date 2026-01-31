@@ -567,10 +567,12 @@ export default function CaixaPage() {
 
   useEffect(() => {
     if (busca.trim()) {
+      const buscaNormalizada = busca.trim().toLowerCase();
       const filtrados = produtos.filter(
         (p) =>
-          p.nome.toLowerCase().includes(busca.toLowerCase()) ||
-          p.codigoBarras.includes(busca)
+          p.nome.toLowerCase().includes(buscaNormalizada) ||
+          p.codigoBarras.toLowerCase().includes(buscaNormalizada) ||
+          p.codigoBarras === busca.trim()
       );
       setProdutosFiltrados(filtrados);
       setMostrarProdutos(true);
@@ -901,12 +903,16 @@ export default function CaixaPage() {
   };
 
   const buscarProdutoPorCodigo = (codigo: string) => {
-    const produto = produtos.find((p) => p.codigoBarras === codigo);
+    const codigoNormalizado = codigo.trim();
+    const produto = produtos.find((p) =>
+      p.codigoBarras === codigoNormalizado ||
+      p.codigoBarras.toLowerCase() === codigoNormalizado.toLowerCase()
+    );
     if (produto) {
       adicionarProduto(produto);
       alert(`Produto "${produto.nome}" adicionado ao carrinho!`);
     } else {
-      alert(`Produto com código "${codigo}" não encontrado.`);
+      alert(`Produto com código "${codigoNormalizado}" não encontrado.`);
     }
   };
 
