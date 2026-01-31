@@ -52,8 +52,21 @@ export default function EstoquePage() {
     try {
       setLoading(true);
       await db.init();
-      const todosProdutos = await db.getAllProdutos();
-      setProdutos(todosProdutos);
+
+      // SEMPRE carregar produtos do Supabase (dados atualizados)
+      const { AuthSupabase } = await import("@/lib/auth-supabase");
+      const operador = await AuthSupabase.getCurrentOperador();
+
+      if (operador) {
+        const { SupabaseSync } = await import("@/lib/supabase-sync");
+        const produtosNuvem = await SupabaseSync.loadProdutos(operador.id);
+        setProdutos(produtosNuvem);
+        console.log("✅ Produtos carregados do Supabase (dados atualizados)");
+      } else {
+        // Fallback: carregar localmente se não conseguir autenticar
+        const todosProdutos = await db.getAllProdutos();
+        setProdutos(todosProdutos);
+      }
     } catch (err) {
       console.error("Erro ao carregar produtos:", err);
       setErro("Erro ao carregar produtos");
@@ -121,6 +134,16 @@ export default function EstoquePage() {
         return;
       }
 
+      // Buscar operador atual
+      const { AuthSupabase } = await import("@/lib/auth-supabase");
+      const operador = await AuthSupabase.getCurrentOperador();
+
+      if (!operador) {
+        setErro("Erro: Operador não encontrado");
+        setTimeout(() => setErro(""), 3000);
+        return;
+      }
+
       if (modoEdicao) {
         await db.updateProduto(produtoForm);
         setSucesso("Produto atualizado com sucesso!");
@@ -132,6 +155,12 @@ export default function EstoquePage() {
         await db.addProduto(novoProduto);
         setSucesso("Produto adicionado com sucesso!");
       }
+
+      // Sincronizar com Supabase imediatamente
+      const { SupabaseSync } = await import("@/lib/supabase-sync");
+      const todosProdutos = await db.getAllProdutos();
+      await SupabaseSync.syncProdutos(operador.id, todosProdutos);
+      console.log("✅ Produtos sincronizados com Supabase");
 
       setTimeout(() => setSucesso(""), 3000);
       setShowModal(false);
@@ -149,6 +178,18 @@ export default function EstoquePage() {
     try {
       await db.deleteProduto(id);
       setSucesso("Produto excluído com sucesso!");
+
+      // Sincronizar com Supabase imediatamente
+      const { AuthSupabase } = await import("@/lib/auth-supabase");
+      const operador = await AuthSupabase.getCurrentOperador();
+
+      if (operador) {
+        const { SupabaseSync } = await import("@/lib/supabase-sync");
+        const todosProdutos = await db.getAllProdutos();
+        await SupabaseSync.syncProdutos(operador.id, todosProdutos);
+        console.log("✅ Produtos sincronizados com Supabase após exclusão");
+      }
+
       setTimeout(() => setSucesso(""), 3000);
       carregarProdutos();
     } catch (err) {
