@@ -824,23 +824,28 @@ export default function CaixaPage() {
           if (produto) {
             produto.estoque += item.quantidade;
             await db.updateProduto(produto);
-            // Salvar alteração de estoque (sincroniza com nuvem)
-            await salvarAutomaticamente(produto, "produto_estoque");
           }
         }
+
+        // Sincronizar TODOS os produtos com Supabase após devolver ao estoque
+        console.log("☁️ Sincronizando estoque com Supabase...");
+        const todosProdutos = await db.getAllProdutos();
+        await SupabaseSync.syncProdutos(operadorId, todosProdutos);
+        console.log("✅ Estoque devolvido e sincronizado");
+
         alert("Venda cancelada com sucesso! Os produtos foram devolvidos ao estoque.");
       }
-      
+
       setCarrinho([]);
       setTotal(0);
       setMostrarConfirmacaoCancelar(false);
       setMotivoCancelamento("");
-      
+
       // Limpar carrinho salvo
       const chaveCarrinho = `autosave_carrinho_${operadorId}`;
       localStorage.removeItem(chaveCarrinho);
-      
-      // Atualizar lista de produtos
+
+      // Atualizar lista de produtos na tela
       const todosProdutos = await db.getAllProdutos();
       setProdutos(todosProdutos);
     } catch (error) {
@@ -959,14 +964,16 @@ export default function CaixaPage() {
         if (produto) {
           produto.estoque -= item.quantidade;
           await db.updateProduto(produto);
-          // Salvar alteração de estoque (sincroniza com nuvem)
-          await salvarAutomaticamente(produto, "produto_estoque");
         }
       }
-      console.log("✅ Estoque atualizado");
 
-      // Atualizar lista de produtos
+      // Sincronizar TODOS os produtos com Supabase após atualizar estoque
+      console.log("☁️ Sincronizando estoque com Supabase...");
       const todosProdutos = await db.getAllProdutos();
+      await SupabaseSync.syncProdutos(operadorId, todosProdutos);
+      console.log("✅ Estoque atualizado e sincronizado");
+
+      // Atualizar lista de produtos na tela
       setProdutos(todosProdutos);
 
       // Guardar venda para impressão
