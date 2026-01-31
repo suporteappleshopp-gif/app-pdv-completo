@@ -47,13 +47,15 @@ export default function CarteiraPage() {
   const carregarDados = async () => {
     try {
       setLoading(true);
-      
-      // Buscar todos os ganhos
+
+      // Buscar todos os ganhos (retorna array vazio se não houver)
       const todosGanhos = await db.getAllGanhosAdmin();
       console.log("✅ Ganhos carregados:", todosGanhos.length);
-      setGanhos(todosGanhos);
+      setGanhos(todosGanhos || []);
     } catch (err) {
-      console.error("Erro ao carregar dados:", err);
+      console.error("⚠️ Erro ao carregar ganhos:", err);
+      // Se der erro, inicializar com array vazio para não travar o app
+      setGanhos([]);
     } finally {
       setLoading(false);
     }
@@ -161,7 +163,7 @@ export default function CarteiraPage() {
             <div className="flex items-center justify-between mb-2">
               <Receipt className="w-8 h-8 text-white/80" />
             </div>
-            <p className="text-orange-100 text-sm mb-1">Renovações Anuais</p>
+            <p className="text-orange-100 text-sm mb-1">Compras de Dias</p>
             <h2 className="text-3xl font-bold text-white">
               R$ {totalMensalidades.toFixed(2)}
             </h2>
@@ -175,7 +177,7 @@ export default function CarteiraPage() {
               <div>
                 <p className="text-purple-200 text-sm mb-2">Total via Cartão de Crédito</p>
                 <h3 className="text-3xl font-bold text-white">R$ {totalCartao.toFixed(2)}</h3>
-                <p className="text-purple-300 text-xs mt-2">Pagamento anual de R$ 149,70 (365 dias) | Parcelamento em até 3x</p>
+                <p className="text-purple-300 text-xs mt-2">Compra de 180 dias por R$ 149,70</p>
               </div>
               <div className="bg-blue-500/20 p-4 rounded-full">
                 <CreditCard className="w-8 h-8 text-blue-400" />
@@ -191,7 +193,7 @@ export default function CarteiraPage() {
               <div>
                 <p className="text-purple-200 text-sm mb-2">Total via PIX</p>
                 <h3 className="text-3xl font-bold text-white">R$ {totalPix.toFixed(2)}</h3>
-                <p className="text-purple-300 text-xs mt-2">Pagamento de R$ 59,90 (100 dias de acesso)</p>
+                <p className="text-purple-300 text-xs mt-2">Compra de 60 dias por R$ 59,90</p>
               </div>
               <div className="bg-green-500/20 p-4 rounded-full">
                 <div className="w-8 h-8 flex items-center justify-center">
@@ -225,7 +227,7 @@ export default function CarteiraPage() {
             >
               <option value="todos">Todos os tipos</option>
               <option value="conta-criada">Contas criadas</option>
-              <option value="mensalidade-paga">Renovações anuais</option>
+              <option value="mensalidade-paga">Compras de dias</option>
             </select>
 
             {/* Seletor de mês */}
@@ -307,7 +309,7 @@ export default function CarteiraPage() {
                             ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
                             : "bg-orange-500/20 text-orange-300 border border-orange-500/30"
                         }`}>
-                          {ganho.tipo === "conta-criada" ? "Conta Criada" : "Renovação Anual"}
+                          {ganho.tipo === "conta-criada" ? "Conta Criada" : "Compra de Dias"}
                         </span>
                       </div>
                     </div>
