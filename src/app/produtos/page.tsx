@@ -110,12 +110,21 @@ export default function ProdutosPage() {
       const produtosNuvem = await SupabaseSync.loadProdutos(userIdFinal);
 
       if (produtosNuvem && produtosNuvem.length > 0) {
-        // Salvar no IndexedDB como cache local
+        // Limpar IndexedDB antes de sincronizar (evita dados desatualizados)
+        console.log("🧹 Limpando cache local...");
+        const todosLocal = await db.getAllProdutos();
+        for (const p of todosLocal) {
+          await db.deleteProduto(p.id);
+        }
+
+        // Salvar produtos da nuvem no IndexedDB como cache atualizado
+        console.log("💾 Atualizando cache local...");
         for (const produto of produtosNuvem) {
           await db.addProduto(produto);
         }
+
         setProdutos(produtosNuvem);
-        console.log(`✅ ${produtosNuvem.length} produtos carregados da nuvem`);
+        console.log(`✅ ${produtosNuvem.length} produtos carregados e sincronizados`);
       } else {
         // Fallback: tentar carregar do IndexedDB local
         console.log("⚠️ Nenhum produto na nuvem, tentando local...");
