@@ -8,14 +8,20 @@ export interface Operador {
   ativo: boolean;
   isAdmin: boolean;
   createdAt: Date;
-  formaPagamento?: "cartao" | "pix" | "sem-mensalidade";
-  valorMensal?: number;
-  dataProximoVencimento?: Date;
+  formaPagamento?: "cartao" | "pix";
   suspenso?: boolean;
   aguardandoPagamento?: boolean;
-  dataExclusao?: Date; // Data em que o usuário foi excluído
-  dataPagamento?: Date; // Data do último pagamento
-  diasAssinatura?: number; // Total de dias da assinatura (365 para anual, 100 para PIX)
+  // Sistema de dias comprados
+  diasRestantes?: number; // Dias restantes de assinatura
+  totalDiasComprados?: number; // Total acumulado de dias
+  dataUltimaCompra?: Date; // Data da última compra
+  dataExpiracao?: Date; // Quando expira a assinatura
+  historicoCompras?: Array<{
+    data: Date;
+    dias: number;
+    valor: number;
+    forma_pagamento: string;
+  }>;
 }
 
 export interface Produto {
@@ -90,14 +96,12 @@ export interface ConfiguracaoNFCe {
 export interface Pagamento {
   id: string;
   usuarioId: string;
-  mesReferencia: string;
   valor: number;
-  dataVencimento: Date;
-  dataPagamento?: Date;
+  dataPagamento: Date;
   status: "pendente" | "pago";
-  formaPagamento: "cartao" | "pix";
-  diasComprados?: number; // Quantidade de dias adquiridos nesta compra
-  tipoCompra?: "renovacao-60" | "renovacao-100" | "renovacao-180" | "renovacao-365" | "personalizado"; // Tipo de compra
+  formaPagamento: "pix" | "cartao";
+  diasComprados: number; // R$ 59,90 = 60 dias | R$ 149,70 = 180 dias
+  tipoCompra: "60-dias" | "180-dias"; // Apenas 2 opções
 }
 
 export interface CodigoRecuperacao {

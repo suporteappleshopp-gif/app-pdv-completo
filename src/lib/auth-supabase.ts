@@ -211,7 +211,7 @@ export class AuthSupabase {
 
       console.log("✅ Usuário criado no Auth:", authData.user.id);
 
-      // PASSO 2: Criar operador manualmente (sem trigger)
+      // PASSO 2: Criar operador manualmente (sem dias, aguardando compra)
       const { data: operadorData, error: insertError } = await supabase
         .from("operadores")
         .insert({
@@ -223,6 +223,9 @@ export class AuthSupabase {
           suspenso: true,
           aguardando_pagamento: true,
           is_admin: false,
+          dias_restantes: 0, // SEM DIAS - deve comprar
+          total_dias_comprados: 0,
+          forma_pagamento: formaPagamento,
         })
         .select()
         .single();
@@ -251,6 +254,9 @@ export class AuthSupabase {
         suspenso: true,
         aguardandoPagamento: true,
         createdAt: new Date(operadorData.created_at),
+        diasRestantes: 0,
+        totalDiasComprados: 0,
+        formaPagamento: formaPagamento,
       };
 
       return {
