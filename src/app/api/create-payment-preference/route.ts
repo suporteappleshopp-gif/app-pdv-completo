@@ -205,14 +205,26 @@ export async function POST(request: NextRequest) {
     console.log("🆔 Preference ID:", data.id);
     console.log("🔗 Link de pagamento (init_point):", data.init_point);
     console.log("🔗 Link sandbox:", data.sandbox_init_point);
-    console.log("📋 Resposta completa do MP:", JSON.stringify(data, null, 2));
+    console.log("📋 Client ID:", data.client_id);
+    console.log("📋 Collector ID:", data.collector_id);
     console.log("═══════════════════════════════════════════════════════");
+
+    // IMPORTANTE: Se o link está pedindo login, pode ser que a conta não tenha Checkout Pro ativo
+    // Verificar se o init_point está válido
+    if (!data.init_point || data.init_point.includes('login')) {
+      console.warn("⚠️ AVISO: Link de pagamento pode estar incorreto!");
+      console.warn("⚠️ Isso pode indicar que a conta do Mercado Pago não tem Checkout Pro ativado");
+      console.warn("⚠️ Ou que o token não tem as permissões necessárias");
+    }
 
     return NextResponse.json({
       success: true,
       init_point: data.init_point,
       preference_id: data.id,
       pagamento_id: pagamentoId,
+      // Informações adicionais para debug
+      collector_id: data.collector_id,
+      client_id: data.client_id,
     });
   } catch (error: any) {
     console.error("❌ Erro ao criar preferência:", error);
