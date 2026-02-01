@@ -11,6 +11,12 @@ import { supabase } from "@/lib/supabase";
  * - Registra nos ganhos do admin
  * - Ativa a conta e remove flags de suspensão
  */
+
+// Configuração do runtime para evitar timeouts
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const maxDuration = 30; // 30 segundos no Vercel
+
 export async function POST(request: NextRequest) {
   const dataHoraRecebimento = new Date().toISOString();
 
@@ -23,6 +29,51 @@ export async function POST(request: NextRequest) {
     console.log("📦 Body completo:", JSON.stringify(body, null, 2));
     console.log("═══════════════════════════════════════════════════════");
 
+    // ✅ RETORNAR 200 IMEDIATAMENTE para evitar timeout do Mercado Pago
+    // Processar o pagamento de forma assíncrona
+    if (body.type === "payment" && body.data?.id) {
+      // Processar em background sem bloquear a resposta
+      processPaymentAsync(body.data.id, body).catch(err => {
+        console.error("❌ Erro no processamento assíncrono:", err);
+      });
+
+      // Retornar sucesso imediatamente com headers adequados
+      const response = NextResponse.json({
+        received: true,
+        processing: true,
+        payment_id: body.data.id
+      }, { status: 200 });
+
+      response.headers.set('Content-Type', 'application/json');
+      return response;
+    }
+
+    // Para outros tipos de notificação, apenas retornar sucesso
+    console.log("ℹ️ Notificação de outro tipo recebida:", body.type);
+    const response = NextResponse.json({ received: true, type: body.type });
+    response.headers.set('Content-Type', 'application/json');
+    return response;
+  } catch (error: any) {
+    console.error("═══════════════════════════════════════════════════════");
+    console.error("❌ ERRO CRÍTICO NO WEBHOOK");
+    console.error("═══════════════════════════════════════════════════════");
+    console.error("🚨 Mensagem:", error.message);
+    console.error("📦 Stack:", error.stack);
+    console.error("═══════════════════════════════════════════════════════");
+
+    // Retornar 200 mesmo com erro para não travar o webhook
+    const errorResponse = NextResponse.json(
+      { error: "Erro ao processar webhook", details: error.message },
+      { status: 200 }
+    );
+    errorResponse.headers.set('Content-Type', 'application/json');
+    return errorResponse;
+  }
+}
+
+// Função para processar pagamento de forma assíncrona
+async function processPaymentAsync(paymentId: string, body: any) {
+  try {
     // Mercado Pago envia diferentes tipos de notificações
     // Tipo "payment" indica uma atualização de pagamento
     if (body.type === "payment" && body.data?.id) {
@@ -401,18 +452,7 @@ export async function POST(request: NextRequest) {
         console.log("  ✅ Ganho registrado:", !ganhoError ? "SIM" : "NÃO");
         console.log("═══════════════════════════════════════════════════════");
 
-        return NextResponse.json({
-          success: true,
-          message: "Pagamento processado e conta ativada automaticamente",
-          usuario_id: operador.id,
-          usuario_nome: operador.nome,
-          email: operador.email,
-          diasAdicionados: diasComprados,
-          vencimento: novaDataVencimento.toISOString(),
-          historico_registrado: !historyError,
-          ganho_registrado: !ganhoError,
-          payment_id: payment.id,
-        });
+        console.log("✅ Processamento assíncrono concluído com sucesso!");
       } else {
         console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         console.log(`⚠️ PAGAMENTO NÃO APROVADO`);
@@ -420,38 +460,36 @@ export async function POST(request: NextRequest) {
         console.log("📊 Status:", payment.status);
         console.log("📝 Detalhes:", payment.status_detail);
         console.log("═══════════════════════════════════════════════════════");
-
-        return NextResponse.json({
-          success: false,
-          message: `Pagamento com status: ${payment.status}`,
-          status: payment.status,
-          status_detail: payment.status_detail,
-        });
       }
     }
-
-    // Para outros tipos de notificação, apenas retornar sucesso
-    console.log("ℹ️ Notificação de outro tipo recebida:", body.type);
-    return NextResponse.json({ received: true, type: body.type });
   } catch (error: any) {
     console.error("═══════════════════════════════════════════════════════");
-    console.error("❌ ERRO CRÍTICO NO WEBHOOK");
+    console.error("❌ ERRO NO PROCESSAMENTO ASSÍNCRONO");
     console.error("═══════════════════════════════════════════════════════");
     console.error("🚨 Mensagem:", error.message);
     console.error("📦 Stack:", error.stack);
     console.error("═══════════════════════════════════════════════════════");
-
-    return NextResponse.json(
-      { error: "Erro ao processar webhook", details: error.message },
-      { status: 500 }
-    );
+    throw error;
   }
 }
 
 // Permitir GET para teste
 export async function GET() {
-  return NextResponse.json({
+  const response = NextResponse.json({
     status: "Webhook Mercado Pago ativo",
     message: "Use POST para enviar notificações",
+    timestamp: new Date().toISOString()
   });
+  response.headers.set('Content-Type', 'application/json');
+  return response;
+}
+
+// Permitir OPTIONS para CORS preflight
+export async function OPTIONS() {
+  const response = new NextResponse(null, { status: 200 });
+  response.headers.set('Access-Control-Allow-Origin', '*');
+  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  response.headers.set('Access-Control-Max-Age', '86400');
+  return response;
 }
