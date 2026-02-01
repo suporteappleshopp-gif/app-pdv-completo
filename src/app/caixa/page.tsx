@@ -127,42 +127,41 @@ export default function CaixaPage() {
   // Timer para salvamento automático
   const salvamentoTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Verificar assinatura periodicamente
+  // Verificar assinatura periodicamente - SEMPRE DO SUPABASE
   useEffect(() => {
     const verificarAssinaturaLoop = async () => {
       if (!operadorId) return;
-      
-      // Verificar se é usuário sem mensalidade (criado pelo admin)
-      const semMensalidade = localStorage.getItem("usuarioSemMensalidade") === "true";
-      
-      if (semMensalidade) {
-        // Usuário sem mensalidade - acesso livre e permanente
-        setStatusAssinatura("ativo");
-        setDiasRestantes(999);
-        setPodeUsarApp(true);
-        setUsuarioSemMensalidade(true);
-        setMostrarAvisoRenovacao(false);
-        return;
-      }
-      
-      // Usuário com mensalidade - verificar acesso
+
+      console.log("🔄 Verificando status da assinatura no Supabase...");
+
+      // 🔥 BUSCAR SEMPRE DO SUPABASE - NÃO USAR LOCALSTORAGE
       const resultado = await GerenciadorAssinatura.verificarAcesso(operadorId);
+
       setStatusAssinatura(resultado.status as any);
       setDiasRestantes(resultado.diasRestantes);
       setPodeUsarApp(resultado.podeUsar);
-      setUsuarioSemMensalidade(false);
-      
+
+      // Detectar se é usuário sem mensalidade (999999 dias = sem limite)
+      setUsuarioSemMensalidade(resultado.diasRestantes >= 999999);
+
       // Mostrar aviso de renovação quando especificado
       if (resultado.mostrarAviso) {
         setMostrarAvisoRenovacao(true);
       }
+
+      console.log("✅ Status da assinatura atualizado:", {
+        status: resultado.status,
+        podeUsar: resultado.podeUsar,
+        diasRestantes: resultado.diasRestantes,
+        semMensalidade: resultado.diasRestantes >= 999999,
+      });
     };
 
     verificarAssinaturaLoop();
-    
-    // Verificar a cada 5 minutos
-    const interval = setInterval(verificarAssinaturaLoop, 5 * 60 * 1000);
-    
+
+    // Verificar a cada 30 segundos (mais frequente para detectar pagamentos)
+    const interval = setInterval(verificarAssinaturaLoop, 30 * 1000);
+
     return () => clearInterval(interval);
   }, [operadorId]);
 

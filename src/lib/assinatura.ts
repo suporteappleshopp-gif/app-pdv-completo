@@ -39,25 +39,13 @@ export class GerenciadorAssinatura {
     mostrarAviso: boolean;
   }> {
     try {
-      // Verificar se é usuário sem mensalidade (criado pelo admin)
-      const usuarioSemMensalidade = localStorage.getItem("usuarioSemMensalidade") === "true";
-      
-      if (usuarioSemMensalidade) {
-        // Usuário sem mensalidade - acesso livre e permanente
-        return {
-          podeUsar: true,
-          status: "ativo",
-          diasRestantes: 999999, // Número alto para indicar "sem limite"
-          mensagem: "Acesso livre (sem mensalidade)",
-          mostrarAviso: false,
-        };
-      }
+      // 🔥 BUSCAR SEMPRE DO SUPABASE - NÃO USAR LOCALSTORAGE
+      console.log("🔍 Verificando acesso do usuário:", userId);
 
-      // Usuário COM mensalidade - verificar no Supabase
       const operadores = await AdminSupabase.getAllOperadores();
       const operador = operadores.find(op => op.id === userId);
 
-      // Se não encontrou operador E a lista está vazia, liberar acesso (Supabase pode estar com problema)
+      // Se não encontrou operador E a lista está vazia, liberar acesso temporário
       if (!operador && operadores.length === 0) {
         console.warn("⚠️ Não foi possível buscar operadores do Supabase. Liberando acesso temporariamente.");
         return {
@@ -70,6 +58,7 @@ export class GerenciadorAssinatura {
       }
 
       if (!operador) {
+        console.error("❌ Operador não encontrado:", userId);
         return {
           podeUsar: false,
           status: "pendente",
@@ -79,8 +68,19 @@ export class GerenciadorAssinatura {
         };
       }
 
+      console.log("✅ Operador encontrado:", {
+        id: operador.id,
+        nome: operador.nome,
+        ativo: operador.ativo,
+        suspenso: operador.suspenso,
+        aguardandoPagamento: operador.aguardandoPagamento,
+        dataVencimento: operador.dataProximoVencimento,
+        formaPagamento: operador.formaPagamento,
+      });
+
       // Se não tem forma de pagamento definida, é usuário sem mensalidade
       if (!operador.formaPagamento) {
+        console.log("✅ Usuário sem mensalidade - acesso livre");
         return {
           podeUsar: true,
           status: "ativo",
@@ -92,6 +92,7 @@ export class GerenciadorAssinatura {
 
       // Verificar se está aguardando pagamento
       if (operador.aguardandoPagamento) {
+        console.warn("⚠️ Usuário aguardando pagamento");
         return {
           podeUsar: false,
           status: "pendente",
@@ -103,6 +104,7 @@ export class GerenciadorAssinatura {
 
       // Verificar se está suspenso
       if (operador.suspenso || !operador.ativo) {
+        console.warn("⚠️ Conta suspensa");
         return {
           podeUsar: false,
           status: "suspenso",
@@ -118,8 +120,11 @@ export class GerenciadorAssinatura {
         const vencimento = new Date(operador.dataProximoVencimento);
         const diasRestantes = differenceInDays(vencimento, hoje);
 
+        console.log("📅 Dias restantes:", diasRestantes);
+
         // Se expirou, suspender automaticamente
         if (diasRestantes < 0) {
+          console.warn("⚠️ Assinatura expirada - suspendendo conta");
           const operadorAtualizado = {
             ...operador,
             ativo: false,
@@ -140,6 +145,7 @@ export class GerenciadorAssinatura {
         // Mostrar aviso se faltar 5 dias ou menos
         const mostrarAviso = diasRestantes <= 5;
 
+        console.log("✅ Conta ativa -", diasRestantes, "dias restantes");
         return {
           podeUsar: true,
           status: "ativo",
@@ -150,6 +156,7 @@ export class GerenciadorAssinatura {
       }
 
       // Usuário ativo sem data de vencimento (caso especial)
+      console.log("✅ Conta ativa - sem vencimento definido");
       return {
         podeUsar: true,
         status: "ativo",
@@ -158,7 +165,7 @@ export class GerenciadorAssinatura {
         mostrarAviso: false,
       };
     } catch (error) {
-      console.error("Erro ao verificar acesso:", error);
+      console.error("❌ Erro ao verificar acesso:", error);
       return {
         podeUsar: false,
         status: "erro",
