@@ -938,26 +938,29 @@ export default function FinanceiroPage() {
                       });
 
                       console.log("📡 Resposta recebida:", response.status, response.statusText);
+                      console.log("📋 Headers:", Object.fromEntries(response.headers.entries()));
 
                       // Verificar se a resposta é JSON válido
                       let data: any = {};
-                      try {
-                        const responseText = await response.text();
-                        console.log("📄 Resposta bruta (primeiros 500 chars):", responseText.substring(0, 500));
+                      const responseText = await response.text();
 
-                        if (!responseText || responseText.trim() === '') {
-                          alert("❌ Servidor retornou resposta vazia.\n\nO app está processando sua requisição mas não retornou dados.\n\nTente recarregar a página (F5).");
-                          return;
-                        }
+                      console.log("📄 Tamanho da resposta:", responseText.length, "bytes");
+                      console.log("📄 Resposta completa:", responseText);
 
-                        data = JSON.parse(responseText);
-                      } catch (parseError: any) {
-                        console.error("❌ Erro ao parsear resposta:", parseError);
-                        alert("❌ Erro de comunicação com o servidor.\n\nResposta inválida recebida.\n\nTente recarregar a página (F5) ou contate o suporte.");
+                      if (!responseText || responseText.trim() === '') {
+                        alert("❌ Servidor retornou resposta vazia.\n\nStatus HTTP: " + response.status + "\n\nO servidor pode não estar processando a requisição corretamente.\n\nAbra o Console (F12) para mais detalhes.");
                         return;
                       }
 
-                      console.log("📦 Dados da resposta:", data);
+                      try {
+                        data = JSON.parse(responseText);
+                        console.log("📦 JSON parseado com sucesso:", data);
+                      } catch (parseError: any) {
+                        console.error("❌ Erro ao parsear JSON:", parseError);
+                        console.error("📄 Texto que falhou ao parsear:", responseText);
+                        alert("❌ Erro: Resposta do servidor não é JSON válido.\n\nO servidor retornou: " + responseText.substring(0, 200) + "\n\nAbra o Console (F12) para ver a resposta completa.");
+                        return;
+                      }
 
                       if (!response.ok || !data.success) {
                         const errorMessage = data.error || "Erro ao gerar link de pagamento";
