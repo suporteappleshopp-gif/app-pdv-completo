@@ -4,6 +4,12 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { CreditCard, Copy, CheckCircle, AlertCircle, ExternalLink, ArrowLeft, Loader2 } from "lucide-react";
 
+declare global {
+  interface Window {
+    MercadoPago: any;
+  }
+}
+
 export default function PagamentoPage() {
   const router = useRouter();
   const [formaPagamento, setFormaPagamento] = useState<"pix" | "cartao">("pix");
@@ -12,6 +18,14 @@ export default function PagamentoPage() {
   const [operadorId, setOperadorId] = useState("");
   const [carregandoPagamento, setCarregandoPagamento] = useState(false);
   const [linkPagamento, setLinkPagamento] = useState("");
+  const [mp, setMp] = useState<any>(null);
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardHolder, setCardHolder] = useState("");
+  const [expirationDate, setExpirationDate] = useState("");
+  const [securityCode, setSecurityCode] = useState("");
+  const [installments, setInstallments] = useState(1);
+  const [paymentMethodId, setPaymentMethodId] = useState("");
+  const [cardError, setCardError] = useState("");
 
   const WHATSAPP_CONTATO = "5565981032239";
 
@@ -20,6 +34,24 @@ export default function PagamentoPage() {
     const id = localStorage.getItem("operadorId") || "";
     setOperadorNome(nome);
     setOperadorId(id);
+
+    // Carregar SDK do Mercado Pago
+    const script = document.createElement("script");
+    script.src = "https://sdk.mercadopago.com/js/v2";
+    script.async = true;
+    script.onload = () => {
+      const mercadopago = new window.MercadoPago("APP_USR-ef9e4406-88e9-479f-a8ea-63b20a97ef4a", {
+        locale: "pt-BR"
+      });
+      setMp(mercadopago);
+    };
+    document.body.appendChild(script);
+
+    return () => {
+      if (document.body.contains(script)) {
+        document.body.removeChild(script);
+      }
+    };
   }, []);
 
   const gerarLinkPagamento = async (tipo: "pix" | "cartao") => {
@@ -70,7 +102,76 @@ export default function PagamentoPage() {
   };
 
   const abrirPagamentoPix = () => gerarLinkPagamento("pix");
-  const abrirPagamentoCartao = () => gerarLinkPagamento("cartao");
+
+  const processarPagamentoCartao = async () => {
+    if (!operadorId) {
+      alert("Erro: Usuário não identificado.");
+      return;
+    }
+
+    if (!cardNumber || !cardHolder || !expirationDate || !securityCode) {
+      setCardError("Por favor, preencha todos os campos do cartão");
+      return;
+    }
+
+    if (!mp) {
+      setCardError("SDK do Mercado Pago não carregado");
+      return;
+    }
+
+    setCarregandoPagamento(true);
+    setCardError("");
+
+    try {
+      // Separar mês e ano
+      const [month, year] = expirationDate.split("/");
+
+      // Criar token do cartão
+      const cardToken = await mp.createCardToken({
+        cardNumber: cardNumber.replace(/\s/g, ""),
+        cardholderName: cardHolder,
+        cardExpirationMonth: month,
+        cardExpirationYear: `20${year}`,
+        securityCode: securityCode,
+      });
+
+      console.log("✅ Token criado:", cardToken.id);
+
+      // Processar pagamento
+      const response = await fetch("/api/process-card-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          usuario_id: operadorId,
+          forma_pagamento: "cartao",
+          token: cardToken.id,
+          installments: installments,
+          payment_method_id: "visa", // Detectar automaticamente seria ideal
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Erro ao processar pagamento");
+      }
+
+      if (data.status === "approved") {
+        alert("Pagamento aprovado com sucesso! Sua conta foi ativada.");
+        router.push("/caixa?payment=success");
+      } else if (data.status === "in_process" || data.status === "pending") {
+        alert("Pagamento em processamento. Você será notificado quando for aprovado.");
+        router.push("/caixa?payment=pending");
+      } else {
+        throw new Error(`Pagamento ${data.status}: ${data.status_detail}`);
+      }
+    } catch (error: any) {
+      console.error("❌ Erro ao processar pagamento:", error);
+      setCardError(error.message || "Erro ao processar pagamento");
+    } finally {
+      setCarregandoPagamento(false);
+    }
+  };
 
   const abrirWhatsApp = () => {
     window.open(`https://wa.me/${WHATSAPP_CONTATO}`, "_blank");
@@ -78,6 +179,20 @@ export default function PagamentoPage() {
 
   const voltarParaCaixa = () => {
     router.push("/caixa");
+  };
+
+  const formatarNumeroCartao = (valor: string) => {
+    const numeros = valor.replace(/\D/g, "");
+    const grupos = numeros.match(/.{1,4}/g);
+    return grupos ? grupos.join(" ") : "";
+  };
+
+  const formatarDataExpiracao = (valor: string) => {
+    const numeros = valor.replace(/\D/g, "");
+    if (numeros.length >= 2) {
+      return `${numeros.slice(0, 2)}/${numeros.slice(2, 4)}`;
+    }
+    return numeros;
   };
 
   return (
@@ -175,7 +290,7 @@ export default function PagamentoPage() {
           </div>
         )}
 
-        {/* Detalhes do Pagamento Cartão */}
+        {/* Detalhes do Pagamento Cartão - CHECKOUT TRANSPARENTE */}
         {formaPagamento === "cartao" && (
           <div className="bg-white rounded-xl border-2 border-blue-200 p-6 mb-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center space-x-2">
@@ -184,31 +299,118 @@ export default function PagamentoPage() {
             </h3>
 
             <p className="text-sm text-gray-600 mb-4">
-              Clique no botão abaixo para gerar seu link de pagamento personalizado via Cartão de Crédito.
+              Preencha os dados do cartão para finalizar sua compra.
             </p>
 
-            <button
-              onClick={abrirPagamentoCartao}
-              disabled={carregandoPagamento}
-              className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {carregandoPagamento ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Gerando link...</span>
-                </>
-              ) : (
-                <>
-                  <CreditCard className="w-5 h-5" />
-                  <span>Pagar com Cartão de Crédito</span>
-                  <ExternalLink className="w-4 h-4" />
-                </>
+            {/* Formulário de Cartão */}
+            <div className="space-y-4">
+              {/* Número do Cartão */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Número do cartão
+                </label>
+                <input
+                  type="text"
+                  value={cardNumber}
+                  onChange={(e) => setCardNumber(formatarNumeroCartao(e.target.value))}
+                  maxLength={19}
+                  placeholder="0000 0000 0000 0000"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-gray-800"
+                />
+              </div>
+
+              {/* Nome no Cartão */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nome impresso no cartão
+                </label>
+                <input
+                  type="text"
+                  value={cardHolder}
+                  onChange={(e) => setCardHolder(e.target.value.toUpperCase())}
+                  placeholder="NOME SOBRENOME"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-gray-800"
+                />
+              </div>
+
+              {/* Data de Expiração e CVV */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Validade
+                  </label>
+                  <input
+                    type="text"
+                    value={expirationDate}
+                    onChange={(e) => setExpirationDate(formatarDataExpiracao(e.target.value))}
+                    maxLength={5}
+                    placeholder="MM/AA"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-gray-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    CVV
+                  </label>
+                  <input
+                    type="text"
+                    value={securityCode}
+                    onChange={(e) => setSecurityCode(e.target.value.replace(/\D/g, ""))}
+                    maxLength={4}
+                    placeholder="123"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-gray-800"
+                  />
+                </div>
+              </div>
+
+              {/* Parcelas */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Parcelas
+                </label>
+                <select
+                  value={installments}
+                  onChange={(e) => setInstallments(Number(e.target.value))}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none text-gray-800"
+                >
+                  <option value={1}>1x de R$ 149,70 sem juros</option>
+                  <option value={2}>2x de R$ 74,85 sem juros</option>
+                  <option value={3}>3x de R$ 49,90 sem juros</option>
+                </select>
+              </div>
+
+              {/* Mensagem de Erro */}
+              {cardError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start space-x-2">
+                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-800">{cardError}</p>
+                </div>
               )}
-            </button>
+
+              {/* Botão de Pagamento */}
+              <button
+                onClick={processarPagamentoCartao}
+                disabled={carregandoPagamento}
+                className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {carregandoPagamento ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Processando pagamento...</span>
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="w-5 h-5" />
+                    <span>Pagar R$ 149,70</span>
+                  </>
+                )}
+              </button>
+            </div>
 
             <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p className="text-sm text-blue-800">
-                <strong>Parcele em até 3x:</strong> Você será redirecionado para o ambiente seguro do Mercado Pago para finalizar o pagamento.
+              <p className="text-sm text-blue-800 flex items-center space-x-2">
+                <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                <span><strong>Seguro:</strong> Seus dados são processados de forma segura pelo Mercado Pago.</span>
               </p>
             </div>
           </div>
