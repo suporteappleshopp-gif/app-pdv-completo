@@ -939,13 +939,24 @@ export default function FinanceiroPage() {
 
                       console.log("📡 Resposta recebida:", response.status, response.statusText);
 
-                      const data = await response.json();
+                      // Verificar se a resposta é JSON válido
+                      let data: any = {};
+                      try {
+                        const responseText = await response.text();
+                        console.log("📄 Resposta bruta:", responseText);
+                        data = responseText ? JSON.parse(responseText) : {};
+                      } catch (parseError) {
+                        console.error("❌ Erro ao parsear resposta:", parseError);
+                        alert("❌ Erro de comunicação com o servidor.\n\nO servidor pode estar offline ou retornando dados inválidos.\n\nVerifique se o app está rodando corretamente.");
+                        return;
+                      }
+
                       console.log("📦 Dados da resposta:", data);
 
                       if (!response.ok || !data.success) {
                         const errorMessage = data.error || "Erro ao gerar link de pagamento";
                         const errorDetails = data.details ? `\n\nDetalhes técnicos: ${data.details}` : "";
-                        alert(`❌ ${errorMessage}${errorDetails}\n\nTente novamente ou contate o suporte.`);
+                        alert(`❌ ${errorMessage}${errorDetails}\n\nStatus HTTP: ${response.status}\n\nTente novamente ou contate o suporte.`);
                         console.error("❌ Erro na API:", data);
                         return;
                       }
