@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
 
 /**
  * API para criar preferência de pagamento no Mercado Pago
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     console.log("💳 CRIANDO PREFERÊNCIA DE PAGAMENTO");
     console.log("🆔 Usuário ID:", usuario_id);
     console.log("💰 Forma de pagamento:", forma_pagamento);
-    console.log("🔑 Token disponível:", !!process.env.MERCADOPAGO_ACCESS_TOKEN);
+    console.log("🔑 Token MP disponível:", !!process.env.MERCADOPAGO_ACCESS_TOKEN);
     console.log("═══════════════════════════════════════════════════════");
 
     if (!usuario_id || !forma_pagamento) {
@@ -25,6 +25,23 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Criar cliente Supabase no servidor (API routes precisam das variáveis sem NEXT_PUBLIC_)
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+
+    console.log("🔑 Supabase URL:", supabaseUrl ? 'configurado' : 'NÃO CONFIGURADO');
+    console.log("🔑 Supabase Key:", supabaseKey ? 'configurado' : 'NÃO CONFIGURADO');
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.error("❌ Supabase não configurado no servidor");
+      return NextResponse.json(
+        { error: "Configuração do Supabase não encontrada no servidor", success: false },
+        { status: 500 }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Buscar dados do usuário
     const { data: operador, error: operadorError } = await supabase
