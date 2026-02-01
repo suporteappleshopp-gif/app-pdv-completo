@@ -904,7 +904,7 @@ export default function FinanceiroPage() {
 
                 <button
                   onClick={async () => {
-                    // Buscar operador atual para enviar email no link
+                    // Buscar operador atual
                     const { AuthSupabase } = await import("@/lib/auth-supabase");
                     const operador = await AuthSupabase.getCurrentOperador();
 
@@ -913,77 +913,36 @@ export default function FinanceiroPage() {
                       return;
                     }
 
-                    // Criar operação pendente no extrato
-                    const dataAtualCompra = new Date();
-                    const pagamentoPendente: Pagamento = {
-                      id: `pendente_pix_60_${Date.now()}`,
-                      usuarioId: operador.id,
-                      mesReferencia: "Renovação 60 dias - PIX",
-                      valor: 59.90,
-                      dataVencimento: dataAtualCompra,
-                      dataPagamento: undefined,
-                      status: "pendente",
-                      formaPagamento: "pix",
-                      diasComprados: 60,
-                      tipoCompra: "renovacao-60",
-                    };
+                    // Criar preferência de pagamento usando a API
+                    try {
+                      const response = await fetch("/api/create-payment-preference", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          usuario_id: operador.id,
+                          forma_pagamento: "pix",
+                        }),
+                      });
 
-                    await db.addPagamento(pagamentoPendente);
+                      const data = await response.json();
 
-                    // Registrar no Supabase também
-                    const { supabase } = await import("@/lib/supabase");
-                    await supabase.from("historico_pagamentos").insert({
-                      id: pagamentoPendente.id,
-                      usuario_id: operador.id,
-                      mes_referencia: pagamentoPendente.mesReferencia,
-                      valor: pagamentoPendente.valor,
-                      data_vencimento: dataAtualCompra.toISOString(),
-                      status: "pendente",
-                      forma_pagamento: "pix",
-                      dias_comprados: 60,
-                      tipo_compra: "renovacao-60",
-                    });
-
-                    // Atualizar lista
-                    await carregarDados();
-
-                    // Abrir Mercado Pago com email do usuário como referência
-                    const linkPagamento = `https://mpago.la/24Hxr1X?external_reference=${encodeURIComponent(operador.email)}`;
-                    window.open(linkPagamento, "_blank");
-
-                    alert(`✅ Operação registrada no seu extrato!\n\n🔗 Link de pagamento:\n${linkPagamento}\n\n⏳ Você tem 4 minutos para realizar o pagamento.\nApós esse tempo, a operação será cancelada automaticamente e você poderá tentar novamente.\n\n✅ Sua conta será ativada AUTOMATICAMENTE quando o pagamento for confirmado pelo Mercado Pago!`);
-
-                    // Cancelar automaticamente após 4 minutos se não houver pagamento
-                    setTimeout(async () => {
-                      try {
-                        // Verificar se ainda está pendente
-                        const { supabase } = await import("@/lib/supabase");
-                        const { data: pagamentoAtual } = await supabase
-                          .from("historico_pagamentos")
-                          .select("status")
-                          .eq("id", pagamentoPendente.id)
-                          .single();
-
-                        if (pagamentoAtual && pagamentoAtual.status === "pendente") {
-                          // Cancelar no Supabase
-                          await supabase
-                            .from("historico_pagamentos")
-                            .update({ status: "cancelado", updated_at: new Date().toISOString() })
-                            .eq("id", pagamentoPendente.id);
-
-                          // Cancelar no IndexedDB
-                          const pagamentoCancelado = { ...pagamentoPendente, status: "cancelado" as const };
-                          await db.updatePagamento(pagamentoCancelado);
-
-                          console.log("⏰ Operação cancelada automaticamente após 4 minutos:", pagamentoPendente.id);
-
-                          // Recarregar dados se o usuário ainda estiver na página
-                          await carregarDados();
-                        }
-                      } catch (error) {
-                        console.error("Erro ao cancelar operação:", error);
+                      if (!response.ok || !data.success) {
+                        alert("Erro ao gerar link de pagamento. Tente novamente.");
+                        console.error("Erro na API:", data);
+                        return;
                       }
-                    }, 4 * 60 * 1000); // 4 minutos
+
+                      // Atualizar lista
+                      await carregarDados();
+
+                      // Abrir link de pagamento
+                      window.open(data.init_point, "_blank");
+
+                      alert(`✅ Link de pagamento gerado!\n\n⏳ Aguardando confirmação do pagamento.\n\n✅ Sua conta será ativada AUTOMATICAMENTE quando o pagamento for confirmado pelo Mercado Pago!`);
+                    } catch (error) {
+                      console.error("Erro ao criar pagamento:", error);
+                      alert("Erro ao gerar link de pagamento. Tente novamente.");
+                    }
                   }}
                   className="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
                 >
@@ -1034,7 +993,7 @@ export default function FinanceiroPage() {
 
                 <button
                   onClick={async () => {
-                    // Buscar operador atual para enviar email no link
+                    // Buscar operador atual
                     const { AuthSupabase } = await import("@/lib/auth-supabase");
                     const operador = await AuthSupabase.getCurrentOperador();
 
@@ -1043,77 +1002,36 @@ export default function FinanceiroPage() {
                       return;
                     }
 
-                    // Criar operação pendente no extrato
-                    const dataAtualCompra = new Date();
-                    const pagamentoPendente: Pagamento = {
-                      id: `pendente_cartao_180_${Date.now()}`,
-                      usuarioId: operador.id,
-                      mesReferencia: "Renovação 180 dias - CARTÃO",
-                      valor: 149.70,
-                      dataVencimento: dataAtualCompra,
-                      dataPagamento: undefined,
-                      status: "pendente",
-                      formaPagamento: "cartao",
-                      diasComprados: 180,
-                      tipoCompra: "renovacao-180",
-                    };
+                    // Criar preferência de pagamento usando a API
+                    try {
+                      const response = await fetch("/api/create-payment-preference", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          usuario_id: operador.id,
+                          forma_pagamento: "cartao",
+                        }),
+                      });
 
-                    await db.addPagamento(pagamentoPendente);
+                      const data = await response.json();
 
-                    // Registrar no Supabase também
-                    const { supabase } = await import("@/lib/supabase");
-                    await supabase.from("historico_pagamentos").insert({
-                      id: pagamentoPendente.id,
-                      usuario_id: operador.id,
-                      mes_referencia: pagamentoPendente.mesReferencia,
-                      valor: pagamentoPendente.valor,
-                      data_vencimento: dataAtualCompra.toISOString(),
-                      status: "pendente",
-                      forma_pagamento: "cartao",
-                      dias_comprados: 180,
-                      tipo_compra: "renovacao-180",
-                    });
-
-                    // Atualizar lista
-                    await carregarDados();
-
-                    // Abrir Mercado Pago com email do usuário como referência
-                    const linkPagamento = `https://mpago.li/12S6mJE?external_reference=${encodeURIComponent(operador.email)}`;
-                    window.open(linkPagamento, "_blank");
-
-                    alert(`✅ Operação registrada no seu extrato!\n\n🔗 Link de pagamento:\n${linkPagamento}\n\n⏳ Você tem 4 minutos para realizar o pagamento.\nApós esse tempo, a operação será cancelada automaticamente e você poderá tentar novamente.\n\n✅ Sua conta será ativada AUTOMATICAMENTE quando o pagamento for confirmado pelo Mercado Pago!`);
-
-                    // Cancelar automaticamente após 4 minutos se não houver pagamento
-                    setTimeout(async () => {
-                      try {
-                        // Verificar se ainda está pendente
-                        const { supabase } = await import("@/lib/supabase");
-                        const { data: pagamentoAtual } = await supabase
-                          .from("historico_pagamentos")
-                          .select("status")
-                          .eq("id", pagamentoPendente.id)
-                          .single();
-
-                        if (pagamentoAtual && pagamentoAtual.status === "pendente") {
-                          // Cancelar no Supabase
-                          await supabase
-                            .from("historico_pagamentos")
-                            .update({ status: "cancelado", updated_at: new Date().toISOString() })
-                            .eq("id", pagamentoPendente.id);
-
-                          // Cancelar no IndexedDB
-                          const pagamentoCancelado = { ...pagamentoPendente, status: "cancelado" as const };
-                          await db.updatePagamento(pagamentoCancelado);
-
-                          console.log("⏰ Operação cancelada automaticamente após 4 minutos:", pagamentoPendente.id);
-
-                          // Recarregar dados se o usuário ainda estiver na página
-                          await carregarDados();
-                        }
-                      } catch (error) {
-                        console.error("Erro ao cancelar operação:", error);
+                      if (!response.ok || !data.success) {
+                        alert("Erro ao gerar link de pagamento. Tente novamente.");
+                        console.error("Erro na API:", data);
+                        return;
                       }
-                    }, 4 * 60 * 1000); // 4 minutos
+
+                      // Atualizar lista
+                      await carregarDados();
+
+                      // Abrir link de pagamento
+                      window.open(data.init_point, "_blank");
+
+                      alert(`✅ Link de pagamento gerado!\n\n⏳ Aguardando confirmação do pagamento.\n\n✅ Sua conta será ativada AUTOMATICAMENTE quando o pagamento for confirmado pelo Mercado Pago!`);
+                    } catch (error) {
+                      console.error("Erro ao criar pagamento:", error);
+                      alert("Erro ao gerar link de pagamento. Tente novamente.");
+                    }
                   }}
                   className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-4 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
                 >
