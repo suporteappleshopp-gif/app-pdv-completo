@@ -93,6 +93,13 @@ export default function FinanceiroPage() {
     try {
       setLoading(true);
 
+      // 🧹 LIMPAR PAGAMENTOS PENDENTES ANTIGOS (mais de 4 minutos)
+      try {
+        await fetch("/api/clean-pending-payments", { method: "POST" });
+      } catch (err) {
+        console.warn("Aviso ao limpar pagamentos pendentes:", err);
+      }
+
       // Buscar operador do Supabase
       const { AuthSupabase } = await import("@/lib/auth-supabase");
       const operador = await AuthSupabase.getCurrentOperador();
@@ -145,11 +152,13 @@ export default function FinanceiroPage() {
       }
 
       // 🔥 NOVO: Carregar pagamentos do Supabase e mesclar com IndexedDB
+      // ✅ FILTRAR: Mostrar apenas pagamentos PAGOS (não pendentes)
       const { supabase } = await import("@/lib/supabase");
       const { data: pagamentosSupabase } = await supabase
         .from("historico_pagamentos")
         .select("*")
         .eq("usuario_id", operador.id)
+        .eq("status", "pago") // ✅ APENAS PAGOS
         .order("data_pagamento", { ascending: false });
 
       // Converter pagamentos do Supabase para o formato local
@@ -904,17 +913,21 @@ export default function FinanceiroPage() {
 
                 <button
                   onClick={async () => {
-                    // Buscar operador atual
-                    const { AuthSupabase } = await import("@/lib/auth-supabase");
-                    const operador = await AuthSupabase.getCurrentOperador();
-
-                    if (!operador) {
-                      alert("Erro: usuário não encontrado");
-                      return;
-                    }
-
-                    // Criar preferência de pagamento usando a API
                     try {
+                      // Buscar operador atual
+                      console.log("🔄 Buscando operador atual...");
+                      const { AuthSupabase } = await import("@/lib/auth-supabase");
+                      const operador = await AuthSupabase.getCurrentOperador();
+
+                      if (!operador) {
+                        alert("Erro: usuário não encontrado. Por favor, faça login novamente.");
+                        return;
+                      }
+
+                      console.log("✅ Operador encontrado:", operador.id, operador.nome);
+                      console.log("🔄 Criando preferência de pagamento...");
+
+                      // Criar preferência de pagamento usando a API
                       const response = await fetch("/api/create-payment-preference", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -924,13 +937,20 @@ export default function FinanceiroPage() {
                         }),
                       });
 
+                      console.log("📡 Resposta recebida:", response.status, response.statusText);
+
                       const data = await response.json();
+                      console.log("📦 Dados da resposta:", data);
 
                       if (!response.ok || !data.success) {
-                        alert("Erro ao gerar link de pagamento. Tente novamente.");
-                        console.error("Erro na API:", data);
+                        const errorMessage = data.error || "Erro ao gerar link de pagamento";
+                        const errorDetails = data.details ? `\n\nDetalhes técnicos: ${data.details}` : "";
+                        alert(`❌ ${errorMessage}${errorDetails}\n\nTente novamente ou contate o suporte.`);
+                        console.error("❌ Erro na API:", data);
                         return;
                       }
+
+                      console.log("✅ Link gerado com sucesso:", data.init_point);
 
                       // Atualizar lista
                       await carregarDados();
@@ -939,9 +959,9 @@ export default function FinanceiroPage() {
                       window.open(data.init_point, "_blank");
 
                       alert(`✅ Link de pagamento gerado!\n\n⏳ Aguardando confirmação do pagamento.\n\n✅ Sua conta será ativada AUTOMATICAMENTE quando o pagamento for confirmado pelo Mercado Pago!`);
-                    } catch (error) {
-                      console.error("Erro ao criar pagamento:", error);
-                      alert("Erro ao gerar link de pagamento. Tente novamente.");
+                    } catch (error: any) {
+                      console.error("❌ Erro ao criar pagamento:", error);
+                      alert(`❌ Erro ao gerar link de pagamento.\n\n${error.message || "Erro desconhecido"}\n\nTente novamente ou contate o suporte.`);
                     }
                   }}
                   className="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
