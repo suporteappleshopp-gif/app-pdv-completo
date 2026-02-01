@@ -1,0 +1,59 @@
+═══════════════════════════════════════════════════════════════
+🚀 CHECKLIST RÁPIDO - CONFIGURAR VERCEL
+═══════════════════════════════════════════════════════════════
+
+📍 LINK DIRETO: https://vercel.com/seu-projeto/settings/environment-variables
+
+═══════════════════════════════════════════════════════════════
+✅ PASSO 1: ADICIONAR VARIÁVEL 1
+═══════════════════════════════════════════════════════════════
+
+Nome: NEXT_PUBLIC_SUPABASE_URL
+Valor: https://ynkuovfplntzckecruvk.supabase.co
+Environments: ☑ Production ☑ Preview ☑ Development
+
+═══════════════════════════════════════════════════════════════
+✅ PASSO 2: ADICIONAR VARIÁVEL 2
+═══════════════════════════════════════════════════════════════
+
+Nome: NEXT_PUBLIC_SUPABASE_ANON_KEY
+Valor: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlua3VvdmZwbG50emNrZWNydXZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk0NjA2NTAsImV4cCI6MjA4NTAzNjY1MH0.8dCQe242pXapIxiU6RZOlVxZAwa_RNcjoyzjcYrrAwQ
+Environments: ☑ Production ☑ Preview ☑ Development
+
+═══════════════════════════════════════════════════════════════
+✅ PASSO 3: ADICIONAR VARIÁVEL 3
+═══════════════════════════════════════════════════════════════
+
+Nome: MERCADOPAGO_ACCESS_TOKEN
+Valor: APP_USR-1073669413723433-012917-14c775d457bda1529673c51b18c894a9-361417955
+Environments: ☑ Production ☑ Preview ☑ Development
+
+═══════════════════════════════════════════════════════════════
+✅ PASSO 4: ADICIONAR VARIÁVEL 4
+═══════════════════════════════════════════════════════════════
+
+Nome: NEXT_PUBLIC_URL
+Valor: https://app-pdv-completo.vercel.app
+⚠️ SUBSTITUA pela URL real do seu projeto!
+Environments: ☑ Production ☑ Preview ☑ Development
+
+═══════════════════════════════════════════════════════════════
+🔄 PASSO 5: REIMPLANTAR O PROJETO
+═══════════════════════════════════════════════════════════════
+
+1. Clique na aba "Deployments"
+2. Clique nos 3 pontinhos (...) do deploy mais recente
+3. Clique em "Redeploy"
+4. Confirme clicando em "Redeploy" novamente
+5. Aguarde 1-2 minutos
+
+═══════════════════════════════════════════════════════════════
+🎉 PRONTO! SEU APP ESTÁ FUNCIONANDO!
+═══════════════════════════════════════════════════════════════
+
+Agora você tem:
+✅ Supabase conectado (banco de dados)
+✅ Mercado Pago funcionando (pagamentos)
+✅ Todas as funcionalidades ativas
+
+═══════════════════════════════════════════════════════════════
