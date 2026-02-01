@@ -127,6 +127,42 @@ export default function CaixaPage() {
   // Timer para salvamento automático
   const salvamentoTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Detectar retorno do pagamento via URL
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentStatus = urlParams.get("payment");
+
+    if (paymentStatus === "success" || paymentStatus === "pending") {
+      console.log("🔔 Detectado retorno de pagamento:", paymentStatus);
+
+      // Limpar URL
+      window.history.replaceState({}, "", "/caixa");
+
+      // Limpar pending_payment do localStorage
+      localStorage.removeItem("pending_payment");
+
+      if (paymentStatus === "success") {
+        alert("🎉 Pagamento aprovado com sucesso!\n\nSua conta foi ativada. Aproveite!");
+      } else if (paymentStatus === "pending") {
+        alert("⏳ Pagamento em processamento!\n\nSua conta será ativada automaticamente quando o pagamento for confirmado.");
+      }
+
+      // Forçar verificação imediata da assinatura
+      if (operadorId) {
+        setTimeout(() => {
+          GerenciadorAssinatura.verificarAcesso(operadorId).then((resultado) => {
+            setStatusAssinatura(resultado.status as any);
+            setDiasRestantes(resultado.diasRestantes);
+            setPodeUsarApp(resultado.podeUsar);
+            setUsuarioSemMensalidade(resultado.diasRestantes >= 999999);
+          });
+        }, 2000);
+      }
+    }
+  }, [operadorId]);
+
   // Verificar assinatura periodicamente - SEMPRE DO SUPABASE
   useEffect(() => {
     const verificarAssinaturaLoop = async () => {

@@ -26,8 +26,68 @@ export default function PagamentoPage() {
   const [installments, setInstallments] = useState(1);
   const [paymentMethodId, setPaymentMethodId] = useState("");
   const [cardError, setCardError] = useState("");
+  const [verificandoPagamento, setVerificandoPagamento] = useState(false);
+  const [mensagemVerificacao, setMensagemVerificacao] = useState("");
 
   const WHATSAPP_CONTATO = "5565981032239";
+
+  // Verificar pagamento pendente periodicamente
+  useEffect(() => {
+    const verificarPagamentoPendente = async () => {
+      const pendingPayment = localStorage.getItem("pending_payment");
+      if (!pendingPayment) return;
+
+      try {
+        const paymentData = JSON.parse(pendingPayment);
+        const tempoDecorrido = Date.now() - new Date(paymentData.timestamp).getTime();
+
+        // Verificar por até 10 minutos
+        if (tempoDecorrido > 10 * 60 * 1000) {
+          localStorage.removeItem("pending_payment");
+          return;
+        }
+
+        setVerificandoPagamento(true);
+        setMensagemVerificacao("Verificando status do pagamento...");
+
+        const response = await fetch(
+          `/api/check-payment-status?usuario_id=${paymentData.usuario_id}&preference_id=${paymentData.preference_id}`
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+
+          if (data.payment_approved && data.account_active) {
+            // Pagamento aprovado e conta ativada!
+            setMensagemVerificacao("✅ Pagamento confirmado! Redirecionando...");
+            localStorage.removeItem("pending_payment");
+
+            setTimeout(() => {
+              alert("🎉 Pagamento aprovado com sucesso!\nSua conta foi ativada.");
+              router.push("/caixa");
+            }, 1500);
+          } else if (data.payment_approved && data.waiting_webhook) {
+            // Pagamento aprovado, aguardando webhook
+            setMensagemVerificacao("✅ Pagamento aprovado! Ativando sua conta...");
+          } else {
+            setMensagemVerificacao("⏳ Aguardando confirmação do pagamento...");
+          }
+        }
+      } catch (error) {
+        console.error("Erro ao verificar pagamento:", error);
+      } finally {
+        setVerificandoPagamento(false);
+      }
+    };
+
+    // Verificar imediatamente
+    verificarPagamentoPendente();
+
+    // Depois verificar a cada 5 segundos
+    const interval = setInterval(verificarPagamentoPendente, 5000);
+
+    return () => clearInterval(interval);
+  }, [router]);
 
   useEffect(() => {
     const nome = localStorage.getItem("operadorNome") || "Usuário";
@@ -88,12 +148,20 @@ export default function PagamentoPage() {
         throw new Error(errorMsg + errorDetails);
       }
 
+      // Salvar informações do pagamento para verificação posterior
+      localStorage.setItem("pending_payment", JSON.stringify({
+        preference_id: data.preference_id,
+        usuario_id: operadorId,
+        forma_pagamento: tipo,
+        timestamp: new Date().toISOString(),
+      }));
+
       // Abrir link de pagamento
       console.log("✅ Link de pagamento criado:", data.init_point);
       window.open(data.init_point, "_blank");
       setLinkPagamento(data.init_point);
 
-      alert("Link de pagamento gerado com sucesso! Uma nova aba foi aberta.");
+      alert("Link de pagamento gerado com sucesso! Uma nova aba foi aberta.\n\nNão feche esta página! Aguarde a confirmação do pagamento.");
     } catch (error: any) {
       console.error("❌ Erro ao gerar link:", error);
       alert(`Erro ao gerar link de pagamento.\n\n${error.message}\n\nTente novamente ou entre em contato pelo WhatsApp.`);
@@ -207,6 +275,19 @@ export default function PagamentoPage() {
           <h1 className="text-3xl font-bold text-gray-800 mb-2">Pagamento de Mensalidade</h1>
           <p className="text-gray-600">Olá, {operadorNome}! Escolha sua forma de pagamento</p>
         </div>
+
+        {/* Indicador de Verificação de Pagamento */}
+        {verificandoPagamento && mensagemVerificacao && (
+          <div className="mb-6 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl p-4 shadow-lg animate-pulse">
+            <div className="flex items-center space-x-3">
+              <Loader2 className="w-6 h-6 animate-spin" />
+              <div>
+                <p className="font-semibold">Verificando pagamento</p>
+                <p className="text-sm text-blue-100">{mensagemVerificacao}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Seleção de Forma de Pagamento */}
         <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 mb-6 border-2 border-blue-200">
