@@ -122,44 +122,88 @@ export async function POST(request: NextRequest) {
     console.log("📊 Status:", result.status);
     console.log("💰 Valor:", result.transaction_amount);
 
-    // Se aprovado, criar registro no histórico
+    // IMPORTANTE: O webhook do Mercado Pago vai processar tudo automaticamente
+    // Mas se o pagamento for aprovado instantaneamente, já ativamos aqui também
     if (result.status === "approved") {
-      const pagamentoId = `payment_${operador.id}_${Date.now()}`;
       const agora = new Date();
-      const vencimento = new Date(agora);
-      vencimento.setDate(vencimento.getDate() + plano.dias);
+      const dataAtual = new Date();
+      let novaDataVencimento: Date;
 
+      // Usar mesma lógica do webhook: SOMAR dias ao vencimento existente
+      if (operador.data_proximo_vencimento) {
+        const vencimentoAtual = new Date(operador.data_proximo_vencimento);
+
+        if (vencimentoAtual > dataAtual) {
+          // Assinatura ativa: SOMAR dias
+          novaDataVencimento = new Date(vencimentoAtual);
+          novaDataVencimento.setDate(novaDataVencimento.getDate() + plano.dias);
+          console.log(`✅ Somando ${plano.dias} dias ao vencimento atual`);
+        } else {
+          // Assinatura expirada: começar de hoje
+          novaDataVencimento = new Date(dataAtual);
+          novaDataVencimento.setDate(novaDataVencimento.getDate() + plano.dias);
+          console.log(`⚠️ Assinatura expirada. Iniciando ${plano.dias} dias de hoje`);
+        }
+      } else {
+        // Primeira compra
+        novaDataVencimento = new Date(dataAtual);
+        novaDataVencimento.setDate(novaDataVencimento.getDate() + plano.dias);
+        console.log(`🆕 Primeira compra. Iniciando ${plano.dias} dias`);
+      }
+
+      // Criar registro no histórico
+      const paymentId = result.id?.toString() || `temp_${Date.now()}`;
+      const pagamentoId = `mp_${paymentId}_${Date.now()}`;
       await supabase
         .from("historico_pagamentos")
         .insert({
           id: pagamentoId,
           usuario_id: operador.id,
-          mes_referencia: `Compra ${plano.dias} dias - ${forma_pagamento.toUpperCase()}`,
+          mes_referencia: `Renovação ${plano.dias} dias - ${forma_pagamento.toUpperCase()}`,
           valor: plano.valor,
-          data_vencimento: vencimento.toISOString(),
+          data_vencimento: novaDataVencimento.toISOString(),
           data_pagamento: agora.toISOString(),
           status: "pago",
           forma_pagamento: forma_pagamento,
           dias_comprados: plano.dias,
           tipo_compra: `renovacao-${plano.dias}`,
+          mercadopago_payment_id: paymentId,
           created_at: agora.toISOString(),
           updated_at: agora.toISOString(),
         });
 
-      // Atualizar status do operador
-      const novoVencimento = new Date(operador.data_vencimento || agora);
-      novoVencimento.setDate(novoVencimento.getDate() + plano.dias);
-
+      // Atualizar operador com os mesmos campos do webhook
       await supabase
         .from("operadores")
         .update({
-          plano_ativo: true,
-          data_vencimento: novoVencimento.toISOString(),
+          ativo: true,
+          suspenso: false,
+          aguardando_pagamento: false,
+          forma_pagamento: forma_pagamento,
+          data_pagamento: agora.toISOString(),
+          data_proximo_vencimento: novaDataVencimento.toISOString(),
+          dias_assinatura: plano.dias,
+          valor_mensal: plano.valor,
           updated_at: agora.toISOString(),
         })
         .eq("id", operador.id);
 
-      console.log("✅ Conta ativada até:", novoVencimento.toISOString());
+      // Registrar ganho do admin
+      const ganhoId = `ganho_${paymentId}_${Date.now()}`;
+      await supabase
+        .from("ganhos_admin")
+        .insert({
+          id: ganhoId,
+          tipo: "mensalidade-paga",
+          usuario_id: operador.id,
+          usuario_nome: operador.nome,
+          valor: plano.valor,
+          forma_pagamento: forma_pagamento,
+          descricao: `Pagamento de ${plano.dias} dias via ${forma_pagamento.toUpperCase()} - MP ID: ${paymentId}`,
+          created_at: agora.toISOString(),
+        });
+
+      console.log("✅ Conta ativada até:", novaDataVencimento.toISOString());
     }
 
     return NextResponse.json({
