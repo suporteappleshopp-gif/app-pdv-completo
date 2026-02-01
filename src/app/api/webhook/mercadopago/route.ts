@@ -17,8 +17,34 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30; // 30 segundos no Vercel
 
+// 🔥 NOVO: Função para salvar log de auditoria no banco
+async function salvarLogWebhook(dados: {
+  tipo: string;
+  payment_id?: string;
+  usuario_id?: string;
+  status: string;
+  dados_completos: any;
+  erro?: string;
+}) {
+  try {
+    await supabase.from("webhook_logs").insert({
+      tipo: dados.tipo,
+      payment_id: dados.payment_id || null,
+      usuario_id: dados.usuario_id || null,
+      status: dados.status,
+      dados_completos: dados.dados_completos,
+      erro: dados.erro || null,
+      created_at: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("⚠️ Erro ao salvar log de webhook:", error);
+    // Não falhar o webhook se não conseguir salvar o log
+  }
+}
+
 export async function POST(request: NextRequest) {
   const dataHoraRecebimento = new Date().toISOString();
+  const headers = Object.fromEntries(request.headers.entries());
 
   try {
     const body = await request.json();
@@ -26,8 +52,19 @@ export async function POST(request: NextRequest) {
     console.log("═══════════════════════════════════════════════════════");
     console.log("🔔 WEBHOOK MERCADO PAGO RECEBIDO");
     console.log("📅 Data/Hora:", dataHoraRecebimento);
+    console.log("🌐 URL:", request.url);
+    console.log("📍 Method:", request.method);
+    console.log("🔑 Headers:", JSON.stringify(headers, null, 2));
     console.log("📦 Body completo:", JSON.stringify(body, null, 2));
     console.log("═══════════════════════════════════════════════════════");
+
+    // 🔥 Salvar log de recebimento
+    await salvarLogWebhook({
+      tipo: "recebimento",
+      payment_id: body.data?.id,
+      status: "recebido",
+      dados_completos: { body, headers, url: request.url },
+    });
 
     // ✅ RETORNAR 200 IMEDIATAMENTE para evitar timeout do Mercado Pago
     // Processar o pagamento de forma assíncrona
@@ -35,13 +72,21 @@ export async function POST(request: NextRequest) {
       // Processar em background sem bloquear a resposta
       processPaymentAsync(body.data.id, body).catch(err => {
         console.error("❌ Erro no processamento assíncrono:", err);
+        salvarLogWebhook({
+          tipo: "erro_processamento",
+          payment_id: body.data.id,
+          status: "erro",
+          dados_completos: body,
+          erro: err.message,
+        });
       });
 
       // Retornar sucesso imediatamente com headers adequados
       const response = NextResponse.json({
         received: true,
         processing: true,
-        payment_id: body.data.id
+        payment_id: body.data.id,
+        timestamp: dataHoraRecebimento
       }, { status: 200 });
 
       response.headers.set('Content-Type', 'application/json');
@@ -50,7 +95,18 @@ export async function POST(request: NextRequest) {
 
     // Para outros tipos de notificação, apenas retornar sucesso
     console.log("ℹ️ Notificação de outro tipo recebida:", body.type);
-    const response = NextResponse.json({ received: true, type: body.type });
+
+    await salvarLogWebhook({
+      tipo: "outro_tipo",
+      status: "ignorado",
+      dados_completos: body,
+    });
+
+    const response = NextResponse.json({
+      received: true,
+      type: body.type,
+      timestamp: dataHoraRecebimento
+    });
     response.headers.set('Content-Type', 'application/json');
     return response;
   } catch (error: any) {
@@ -61,9 +117,17 @@ export async function POST(request: NextRequest) {
     console.error("📦 Stack:", error.stack);
     console.error("═══════════════════════════════════════════════════════");
 
+    // Salvar log de erro
+    await salvarLogWebhook({
+      tipo: "erro_critico",
+      status: "erro",
+      dados_completos: { error: error.message, stack: error.stack },
+      erro: error.message,
+    });
+
     // Retornar 200 mesmo com erro para não travar o webhook
     const errorResponse = NextResponse.json(
-      { error: "Erro ao processar webhook", details: error.message },
+      { error: "Erro ao processar webhook", details: error.message, timestamp: dataHoraRecebimento },
       { status: 200 }
     );
     errorResponse.headers.set('Content-Type', 'application/json');
@@ -91,6 +155,14 @@ async function processPaymentAsync(paymentId: string, body: any) {
         console.error("❌ ERRO CRÍTICO: MERCADOPAGO_ACCESS_TOKEN não configurado");
         console.error("⚠️ Verifique as variáveis de ambiente!");
 
+        await salvarLogWebhook({
+          tipo: "erro_token",
+          payment_id: paymentId,
+          status: "erro",
+          dados_completos: body,
+          erro: "Token de acesso não configurado",
+        });
+
         // ⚠️ FALLBACK: Marcar pagamento como "processando" para correção manual posterior
         console.log("🔄 Tentando marcar pagamento como processando para correção manual...");
 
@@ -108,7 +180,7 @@ async function processPaymentAsync(paymentId: string, body: any) {
           console.error("Erro ao marcar como processando:", err);
         }
 
-        return NextResponse.json({ error: "Token não configurado" }, { status: 500 });
+        return;
       }
 
       console.log("✅ Token de acesso encontrado");
@@ -130,7 +202,16 @@ async function processPaymentAsync(paymentId: string, body: any) {
         console.error("❌ ERRO ao buscar pagamento no Mercado Pago");
         console.error("📛 Status code:", paymentResponse.status);
         console.error("📄 Resposta:", errorText);
-        return NextResponse.json({ error: "Erro ao buscar pagamento" }, { status: 500 });
+
+        await salvarLogWebhook({
+          tipo: "erro_api",
+          payment_id: paymentId,
+          status: "erro",
+          dados_completos: { paymentId, statusCode: paymentResponse.status, error: errorText },
+          erro: `Erro ${paymentResponse.status}: ${errorText}`,
+        });
+
+        return;
       }
 
       const payment = await paymentResponse.json();
@@ -147,6 +228,15 @@ async function processPaymentAsync(paymentId: string, body: any) {
       console.log("💳 Método de Pagamento:", payment.payment_method_id);
       console.log("🏦 Tipo de Pagamento:", payment.payment_type_id);
       console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+      // Salvar log do pagamento obtido
+      await salvarLogWebhook({
+        tipo: "pagamento_obtido",
+        payment_id: paymentId,
+        usuario_id: payment.external_reference,
+        status: payment.status,
+        dados_completos: payment,
+      });
 
       // Se o pagamento foi aprovado
       if (payment.status === "approved") {
@@ -165,7 +255,16 @@ async function processPaymentAsync(paymentId: string, body: any) {
         if (!usuarioId) {
           console.error("❌ ERRO: external_reference não encontrado no pagamento");
           console.error("📦 Dados completos:", JSON.stringify(payment, null, 2));
-          return NextResponse.json({ error: "ID do usuário não encontrado no pagamento" }, { status: 400 });
+
+          await salvarLogWebhook({
+            tipo: "erro_usuario",
+            payment_id: paymentId,
+            status: "erro",
+            dados_completos: payment,
+            erro: "external_reference não encontrado",
+          });
+
+          return;
         }
 
         console.log("👤 Buscando operador no banco com ID:", usuarioId);
@@ -180,14 +279,34 @@ async function processPaymentAsync(paymentId: string, body: any) {
         if (findError) {
           console.error("❌ ERRO ao buscar operador no banco:", findError.message);
           console.error("📦 Detalhes do erro:", JSON.stringify(findError, null, 2));
-          return NextResponse.json({ error: "Erro ao buscar operador" }, { status: 500 });
+
+          await salvarLogWebhook({
+            tipo: "erro_busca_usuario",
+            payment_id: paymentId,
+            usuario_id: usuarioId,
+            status: "erro",
+            dados_completos: { payment, error: findError },
+            erro: findError.message,
+          });
+
+          return;
         }
 
         if (!operador) {
           console.error("❌ OPERADOR NÃO ENCONTRADO");
           console.error("🆔 ID buscado:", usuarioId);
           console.error("⚠️ Verifique se o usuário existe no banco com este ID");
-          return NextResponse.json({ error: "Operador não encontrado" }, { status: 404 });
+
+          await salvarLogWebhook({
+            tipo: "usuario_nao_encontrado",
+            payment_id: paymentId,
+            usuario_id: usuarioId,
+            status: "erro",
+            dados_completos: payment,
+            erro: "Operador não encontrado no banco",
+          });
+
+          return;
         }
 
         console.log("✅ Operador encontrado:");
@@ -208,12 +327,16 @@ async function processPaymentAsync(paymentId: string, body: any) {
           console.log("⚠️ PAGAMENTO JÁ PROCESSADO ANTERIORMENTE");
           console.log("🆔 ID do histórico existente:", pagamentoDuplicado.id);
           console.log("✅ Retornando sucesso (pagamento já foi creditado)");
-          return NextResponse.json({
-            success: true,
-            message: "Pagamento já foi processado anteriormente",
-            duplicate: true,
-            historico_id: pagamentoDuplicado.id,
+
+          await salvarLogWebhook({
+            tipo: "duplicado",
+            payment_id: paymentId,
+            usuario_id: usuarioId,
+            status: "duplicado",
+            dados_completos: { payment, historico_id: pagamentoDuplicado.id },
           });
+
+          return;
         }
 
         console.log("✅ Pagamento ainda não foi processado. Continuando...");
@@ -318,7 +441,17 @@ async function processPaymentAsync(paymentId: string, body: any) {
         if (updateError) {
           console.error("❌ ERRO ao atualizar operador:", updateError.message);
           console.error("📦 Detalhes:", JSON.stringify(updateError, null, 2));
-          return NextResponse.json({ error: "Erro ao ativar conta" }, { status: 500 });
+
+          await salvarLogWebhook({
+            tipo: "erro_atualizacao",
+            payment_id: paymentId,
+            usuario_id: usuarioId,
+            status: "erro",
+            dados_completos: { payment, error: updateError },
+            erro: updateError.message,
+          });
+
+          return;
         }
 
         console.log("✅ CONTA ATIVADA COM SUCESSO!");
@@ -440,6 +573,22 @@ async function processPaymentAsync(paymentId: string, body: any) {
           console.log("🆔 ID do ganho:", ganhoId);
         }
 
+        // 🔥 Salvar log de sucesso
+        await salvarLogWebhook({
+          tipo: "sucesso",
+          payment_id: paymentId,
+          usuario_id: usuarioId,
+          status: "processado",
+          dados_completos: {
+            payment,
+            operador: { id: operador.id, nome: operador.nome, email: operador.email },
+            diasComprados,
+            novaDataVencimento: novaDataVencimento.toISOString(),
+            historyError: historyError?.message || null,
+            ganhoError: ganhoError?.message || null,
+          },
+        });
+
         console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         console.log("🎉 PROCESSAMENTO CONCLUÍDO COM SUCESSO!");
         console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -460,6 +609,14 @@ async function processPaymentAsync(paymentId: string, body: any) {
         console.log("📊 Status:", payment.status);
         console.log("📝 Detalhes:", payment.status_detail);
         console.log("═══════════════════════════════════════════════════════");
+
+        await salvarLogWebhook({
+          tipo: "pagamento_nao_aprovado",
+          payment_id: paymentId,
+          usuario_id: payment.external_reference,
+          status: payment.status,
+          dados_completos: payment,
+        });
       }
     }
   } catch (error: any) {
@@ -469,16 +626,31 @@ async function processPaymentAsync(paymentId: string, body: any) {
     console.error("🚨 Mensagem:", error.message);
     console.error("📦 Stack:", error.stack);
     console.error("═══════════════════════════════════════════════════════");
+
+    await salvarLogWebhook({
+      tipo: "erro_processamento_async",
+      payment_id: paymentId,
+      status: "erro",
+      dados_completos: { error: error.message, stack: error.stack },
+      erro: error.message,
+    });
+
     throw error;
   }
 }
 
 // Permitir GET para teste
-export async function GET() {
+export async function GET(request: NextRequest) {
   const response = NextResponse.json({
-    status: "Webhook Mercado Pago ativo",
-    message: "Use POST para enviar notificações",
-    timestamp: new Date().toISOString()
+    status: "Webhook Mercado Pago ativo e funcionando",
+    message: "Use POST para enviar notificações de pagamento",
+    timestamp: new Date().toISOString(),
+    url_correta: `${request.nextUrl.origin}/api/webhook/mercadopago`,
+    instrucoes: {
+      configuracao: "Configure esta URL no painel do Mercado Pago em Webhooks",
+      formato: "POST com Content-Type: application/json",
+      documentacao: "https://www.mercadopago.com.br/developers/pt/docs/your-integrations/notifications/webhooks"
+    }
   });
   response.headers.set('Content-Type', 'application/json');
   return response;
