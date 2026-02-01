@@ -2,7 +2,13 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   devIndicators: false, // Remove widget de desenvolvimento Next.js
-  
+
+  // Variáveis de ambiente públicas
+  env: {
+    MERCADOPAGO_ACCESS_TOKEN: process.env.MERCADOPAGO_ACCESS_TOKEN || '',
+    NEXT_PUBLIC_URL: process.env.NEXT_PUBLIC_URL || '',
+  },
+
   // Ignorar erros durante build (compatibilidade Vercel)
   eslint: {
     ignoreDuringBuilds: true,

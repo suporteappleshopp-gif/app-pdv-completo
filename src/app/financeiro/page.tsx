@@ -943,11 +943,17 @@ export default function FinanceiroPage() {
                       let data: any = {};
                       try {
                         const responseText = await response.text();
-                        console.log("📄 Resposta bruta:", responseText);
-                        data = responseText ? JSON.parse(responseText) : {};
-                      } catch (parseError) {
+                        console.log("📄 Resposta bruta (primeiros 500 chars):", responseText.substring(0, 500));
+
+                        if (!responseText || responseText.trim() === '') {
+                          alert("❌ Servidor retornou resposta vazia.\n\nO app está processando sua requisição mas não retornou dados.\n\nTente recarregar a página (F5).");
+                          return;
+                        }
+
+                        data = JSON.parse(responseText);
+                      } catch (parseError: any) {
                         console.error("❌ Erro ao parsear resposta:", parseError);
-                        alert("❌ Erro de comunicação com o servidor.\n\nO servidor pode estar offline ou retornando dados inválidos.\n\nVerifique se o app está rodando corretamente.");
+                        alert("❌ Erro de comunicação com o servidor.\n\nResposta inválida recebida.\n\nTente recarregar a página (F5) ou contate o suporte.");
                         return;
                       }
 
