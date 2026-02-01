@@ -39,6 +39,24 @@ export async function POST(request: NextRequest) {
       if (!accessToken) {
         console.error("❌ ERRO CRÍTICO: MERCADOPAGO_ACCESS_TOKEN não configurado");
         console.error("⚠️ Verifique as variáveis de ambiente!");
+
+        // ⚠️ FALLBACK: Marcar pagamento como "processando" para correção manual posterior
+        console.log("🔄 Tentando marcar pagamento como processando para correção manual...");
+
+        try {
+          // Buscar pagamento pendente relacionado ao external_reference (se houver)
+          const externalRef = body.external_reference || body.data?.external_reference;
+          if (externalRef) {
+            await supabase
+              .from("historico_pagamentos")
+              .update({ status: "processando" })
+              .eq("usuario_id", externalRef)
+              .eq("status", "pendente");
+          }
+        } catch (err) {
+          console.error("Erro ao marcar como processando:", err);
+        }
+
         return NextResponse.json({ error: "Token não configurado" }, { status: 500 });
       }
 
