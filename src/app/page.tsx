@@ -32,9 +32,11 @@ export default function LoginPage() {
 
   const ADMIN_EMAIL = "diegomarqueshm@icloud.com";
   const ADMIN_PASSWORD = "Sedexdez@1";
-  const LINK_PAGAMENTO_CARTAO = "https://mpago.li/12S6mJE"; // Link para pagamento de R$ 149,70 parcelado em até 3x (180 dias)
-  const LINK_PAGAMENTO_PIX = "https://mpago.la/24Hxr1X"; // Link para pagamento PIX de R$ 59,90 (60 dias)
   const WHATSAPP_CONTATO = process.env.NEXT_PUBLIC_WHATSAPP_CONTATO || "5565981032239";
+
+  // Estados para link de pagamento
+  const [usuarioCadastradoId, setUsuarioCadastradoId] = useState("");
+  const [gerandoPagamento, setGerandoPagamento] = useState(false);
 
   useEffect(() => {
     const initDB = async () => {
@@ -380,6 +382,8 @@ export default function LoginPage() {
         },
       });
 
+      let usuarioIdCriado = "";
+
       // Se deu erro de rate limit ou qualquer outro erro, criar direto no banco
       if (authError || !authData.user) {
         console.log("⚠️ Criando usuário diretamente no banco (bypass Auth)");
@@ -408,6 +412,7 @@ export default function LoginPage() {
           return;
         }
 
+        usuarioIdCriado = novoOperador.id;
         console.log("✅ Usuário criado direto no banco:", novoOperador.id);
       } else {
         // Auth funcionou, aguardar trigger ou criar operador
@@ -423,17 +428,23 @@ export default function LoginPage() {
           // Criar operador manualmente
           const novoId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-          await supabase.from("operadores").insert({
-            id: novoId,
-            auth_user_id: authData.user.id,
-            email: emailTrimmed,
-            nome: nomeExtraido,
-            senha: novoCadastro.senha,
-            is_admin: false,
-            ativo: false,
-            suspenso: true,
-            aguardando_pagamento: true,
-          });
+          const { data: novoOperador } = await supabase
+            .from("operadores")
+            .insert({
+              id: novoId,
+              auth_user_id: authData.user.id,
+              email: emailTrimmed,
+              nome: nomeExtraido,
+              senha: novoCadastro.senha,
+              is_admin: false,
+              ativo: false,
+              suspenso: true,
+              aguardando_pagamento: true,
+            })
+            .select()
+            .single();
+
+          usuarioIdCriado = novoOperador?.id || novoId;
         } else {
           // Atualizar operador existente
           await supabase
@@ -444,10 +455,15 @@ export default function LoginPage() {
               aguardando_pagamento: true,
             })
             .eq("auth_user_id", authData.user.id);
+
+          usuarioIdCriado = operadorExistente.id;
         }
 
         console.log("✅ Usuário criado via Auth:", authData.user.id);
       }
+
+      // Salvar ID do usuário para usar no link de pagamento
+      setUsuarioCadastradoId(usuarioIdCriado);
 
       // Mostrar tela de pagamento
       setMostrarPagamento(true);
@@ -470,12 +486,39 @@ export default function LoginPage() {
     window.open(`https://wa.me/${WHATSAPP_CONTATO}`, "_blank");
   };
 
-  const abrirPagamento = () => {
-    // Enviar email do usuário como external_reference para o Mercado Pago
-    const email = novoCadastro.email.trim();
-    const linkBase = novoCadastro.formaPagamento === "pix" ? LINK_PAGAMENTO_PIX : LINK_PAGAMENTO_CARTAO;
-    const linkComEmail = `${linkBase}?external_reference=${encodeURIComponent(email)}`;
-    window.open(linkComEmail, "_blank");
+  const abrirPagamento = async () => {
+    if (!usuarioCadastradoId) {
+      setError("Erro: ID do usuário não encontrado. Tente fazer login novamente.");
+      return;
+    }
+
+    setGerandoPagamento(true);
+
+    try {
+      // Chamar API para gerar link de pagamento personalizado
+      const response = await fetch("/api/create-payment-preference", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          usuario_id: usuarioCadastradoId,
+          forma_pagamento: novoCadastro.formaPagamento,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Erro ao gerar link de pagamento");
+      }
+
+      // Abrir link de pagamento do Mercado Pago
+      window.open(data.init_point, "_blank");
+    } catch (error: any) {
+      console.error("Erro ao gerar link:", error);
+      setError("Erro ao gerar link de pagamento. Entre em contato pelo WhatsApp.");
+    } finally {
+      setGerandoPagamento(false);
+    }
   };
 
   if (!dbReady) {
@@ -543,11 +586,21 @@ export default function LoginPage() {
 
             <button
               onClick={abrirPagamento}
-              className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg font-semibold"
+              disabled={gerandoPagamento}
+              className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <CreditCard className="w-5 h-5" />
-              <span>{isPix ? "Pagar com PIX" : "Pagar com Cartão de Crédito"}</span>
-              <ExternalLink className="w-4 h-4" />
+              {gerandoPagamento ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Gerando link...</span>
+                </>
+              ) : (
+                <>
+                  <CreditCard className="w-5 h-5" />
+                  <span>{isPix ? "Pagar com PIX" : "Pagar com Cartão de Crédito"}</span>
+                  <ExternalLink className="w-4 h-4" />
+                </>
+              )}
             </button>
           </div>
 
