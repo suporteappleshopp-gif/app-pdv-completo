@@ -40,7 +40,8 @@ export default function PagamentoPage() {
     script.src = "https://sdk.mercadopago.com/js/v2";
     script.async = true;
     script.onload = () => {
-      const mercadopago = new window.MercadoPago("APP_USR-ef9e4406-88e9-479f-a8ea-63b20a97ef4a", {
+      const publicKey = process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY || "APP_USR-ef9e4406-88e9-479f-a8ea-63b20a97ef4a";
+      const mercadopago = new window.MercadoPago(publicKey, {
         locale: "pt-BR"
       });
       setMp(mercadopago);
