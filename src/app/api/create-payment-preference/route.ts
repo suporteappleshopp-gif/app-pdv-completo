@@ -139,7 +139,6 @@ export async function POST(request: NextRequest) {
         name: operador.nome,
         email: operador.email,
       },
-      purpose: "wallet_purchase", // Necessário para o Mercado Pago processar
       external_reference: operador.id, // CRÍTICO: Identifica o usuário no webhook
       back_urls: {
         success: `${baseUrl}/caixa?payment=success`,
@@ -167,12 +166,6 @@ export async function POST(request: NextRequest) {
             installments: 3,
             default_installments: 1,
           },
-      // Expiração para pagamentos PIX (10 minutos)
-      ...(forma_pagamento === "pix" && {
-        expires: true,
-        expiration_date_from: new Date().toISOString(),
-        expiration_date_to: new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 minutos
-      }),
     };
 
     console.log("📦 Dados da preferência:", JSON.stringify(preference, null, 2));
