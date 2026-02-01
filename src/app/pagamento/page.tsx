@@ -32,6 +32,9 @@ export default function PagamentoPage() {
     setCarregandoPagamento(true);
 
     try {
+      console.log("🔄 Iniciando requisição para criar pagamento...");
+      console.log("📋 Dados:", { usuario_id: operadorId, forma_pagamento: tipo });
+
       const response = await fetch("/api/create-payment-preference", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -41,18 +44,26 @@ export default function PagamentoPage() {
         }),
       });
 
+      console.log("📡 Resposta recebida:", response.status, response.statusText);
+
       const data = await response.json();
+      console.log("📦 Dados da resposta:", data);
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error || "Erro ao gerar link de pagamento");
+        const errorMsg = data.error || "Erro ao gerar link de pagamento";
+        const errorDetails = data.details ? `\n\nDetalhes: ${data.details}` : "";
+        throw new Error(errorMsg + errorDetails);
       }
 
       // Abrir link de pagamento
+      console.log("✅ Link de pagamento criado:", data.init_point);
       window.open(data.init_point, "_blank");
       setLinkPagamento(data.init_point);
+
+      alert("Link de pagamento gerado com sucesso! Uma nova aba foi aberta.");
     } catch (error: any) {
-      console.error("Erro ao gerar link:", error);
-      alert("Erro ao gerar link de pagamento. Tente novamente ou entre em contato pelo WhatsApp.");
+      console.error("❌ Erro ao gerar link:", error);
+      alert(`Erro ao gerar link de pagamento.\n\n${error.message}\n\nTente novamente ou entre em contato pelo WhatsApp.`);
     } finally {
       setCarregandoPagamento(false);
     }

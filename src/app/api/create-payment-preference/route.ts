@@ -15,11 +15,13 @@ export async function POST(request: NextRequest) {
     console.log("💳 CRIANDO PREFERÊNCIA DE PAGAMENTO");
     console.log("🆔 Usuário ID:", usuario_id);
     console.log("💰 Forma de pagamento:", forma_pagamento);
+    console.log("🔑 Token disponível:", !!process.env.MERCADOPAGO_ACCESS_TOKEN);
     console.log("═══════════════════════════════════════════════════════");
 
     if (!usuario_id || !forma_pagamento) {
+      console.error("❌ Parâmetros faltando:", { usuario_id, forma_pagamento });
       return NextResponse.json(
-        { error: "usuario_id e forma_pagamento são obrigatórios" },
+        { error: "usuario_id e forma_pagamento são obrigatórios", success: false },
         { status: 400 }
       );
     }
@@ -34,7 +36,7 @@ export async function POST(request: NextRequest) {
     if (operadorError || !operador) {
       console.error("❌ Erro ao buscar operador:", operadorError);
       return NextResponse.json(
-        { error: "Usuário não encontrado" },
+        { error: "Usuário não encontrado", success: false },
         { status: 404 }
       );
     }
@@ -50,8 +52,9 @@ export async function POST(request: NextRequest) {
     const plano = planos[forma_pagamento as keyof typeof planos];
 
     if (!plano) {
+      console.error("❌ Forma de pagamento inválida:", forma_pagamento);
       return NextResponse.json(
-        { error: "Forma de pagamento inválida" },
+        { error: "Forma de pagamento inválida", success: false },
         { status: 400 }
       );
     }
@@ -96,7 +99,7 @@ export async function POST(request: NextRequest) {
     if (!accessToken) {
       console.error("❌ MERCADOPAGO_ACCESS_TOKEN não configurado");
       return NextResponse.json(
-        { error: "Configuração de pagamento inválida" },
+        { error: "Configuração de pagamento inválida. Token do Mercado Pago não encontrado.", success: false },
         { status: 500 }
       );
     }
@@ -104,7 +107,7 @@ export async function POST(request: NextRequest) {
     console.log("🌐 Criando preferência no Mercado Pago...");
 
     // URL de retorno (onde o usuário volta após pagar)
-    const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+    const baseUrl = process.env.NEXT_PUBLIC_URL || request.headers.get("origin") || "http://localhost:3000";
 
     const preference = {
       items: [
@@ -150,7 +153,11 @@ export async function POST(request: NextRequest) {
       const errorText = await response.text();
       console.error("❌ Erro ao criar preferência:", response.status, errorText);
       return NextResponse.json(
-        { error: "Erro ao criar link de pagamento" },
+        {
+          error: "Erro ao criar link de pagamento no Mercado Pago",
+          success: false,
+          details: errorText
+        },
         { status: 500 }
       );
     }
@@ -171,7 +178,11 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error("❌ Erro ao criar preferência:", error);
     return NextResponse.json(
-      { error: "Erro interno ao criar pagamento" },
+      {
+        error: "Erro interno ao criar pagamento",
+        success: false,
+        details: error.message
+      },
       { status: 500 }
     );
   }
