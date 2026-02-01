@@ -126,47 +126,72 @@ export async function POST(request: NextRequest) {
     // URL de retorno (onde o usuário volta após pagar)
     const baseUrl = process.env.NEXT_PUBLIC_URL || request.headers.get("origin") || "http://localhost:3000";
 
-    const preference: any = {
-      items: [
-        {
-          title: plano.titulo,
-          quantity: 1,
-          unit_price: plano.valor,
-          currency_id: "BRL",
-        },
-      ],
-      payer: {
-        name: operador.nome,
-        email: operador.email,
-      },
-      external_reference: operador.id, // CRÍTICO: Identifica o usuário no webhook
-      back_urls: {
-        success: `${baseUrl}/caixa?payment=success`,
-        failure: `${baseUrl}/pagamento?payment=failed`,
-        pending: `${baseUrl}/caixa?payment=pending`,
-      },
-      auto_return: "approved",
-      notification_url: `${baseUrl}/api/webhook/mercadopago`, // Webhook
-      statement_descriptor: "PDV Completo",
-      // Configuração específica para PIX
-      payment_methods: forma_pagamento === "pix"
-        ? {
+    // Criar preferência diferente para PIX e Cartão
+    const preference: any = forma_pagamento === "pix"
+      ? {
+          // PREFERÊNCIA PARA PIX
+          items: [
+            {
+              title: plano.titulo,
+              quantity: 1,
+              unit_price: plano.valor,
+              currency_id: "BRL",
+            },
+          ],
+          payer: {
+            name: operador.nome,
+            email: operador.email,
+          },
+          external_reference: operador.id,
+          back_urls: {
+            success: `${baseUrl}/caixa?payment=success`,
+            failure: `${baseUrl}/pagamento?payment=failed`,
+            pending: `${baseUrl}/caixa?payment=pending`,
+          },
+          auto_return: "approved",
+          notification_url: `${baseUrl}/api/webhook/mercadopago`,
+          statement_descriptor: "PDV Completo",
+          payment_methods: {
             excluded_payment_types: [
               { id: "credit_card" },
               { id: "debit_card" },
-              { id: "ticket" }
+              { id: "ticket" },
             ],
-            excluded_payment_methods: [],
             installments: 1,
-            default_installments: 1,
-          }
-        : {
-            excluded_payment_types: [],
-            excluded_payment_methods: [],
+          },
+          expires: true,
+          expiration_date_from: new Date().toISOString(),
+          expiration_date_to: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutos
+        }
+      : {
+          // PREFERÊNCIA PARA CARTÃO
+          items: [
+            {
+              title: plano.titulo,
+              quantity: 1,
+              unit_price: plano.valor,
+              currency_id: "BRL",
+            },
+          ],
+          payer: {
+            name: operador.nome,
+            email: operador.email,
+          },
+          external_reference: operador.id,
+          back_urls: {
+            success: `${baseUrl}/caixa?payment=success`,
+            failure: `${baseUrl}/pagamento?payment=failed`,
+            pending: `${baseUrl}/caixa?payment=pending`,
+          },
+          auto_return: "approved",
+          notification_url: `${baseUrl}/api/webhook/mercadopago`,
+          statement_descriptor: "PDV Completo",
+          payment_methods: {
+            excluded_payment_types: [{ id: "ticket" }],
             installments: 3,
             default_installments: 1,
           },
-    };
+        };
 
     console.log("📦 Dados da preferência:", JSON.stringify(preference, null, 2));
 
