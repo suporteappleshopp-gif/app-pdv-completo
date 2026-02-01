@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
     // URL de retorno (onde o usuário volta após pagar)
     const baseUrl = process.env.NEXT_PUBLIC_URL || request.headers.get("origin") || "http://localhost:3000";
 
-    const preference = {
+    const preference: any = {
       items: [
         {
           title: plano.titulo,
@@ -139,6 +139,7 @@ export async function POST(request: NextRequest) {
         name: operador.nome,
         email: operador.email,
       },
+      purpose: "wallet_purchase", // Necessário para o Mercado Pago processar
       external_reference: operador.id, // CRÍTICO: Identifica o usuário no webhook
       back_urls: {
         success: `${baseUrl}/caixa?payment=success`,
@@ -148,11 +149,30 @@ export async function POST(request: NextRequest) {
       auto_return: "approved",
       notification_url: `${baseUrl}/api/webhook/mercadopago`, // Webhook
       statement_descriptor: "PDV Completo",
-      payment_methods: {
-        excluded_payment_types: forma_pagamento === "pix" ? [{ id: "credit_card" }, { id: "debit_card" }] : [],
-        excluded_payment_methods: [],
-        installments: forma_pagamento === "cartao" ? 3 : 1,
-      },
+      // Configuração específica para PIX
+      payment_methods: forma_pagamento === "pix"
+        ? {
+            excluded_payment_types: [
+              { id: "credit_card" },
+              { id: "debit_card" },
+              { id: "ticket" }
+            ],
+            excluded_payment_methods: [],
+            installments: 1,
+            default_installments: 1,
+          }
+        : {
+            excluded_payment_types: [],
+            excluded_payment_methods: [],
+            installments: 3,
+            default_installments: 1,
+          },
+      // Expiração para pagamentos PIX (10 minutos)
+      ...(forma_pagamento === "pix" && {
+        expires: true,
+        expiration_date_from: new Date().toISOString(),
+        expiration_date_to: new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 minutos
+      }),
     };
 
     console.log("📦 Dados da preferência:", JSON.stringify(preference, null, 2));
@@ -183,7 +203,9 @@ export async function POST(request: NextRequest) {
 
     console.log("✅ Preferência criada com sucesso!");
     console.log("🆔 Preference ID:", data.id);
-    console.log("🔗 Link de pagamento:", data.init_point);
+    console.log("🔗 Link de pagamento (init_point):", data.init_point);
+    console.log("🔗 Link sandbox:", data.sandbox_init_point);
+    console.log("📋 Resposta completa do MP:", JSON.stringify(data, null, 2));
     console.log("═══════════════════════════════════════════════════════");
 
     return NextResponse.json({
