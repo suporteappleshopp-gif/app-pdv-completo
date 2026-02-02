@@ -28,6 +28,10 @@ export default function PagamentoPage() {
   const [cardError, setCardError] = useState("");
   const [verificandoPagamento, setVerificandoPagamento] = useState(false);
   const [mensagemVerificacao, setMensagemVerificacao] = useState("");
+  const [pixQrCode, setPixQrCode] = useState("");
+  const [pixCopiaCola, setPixCopiaCola] = useState("");
+  const [pixPaymentId, setPixPaymentId] = useState("");
+  const [pixExibido, setPixExibido] = useState(false);
 
   const WHATSAPP_CONTATO = "5565981032239";
 
@@ -50,9 +54,11 @@ export default function PagamentoPage() {
         setVerificandoPagamento(true);
         setMensagemVerificacao("Verificando status do pagamento...");
 
-        const response = await fetch(
-          `/api/check-payment-status?usuario_id=${paymentData.usuario_id}&preference_id=${paymentData.preference_id}`
-        );
+        const queryParams = paymentData.payment_id
+          ? `usuario_id=${paymentData.usuario_id}&payment_id=${paymentData.payment_id}`
+          : `usuario_id=${paymentData.usuario_id}&preference_id=${paymentData.preference_id}`;
+
+        const response = await fetch(`/api/check-payment-status?${queryParams}`);
 
         if (response.ok) {
           const data = await response.json();
@@ -179,13 +185,12 @@ export default function PagamentoPage() {
     setCarregandoPagamento(true);
 
     try {
-      // Criar preferência de pagamento PIX
-      const response = await fetch("/api/create-payment-preference", {
+      // Criar pagamento PIX transparente
+      const response = await fetch("/api/create-pix-payment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           usuario_id: operadorId,
-          forma_pagamento: "pix",
         }),
       });
 
@@ -195,26 +200,33 @@ export default function PagamentoPage() {
         throw new Error(data.error || "Erro ao gerar PIX");
       }
 
+      // Salvar dados do PIX
+      setPixQrCode(data.qr_code_base64);
+      setPixCopiaCola(data.qr_code);
+      setPixPaymentId(data.payment_id);
+      setPixExibido(true);
+
       // Salvar informações do pagamento para verificação posterior
       localStorage.setItem("pending_payment", JSON.stringify({
-        preference_id: data.preference_id,
+        payment_id: data.payment_id,
         usuario_id: operadorId,
         forma_pagamento: "pix",
         timestamp: new Date().toISOString(),
       }));
 
-      // Aqui o PIX ficaria transparente no app
-      // Por enquanto ainda redireciona, mas os dados já estão prontos para checkout transparente
-      window.open(data.init_point, "_blank");
-      setLinkPagamento(data.init_point);
-
-      alert("Link de pagamento gerado com sucesso! Uma nova aba foi aberta.\n\nNão feche esta página! Aguarde a confirmação do pagamento.");
+      console.log("✅ PIX gerado com sucesso!");
     } catch (error: any) {
       console.error("❌ Erro ao gerar PIX:", error);
       alert(`Erro ao gerar PIX.\n\n${error.message}\n\nTente novamente ou entre em contato pelo WhatsApp.`);
     } finally {
       setCarregandoPagamento(false);
     }
+  };
+
+  const copiarCodigoPix = () => {
+    navigator.clipboard.writeText(pixCopiaCola);
+    setPixCopiado(true);
+    setTimeout(() => setPixCopiado(false), 2000);
   };
 
   const processarPagamentoCartao = async () => {
@@ -384,36 +396,120 @@ export default function PagamentoPage() {
               <span>Pagamento via PIX - R$ 59,90 (60 dias)</span>
             </h3>
 
-            <p className="text-sm text-gray-600 mb-4">
-              Clique no botão abaixo para gerar seu link de pagamento personalizado via PIX.
-            </p>
+            {!pixExibido ? (
+              <>
+                <p className="text-sm text-gray-600 mb-4">
+                  Clique no botão abaixo para gerar seu QR Code de pagamento via PIX.
+                </p>
 
-            <button
-              onClick={processarPagamentoPix}
-              disabled={carregandoPagamento}
-              className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {carregandoPagamento ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Gerando link...</span>
-                </>
-              ) : (
-                <>
-                  <div className="w-5 h-5 bg-white rounded-sm flex items-center justify-center">
-                    <span className="text-blue-600 font-bold text-xs">PIX</span>
+                <button
+                  onClick={processarPagamentoPix}
+                  disabled={carregandoPagamento}
+                  className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {carregandoPagamento ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Gerando PIX...</span>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-5 h-5 bg-white rounded-sm flex items-center justify-center">
+                        <span className="text-blue-600 font-bold text-xs">PIX</span>
+                      </div>
+                      <span>Gerar QR Code PIX</span>
+                    </>
+                  )}
+                </button>
+
+                <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm text-blue-800">
+                    <strong>Rápido e fácil:</strong> O pagamento via PIX é aprovado instantaneamente e sua conta será ativada automaticamente.
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 mb-4">
+                  <p className="text-sm text-gray-600 mb-4 text-center">
+                    Escaneie o QR Code abaixo com o aplicativo do seu banco ou copie o código PIX:
+                  </p>
+
+                  {/* QR Code */}
+                  <div className="flex justify-center mb-4">
+                    <div className="bg-white p-4 rounded-xl shadow-lg">
+                      <img
+                        src={`data:image/png;base64,${pixQrCode}`}
+                        alt="QR Code PIX"
+                        className="w-64 h-64"
+                      />
+                    </div>
                   </div>
-                  <span>Pagar com PIX</span>
-                  <ExternalLink className="w-4 h-4" />
-                </>
-              )}
-            </button>
 
-            <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p className="text-sm text-blue-800">
-                <strong>Rápido e fácil:</strong> O pagamento via PIX é aprovado instantaneamente e sua conta será ativada automaticamente.
-              </p>
-            </div>
+                  {/* Código Pix Copia e Cola */}
+                  <div className="bg-white rounded-lg p-4 mb-4">
+                    <p className="text-xs text-gray-500 mb-2 text-center">Código PIX (Copia e Cola)</p>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="text"
+                        value={pixCopiaCola}
+                        readOnly
+                        className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded text-xs text-gray-700"
+                      />
+                      <button
+                        onClick={copiarCodigoPix}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center space-x-2 transition-all"
+                      >
+                        {pixCopiado ? (
+                          <>
+                            <CheckCircle className="w-4 h-4" />
+                            <span className="text-sm">Copiado!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-4 h-4" />
+                            <span className="text-sm">Copiar</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Informações do Pagamento */}
+                  <div className="bg-white rounded-lg p-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm text-gray-600">Valor:</span>
+                      <span className="text-lg font-bold text-gray-800">R$ 59,90</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Validade:</span>
+                      <span className="text-sm font-semibold text-gray-800">60 dias</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                  <div className="flex items-start space-x-2">
+                    <Loader2 className="w-5 h-5 text-yellow-600 animate-spin flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-yellow-800">
+                      <p className="font-semibold mb-1">Aguardando pagamento...</p>
+                      <p>Estamos verificando automaticamente. Não feche esta página!</p>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setPixExibido(false);
+                    setPixQrCode("");
+                    setPixCopiaCola("");
+                  }}
+                  className="w-full px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition-all"
+                >
+                  Gerar novo QR Code
+                </button>
+              </>
+            )}
           </div>
         )}
 
