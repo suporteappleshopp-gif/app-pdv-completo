@@ -495,9 +495,9 @@ export default function LoginPage() {
   // Tela de Pagamento
   if (mostrarPagamento && cadastroSucesso) {
     const isPix = novoCadastro.formaPagamento === "pix";
-    const valor = isPix ? "59,90" : "49,90";
-    const dias = isPix ? 60 : 30;
-    const periodo = isPix ? "60 dias" : "30 dias";
+    const valor = isPix ? "59,90" : "149,70";
+    const dias = isPix ? 60 : 100;
+    const periodo = isPix ? "60 dias" : "100 dias";
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -689,8 +689,8 @@ export default function LoginPage() {
                     <div className="flex items-center space-x-3">
                       <CreditCard className="w-10 h-10 text-blue-600" />
                       <div className="text-left">
-                        <p className="font-semibold text-gray-800">Cartão - R$ 49,90</p>
-                        <p className="text-sm text-gray-600">30 dias de acesso</p>
+                        <p className="font-semibold text-gray-800">Cartão - R$ 149,70</p>
+                        <p className="text-sm text-gray-600">100 dias de acesso</p>
                       </div>
                     </div>
                     {novoCadastro.formaPagamento === "cartao" && (

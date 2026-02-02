@@ -210,7 +210,7 @@ export class GerenciadorAssinatura {
   /**
    * Processar pagamento e ativar assinatura
    * PIX: R$ 59,90 - 60 dias
-   * Cartão: R$ 149,70 - 180 dias
+   * Cartão: R$ 149,70 - 100 dias
    */
   static async processarPagamento(
     assinaturaId: string,
@@ -219,12 +219,12 @@ export class GerenciadorAssinatura {
   ): Promise<boolean> {
     try {
       // Valores e dias baseados no método de pagamento
-      let valor = 49.90; // Cartão padrão
-      let diasPlano = 105; // Cartão: 105 dias
-      
+      let valor = 149.70; // Cartão padrão
+      let diasPlano = 100; // Cartão: 100 dias
+
       if (metodoPagamento === "pix") {
         valor = 59.90; // PIX
-        diasPlano = 35; // PIX: 35 dias
+        diasPlano = 60; // PIX: 60 dias
       }
 
       // Criar registro de pagamento
@@ -402,7 +402,7 @@ export class GerenciadorAssinatura {
   }
 
   /**
-   * Processar pagamento via Cartão de Crédito (R$ 149,70 - 180 dias)
+   * Processar pagamento via Cartão de Crédito (R$ 149,70 - 100 dias)
    */
   static async processarPagamentoCartao(
     assinaturaId: string,
