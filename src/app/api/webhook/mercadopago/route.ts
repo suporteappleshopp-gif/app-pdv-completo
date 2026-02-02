@@ -642,17 +642,26 @@ async function processPaymentAsync(paymentId: string, body: any) {
 // Permitir GET para teste
 export async function GET(request: NextRequest) {
   const response = NextResponse.json({
-    status: "Webhook Mercado Pago ativo e funcionando",
+    status: "✅ Webhook Mercado Pago ativo e funcionando!",
     message: "Use POST para enviar notificações de pagamento",
     timestamp: new Date().toISOString(),
     url_correta: `${request.nextUrl.origin}/api/webhook/mercadopago`,
+    configuracao: {
+      passo_1: "Copie a URL acima",
+      passo_2: "Acesse https://www.mercadopago.com.br/developers/panel/app",
+      passo_3: "Vá em Webhooks > Configurar webhook",
+      passo_4: "Cole a URL e selecione o evento 'Pagamentos'",
+      passo_5: "Salve e faça um teste de pagamento"
+    },
     instrucoes: {
       configuracao: "Configure esta URL no painel do Mercado Pago em Webhooks",
       formato: "POST com Content-Type: application/json",
       documentacao: "https://www.mercadopago.com.br/developers/pt/docs/your-integrations/notifications/webhooks"
-    }
+    },
+    pagina_diagnostico: `${request.nextUrl.origin}/webhook-info`
   });
   response.headers.set('Content-Type', 'application/json');
+  response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
   return response;
 }
 
