@@ -102,6 +102,9 @@ export default function AdministradorPage() {
         setSolicitacoesPendentes(solicitacoesFormatadas);
         console.log(`✅ ${solicitacoesFormatadas.length} solicitações pendentes carregadas`);
         console.log("📋 Solicitações:", solicitacoesFormatadas);
+
+        // Log para confirmar que o painel está ativo
+        console.log("🎯 Painel de Solicitações: ATIVO e RENDERIZANDO");
       }
     } catch (error) {
       console.error("Erro ao carregar solicitações:", error);
@@ -538,14 +541,14 @@ export default function AdministradorPage() {
           </div>
         </div>
 
-        {/* Seção de Solicitações de Renovação */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mt-8" style={{ minHeight: "200px" }}>
+        {/* Seção de Solicitações de Renovação - SEMPRE VISÍVEL */}
+        <div className="bg-white rounded-2xl shadow-lg p-6 mt-8 border-4 border-purple-200">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center space-x-3">
               <FileText className="w-6 h-6 text-purple-600" />
               <div>
                 <h2 className="text-xl font-bold text-gray-800">Solicitações de Renovação</h2>
-                <p className="text-sm text-gray-600">Aprovar ou recusar compras de dias</p>
+                <p className="text-sm text-gray-600">Aprovar ou recusar compras de dias dos usuários</p>
               </div>
             </div>
             <div className="flex items-center space-x-2">
