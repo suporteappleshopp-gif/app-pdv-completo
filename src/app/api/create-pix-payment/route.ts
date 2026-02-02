@@ -83,22 +83,19 @@ export async function POST(request: NextRequest) {
       titulo: "PDV Completo - PIX (60 dias)"
     };
 
-    // Criar registro pendente
+    // Criar solicitação de renovação pendente para aprovação do admin
     const pagamentoId = `pix_${usuario_id}_${Date.now()}`;
     const agora = new Date();
-    const vencimento = new Date(agora);
-    vencimento.setDate(vencimento.getDate() + plano.dias);
 
     const { error: historicoError } = await supabase
       .from("historico_pagamentos")
       .insert({
         id: pagamentoId,
         usuario_id: operador.id,
-        mes_referencia: `Compra ${plano.dias} dias - PIX`,
+        mes_referencia: `Solicitação ${plano.dias} dias - PIX`,
         valor: plano.valor,
-        data_vencimento: vencimento.toISOString(),
-        data_pagamento: agora.toISOString(),
-        status: "pendente",
+        data_vencimento: agora.toISOString(), // Data da solicitação
+        status: "pendente", // Aguardando aprovação do admin
         forma_pagamento: "pix",
         dias_comprados: plano.dias,
         tipo_compra: `renovacao-${plano.dias}`,
@@ -109,7 +106,7 @@ export async function POST(request: NextRequest) {
     if (historicoError) {
       console.error("⚠️ Erro ao criar histórico:", historicoError);
     } else {
-      console.log("✅ Registro pendente criado:", pagamentoId);
+      console.log("✅ Solicitação de renovação criada (aguardando aprovação do admin):", pagamentoId);
     }
 
     // Criar pagamento PIX no Mercado Pago

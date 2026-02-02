@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { CreditCard, Copy, CheckCircle, AlertCircle, ExternalLink, ArrowLeft, Loader2 } from "lucide-react";
+import { CreditCard, Copy, CheckCircle, AlertCircle, ExternalLink, ArrowLeft, Loader2, Clock } from "lucide-react";
 
 declare global {
   interface Window {
@@ -170,7 +170,7 @@ export default function PagamentoPage() {
       window.open(data.init_point, "_blank");
       setLinkPagamento(data.init_point);
 
-      alert("Link de pagamento gerado com sucesso! Uma nova aba foi aberta.\n\nNão feche esta página! Aguarde a confirmação do pagamento.");
+      alert("✅ Link de pagamento gerado com sucesso!\n\nUma nova aba foi aberta.\n\n⚠️ IMPORTANTE:\nApós efetuar o pagamento, sua solicitação será enviada ao administrador para aprovação. Os dias serão creditados automaticamente após a confirmação.");
     } catch (error: any) {
       console.error("❌ Erro ao gerar link:", error);
       alert(`Erro ao gerar link de pagamento.\n\n${error.message}\n\nTente novamente ou entre em contato pelo WhatsApp.`);
@@ -427,7 +427,7 @@ export default function PagamentoPage() {
 
                 <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <p className="text-sm text-blue-800">
-                    <strong>Rápido e fácil:</strong> O pagamento via PIX é aprovado instantaneamente e sua conta será ativada automaticamente.
+                    <strong>Como funciona:</strong> Após o pagamento, sua solicitação será enviada ao administrador para aprovação. Os dias serão creditados automaticamente após a confirmação.
                   </p>
                 </div>
               </>
@@ -491,12 +491,14 @@ export default function PagamentoPage() {
                   </div>
                 </div>
 
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
                   <div className="flex items-start space-x-2">
-                    <Loader2 className="w-5 h-5 text-yellow-600 animate-spin flex-shrink-0 mt-0.5" />
-                    <div className="text-sm text-yellow-800">
-                      <p className="font-semibold mb-1">Aguardando pagamento...</p>
-                      <p>Estamos verificando automaticamente. Não feche esta página!</p>
+                    <Clock className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-purple-800">
+                      <p className="font-semibold mb-1">📋 Próximos Passos:</p>
+                      <p className="mb-1">1. Realize o pagamento do PIX acima</p>
+                      <p className="mb-1">2. Sua solicitação será enviada ao administrador</p>
+                      <p>3. Após aprovação, os dias serão creditados automaticamente</p>
                     </div>
                   </div>
                 </div>
@@ -634,21 +636,29 @@ export default function PagamentoPage() {
             </div>
 
             <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p className="text-sm text-blue-800 flex items-center space-x-2">
-                <CheckCircle className="w-4 h-4 flex-shrink-0" />
-                <span><strong>Seguro:</strong> Seus dados são processados de forma segura pelo Mercado Pago.</span>
-              </p>
+              <div className="space-y-2">
+                <p className="text-sm text-blue-800 flex items-center space-x-2">
+                  <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                  <span><strong>Seguro:</strong> Seus dados são processados de forma segura pelo Mercado Pago.</span>
+                </p>
+                <p className="text-sm text-blue-800">
+                  <strong>Aprovação:</strong> Após o pagamento, sua solicitação será enviada ao administrador. Os dias serão creditados após a confirmação.
+                </p>
+              </div>
             </div>
           </div>
         )}
 
         {/* Aviso Importante */}
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
           <div className="flex items-start space-x-2">
-            <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-yellow-800">
-              <p className="font-semibold mb-1">Importante:</p>
-              <p>Sua conta será ativada automaticamente após a confirmação do pagamento. Isso pode levar alguns minutos.</p>
+            <AlertCircle className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-purple-800">
+              <p className="font-semibold mb-1">Fluxo de Aprovação:</p>
+              <p className="mb-2">1️⃣ Você realiza o pagamento (PIX ou Cartão)</p>
+              <p className="mb-2">2️⃣ Sua solicitação é enviada para o administrador</p>
+              <p className="mb-2">3️⃣ O admin aprova e os dias são creditados automaticamente</p>
+              <p>4️⃣ Você recebe notificação e pode usar o sistema normalmente</p>
             </div>
           </div>
         </div>

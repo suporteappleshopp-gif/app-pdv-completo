@@ -204,14 +204,63 @@ export default function AdministradorPage() {
   };
 
   const handleAprovarSolicitacao = async (solicitacao: Pagamento) => {
-    if (!confirm(`Aprovar solicitação de ${solicitacao.diasComprados} dias por R$ ${solicitacao.valor.toFixed(2)}?`)) {
-      return;
-    }
+    const usuario = usuarios.find(u => u.id === solicitacao.usuarioId);
+    const nomeUsuario = usuario?.nome || usuario?.email || "Usuário";
+
+    const confirmacao = confirm(
+      `📋 APROVAR SOLICITAÇÃO\n\n` +
+      `👤 Usuário: ${nomeUsuario}\n` +
+      `💰 Valor: R$ ${solicitacao.valor.toFixed(2)}\n` +
+      `📅 Dias: ${solicitacao.diasComprados} dias\n` +
+      `💳 Forma: ${solicitacao.formaPagamento === "pix" ? "PIX" : "Cartão"}\n\n` +
+      `✅ Confirma a aprovação?\n` +
+      `Os dias serão creditados automaticamente.`
+    );
+
+    if (!confirmacao) return;
 
     try {
       const { supabase } = await import("@/lib/supabase");
 
-      // 1. Atualizar status do pagamento para "pago"
+      console.log("🔄 Aprovando solicitação...");
+
+      // 1. Buscar dados atuais do operador
+      const { data: operador, error: operadorBuscaError } = await supabase
+        .from("operadores")
+        .select("*")
+        .eq("id", solicitacao.usuarioId)
+        .single();
+
+      if (operadorBuscaError || !operador) {
+        throw new Error("Usuário não encontrado");
+      }
+
+      // 2. Calcular nova data de vencimento
+      const dataAtual = new Date();
+      let novaDataVencimento: Date;
+
+      if (operador.data_proximo_vencimento) {
+        const vencimentoAtual = new Date(operador.data_proximo_vencimento);
+
+        if (vencimentoAtual > dataAtual) {
+          // Assinatura ativa: SOMAR dias
+          novaDataVencimento = new Date(vencimentoAtual);
+          novaDataVencimento.setDate(novaDataVencimento.getDate() + solicitacao.diasComprados);
+          console.log(`✅ Somando ${solicitacao.diasComprados} dias ao vencimento atual`);
+        } else {
+          // Assinatura expirada: começar de hoje
+          novaDataVencimento = new Date(dataAtual);
+          novaDataVencimento.setDate(novaDataVencimento.getDate() + solicitacao.diasComprados);
+          console.log(`⚠️ Assinatura expirada. Iniciando ${solicitacao.diasComprados} dias de hoje`);
+        }
+      } else {
+        // Primeira compra
+        novaDataVencimento = new Date(dataAtual);
+        novaDataVencimento.setDate(novaDataVencimento.getDate() + solicitacao.diasComprados);
+        console.log(`🆕 Primeira compra. Iniciando ${solicitacao.diasComprados} dias`);
+      }
+
+      // 3. Atualizar status do pagamento para "pago"
       const { error: updateError } = await supabase
         .from("historico_pagamentos")
         .update({
@@ -219,53 +268,62 @@ export default function AdministradorPage() {
           data_pagamento: new Date().toISOString(),
           aprovado_por: "Administrador",
           data_aprovacao: new Date().toISOString(),
+          mes_referencia: `Renovação ${solicitacao.diasComprados} dias - ${solicitacao.formaPagamento.toUpperCase()}`,
         })
         .eq("id", solicitacao.id);
 
       if (updateError) throw updateError;
 
-      // 2. Buscar todos os pagamentos pagos do usuário para recalcular dias
-      const { data: pagamentosPagos } = await supabase
-        .from("historico_pagamentos")
-        .select("*")
-        .eq("usuario_id", solicitacao.usuarioId)
-        .eq("status", "pago")
-        .order("data_pagamento", { ascending: true });
+      // 4. Atualizar operador no Supabase
+      const { error: operadorError } = await supabase
+        .from("operadores")
+        .update({
+          data_proximo_vencimento: novaDataVencimento.toISOString(),
+          ativo: true,
+          suspenso: false,
+          aguardando_pagamento: false,
+          forma_pagamento: solicitacao.formaPagamento,
+          data_pagamento: new Date().toISOString(),
+          dias_assinatura: solicitacao.diasComprados,
+          valor_mensal: solicitacao.valor,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", solicitacao.usuarioId);
 
-      if (pagamentosPagos && pagamentosPagos.length > 0) {
-        // Calcular total de dias comprados
-        const totalDiasComprados = pagamentosPagos.reduce((total, pag) => {
-          return total + (pag.dias_comprados || 0);
-        }, 0);
+      if (operadorError) throw operadorError;
 
-        // Pegar a data do primeiro pagamento
-        const primeiroPagamento = new Date(pagamentosPagos[0].data_pagamento);
+      // 5. Registrar ganho do admin
+      const ganhoId = `ganho_${solicitacao.id}_${Date.now()}`;
+      await supabase
+        .from("ganhos_admin")
+        .insert({
+          id: ganhoId,
+          tipo: "mensalidade-paga",
+          usuario_id: operador.id,
+          usuario_nome: operador.nome,
+          valor: solicitacao.valor,
+          forma_pagamento: solicitacao.formaPagamento,
+          descricao: `Pagamento aprovado: ${solicitacao.diasComprados} dias via ${solicitacao.formaPagamento.toUpperCase()}`,
+          created_at: new Date().toISOString(),
+        });
 
-        // Calcular data de vencimento
-        const dataVencimento = new Date(primeiroPagamento);
-        dataVencimento.setDate(dataVencimento.getDate() + totalDiasComprados);
+      alert(
+        `✅ SOLICITAÇÃO APROVADA COM SUCESSO!\n\n` +
+        `👤 Usuário: ${nomeUsuario}\n` +
+        `📅 Dias creditados: ${solicitacao.diasComprados}\n` +
+        `💰 Valor: R$ ${solicitacao.valor.toFixed(2)}\n` +
+        `📆 Novo vencimento: ${novaDataVencimento.toLocaleDateString("pt-BR")}\n\n` +
+        `A conta do usuário foi ativada!`
+      );
 
-        // 3. Atualizar operador no Supabase
-        const { error: operadorError } = await supabase
-          .from("operadores")
-          .update({
-            data_proximo_vencimento: dataVencimento.toISOString(),
-            ativo: true,
-            suspenso: false,
-          })
-          .eq("id", solicitacao.usuarioId);
-
-        if (operadorError) throw operadorError;
-      }
-
-      alert(`✅ Solicitação aprovada com sucesso!\n\n${solicitacao.diasComprados} dias foram creditados na conta do usuário.`);
+      console.log("✅ Solicitação aprovada com sucesso!");
 
       // Recarregar listas
       await carregarSolicitacoesPendentes();
       await carregarUsuarios();
     } catch (error) {
       console.error("Erro ao aprovar solicitação:", error);
-      alert("Erro ao aprovar solicitação. Tente novamente.");
+      alert("❌ Erro ao aprovar solicitação. Tente novamente.\n\nDetalhes: " + (error as Error).message);
     }
   };
 
@@ -395,7 +453,19 @@ export default function AdministradorPage() {
         </div>
 
         {/* Cards de Status */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {/* Solicitações Pendentes - DESTAQUE */}
+          <div className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl shadow-lg p-6 text-white border-4 border-purple-300 transform hover:scale-105 transition-all">
+            <div className="flex items-center justify-between mb-4">
+              <div className="bg-white/20 p-3 rounded-xl">
+                <Clock className="w-8 h-8 text-white" />
+              </div>
+              <span className="text-4xl font-bold animate-pulse">{solicitacoesPendentes.length}</span>
+            </div>
+            <h3 className="text-xl font-bold">Solicitações Pendentes</h3>
+            <p className="text-sm text-purple-100">Aguardando aprovação</p>
+          </div>
+
           {/* Usuários Ativos */}
           <div className="bg-white rounded-2xl shadow-lg p-6 border-l-4 border-green-500">
             <div className="flex items-center justify-between mb-4">
@@ -576,78 +646,86 @@ export default function AdministradorPage() {
                 return (
                   <div
                     key={solicitacao.id}
-                    className="bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-200 rounded-xl p-5 hover:shadow-lg transition-all"
+                    className="bg-white border-4 border-purple-300 rounded-2xl p-6 hover:shadow-2xl transition-all transform hover:scale-[1.02]"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <div className="flex items-center space-x-3 mb-3">
-                          <div className="bg-purple-500 text-white p-2 rounded-lg">
-                            <Clock className="w-5 h-5" />
+                        {/* Header da Solicitação */}
+                        <div className="flex items-center space-x-4 mb-4 pb-4 border-b-2 border-purple-100">
+                          <div className="bg-gradient-to-br from-purple-500 to-indigo-600 text-white p-3 rounded-xl shadow-lg">
+                            <Clock className="w-7 h-7" />
                           </div>
-                          <div>
-                            <h3 className="text-lg font-bold text-gray-800">{nomeUsuario}</h3>
-                            <p className="text-sm text-gray-600">{solicitacao.mesReferencia}</p>
+                          <div className="flex-1">
+                            <h3 className="text-2xl font-bold text-gray-900">{nomeUsuario}</h3>
+                            <p className="text-sm text-purple-600 font-semibold mt-1">{solicitacao.mesReferencia}</p>
+                          </div>
+                          <div className="bg-yellow-100 border-2 border-yellow-300 rounded-lg px-4 py-2">
+                            <p className="text-xs font-bold text-yellow-800">AGUARDANDO</p>
+                            <p className="text-xs text-yellow-700">APROVAÇÃO</p>
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
-                          <div className="bg-white rounded-lg p-3 border border-purple-200">
-                            <p className="text-xs text-gray-600 mb-1">Valor</p>
-                            <p className="text-lg font-bold text-green-600">
+                        {/* Grid de Informações */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                          <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 border-2 border-green-200">
+                            <p className="text-xs text-green-700 font-semibold mb-1">💰 Valor</p>
+                            <p className="text-2xl font-black text-green-600">
                               R$ {solicitacao.valor.toFixed(2)}
                             </p>
                           </div>
 
-                          <div className="bg-white rounded-lg p-3 border border-purple-200">
-                            <p className="text-xs text-gray-600 mb-1">Dias Solicitados</p>
-                            <p className="text-lg font-bold text-blue-600">
+                          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border-2 border-blue-200">
+                            <p className="text-xs text-blue-700 font-semibold mb-1">📅 Dias</p>
+                            <p className="text-2xl font-black text-blue-600">
                               {solicitacao.diasComprados} dias
                             </p>
                           </div>
 
-                          <div className="bg-white rounded-lg p-3 border border-purple-200">
-                            <p className="text-xs text-gray-600 mb-1">Forma de Pagamento</p>
-                            <p className="text-sm font-semibold text-gray-800">
+                          <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-4 border-2 border-purple-200">
+                            <p className="text-xs text-purple-700 font-semibold mb-1">💳 Pagamento</p>
+                            <p className="text-lg font-bold text-purple-700">
                               {solicitacao.formaPagamento === "pix" ? "PIX" : "Cartão"}
                             </p>
                           </div>
 
-                          <div className="bg-white rounded-lg p-3 border border-purple-200">
-                            <p className="text-xs text-gray-600 mb-1">Tipo</p>
-                            <p className="text-xs font-semibold text-gray-800">
-                              {solicitacao.tipoCompra === "renovacao-60" && "60 dias"}
-                              {solicitacao.tipoCompra === "renovacao-180" && "Semestral"}
-                              {solicitacao.tipoCompra === "renovacao-365" && "Anual"}
-                              {solicitacao.tipoCompra === "personalizado" && "Personalizado"}
+                          <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl p-4 border-2 border-orange-200">
+                            <p className="text-xs text-orange-700 font-semibold mb-1">📦 Tipo</p>
+                            <p className="text-sm font-bold text-orange-700">
+                              {solicitacao.tipoCompra === "renovacao-60" && "Plano 60 dias"}
+                              {solicitacao.tipoCompra === "renovacao-180" && "Plano Semestral"}
+                              {solicitacao.tipoCompra === "renovacao-365" && "Plano Anual"}
+                              {!solicitacao.tipoCompra?.startsWith("renovacao") && "Personalizado"}
                             </p>
                           </div>
                         </div>
 
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3">
-                          <p className="text-xs text-yellow-700">
-                            <strong>Solicitação criada em:</strong>{" "}
-                            {new Date(solicitacao.dataVencimento || Date.now()).toLocaleString("pt-BR")}
+                        {/* Data da Solicitação */}
+                        <div className="bg-gradient-to-r from-yellow-50 to-amber-50 border-2 border-yellow-300 rounded-xl p-3">
+                          <p className="text-sm text-yellow-900">
+                            <strong>🕐 Solicitação criada em:</strong>{" "}
+                            <span className="font-bold">{new Date(solicitacao.dataVencimento || Date.now()).toLocaleString("pt-BR")}</span>
                           </p>
                         </div>
                       </div>
 
-                      <div className="flex flex-col space-y-2 ml-4">
+                      {/* Botões de Ação */}
+                      <div className="flex flex-col space-y-3 ml-6">
                         <button
                           onClick={() => handleAprovarSolicitacao(solicitacao)}
-                          className="flex items-center space-x-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors shadow-md hover:shadow-lg"
+                          className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl transition-all shadow-lg hover:shadow-2xl transform hover:scale-105 font-bold"
                           title="Aprovar e creditar dias"
                         >
-                          <Check className="w-5 h-5" />
-                          <span className="font-semibold">Aprovar</span>
+                          <Check className="w-6 h-6" />
+                          <span>Aprovar</span>
                         </button>
 
                         <button
                           onClick={() => handleRecusarSolicitacao(solicitacao)}
-                          className="flex items-center space-x-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors shadow-md hover:shadow-lg"
+                          className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white rounded-xl transition-all shadow-lg hover:shadow-2xl transform hover:scale-105 font-bold"
                           title="Recusar solicitação"
                         >
-                          <XIcon className="w-5 h-5" />
-                          <span className="font-semibold">Recusar</span>
+                          <XIcon className="w-6 h-6" />
+                          <span>Recusar</span>
                         </button>
                       </div>
                     </div>
