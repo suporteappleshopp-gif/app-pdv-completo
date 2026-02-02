@@ -60,6 +60,30 @@ export async function POST(request: NextRequest) {
 
     console.log("✅ Operador encontrado:", operador.nome, "-", operador.email);
 
+    // VERIFICAR SE JÁ EXISTE UM PAGAMENTO PENDENTE RECENTE (últimos 4 minutos)
+    const quatroMinutosAtras = new Date();
+    quatroMinutosAtras.setMinutes(quatroMinutosAtras.getMinutes() - 4);
+
+    const { data: pagamentoRecente, error: checkError } = await supabase
+      .from("historico_pagamentos")
+      .select("*")
+      .eq("usuario_id", usuario_id)
+      .eq("status", "pendente")
+      .eq("forma_pagamento", forma_pagamento)
+      .gte("created_at", quatroMinutosAtras.toISOString())
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (pagamentoRecente) {
+      console.log("⚠️ Já existe pagamento pendente recente");
+      // Se já existe um pagamento pendente recente, não criar duplicado
+      return NextResponse.json(
+        { error: "Já existe um pagamento pendente. Aguarde alguns minutos antes de tentar novamente.", success: false },
+        { status: 400 }
+      );
+    }
+
     // Definir valores e dias
     const planos = {
       pix: { valor: 59.9, dias: 60, titulo: "PDV Completo - PIX (60 dias)" },

@@ -45,9 +45,12 @@ export default function PagamentoPage() {
         const paymentData = JSON.parse(pendingPayment);
         const tempoDecorrido = Date.now() - new Date(paymentData.timestamp).getTime();
 
-        // Verificar por até 10 minutos
-        if (tempoDecorrido > 10 * 60 * 1000) {
+        // Limpar pagamento pendente após 4 minutos (240.000ms)
+        if (tempoDecorrido > 4 * 60 * 1000) {
           localStorage.removeItem("pending_payment");
+          setPixExibido(false);
+          setPixQrCode("");
+          setPixCopiaCola("");
           return;
         }
 

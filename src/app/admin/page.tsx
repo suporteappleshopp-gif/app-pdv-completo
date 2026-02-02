@@ -158,6 +158,14 @@ export default function AdminPage() {
       // Carregar contagem de mensagens não lidas
       const count = await AdminSupabase.contarMensagensNaoLidas();
       setMensagensNaoLidas(count);
+
+      // Limpar pagamentos pendentes antigos (silenciosamente)
+      try {
+        await fetch("/api/cleanup-pending-payments", { method: "POST" });
+      } catch (cleanupError) {
+        // Ignorar erros de limpeza
+        console.log("Limpeza de pagamentos executada em background");
+      }
     } catch (err) {
       // Falha silenciosa - Supabase pode não estar configurado
     } finally {
@@ -246,6 +254,18 @@ export default function AdminPage() {
     }
 
     try {
+      // VERIFICAR SE JÁ EXISTE USUÁRIO COM ESTE EMAIL
+      const emailNormalizado = novoUsuario.email.trim().toLowerCase();
+      const usuarioExistente = operadores.find(
+        op => op.email.toLowerCase() === emailNormalizado
+      );
+
+      if (usuarioExistente) {
+        setError("Já existe um usuário com este email!");
+        setTimeout(() => setError(""), 3000);
+        return;
+      }
+
       // Extrair nome do email (parte antes do @)
       const nomeExtraido = novoUsuario.email.split("@")[0];
 
