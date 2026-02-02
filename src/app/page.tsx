@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AuthSupabase } from "@/lib/auth-supabase";
 import { db } from "@/lib/db";
 import { Operador } from "@/lib/types";
-import { LogIn, Loader2, User, Lock, Shield, UserPlus, CreditCard, Copy, CheckCircle, AlertCircle, ExternalLink, Calendar, MessageCircle } from "lucide-react";
+import { LogIn, Loader2, User, Lock, Shield, UserPlus, CreditCard, CheckCircle, ExternalLink, Calendar, MessageCircle } from "lucide-react";
 import { addDays, differenceInDays } from "date-fns";
 
 type ModoAcesso = "usuario" | "admin" | "cadastro";
@@ -19,7 +19,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [dbReady, setDbReady] = useState(false);
-  
+
   // Estados do cadastro
   const [novoCadastro, setNovoCadastro] = useState({
     email: "",
@@ -34,9 +34,9 @@ export default function LoginPage() {
   const ADMIN_PASSWORD = "Sedexdez@1";
   const WHATSAPP_CONTATO = process.env.NEXT_PUBLIC_WHATSAPP_CONTATO || "5565981032239";
 
-  // Estados para link de pagamento
-  const [usuarioCadastradoId, setUsuarioCadastradoId] = useState("");
-  const [gerandoPagamento, setGerandoPagamento] = useState(false);
+  // Links diretos de pagamento
+  const LINK_PIX = "https://mpago.la/2FaXoGm";
+  const LINK_CARTAO = "https://mpago.la/1fAKQyc";
 
   useEffect(() => {
     const initDB = async () => {
@@ -382,8 +382,6 @@ export default function LoginPage() {
         },
       });
 
-      let usuarioIdCriado = "";
-
       // Se deu erro de rate limit ou qualquer outro erro, criar direto no banco
       if (authError || !authData.user) {
         console.log("⚠️ Criando usuário diretamente no banco (bypass Auth)");
@@ -412,7 +410,6 @@ export default function LoginPage() {
           return;
         }
 
-        usuarioIdCriado = novoOperador.id;
         console.log("✅ Usuário criado direto no banco:", novoOperador.id);
       } else {
         // Auth funcionou, aguardar trigger ou criar operador
@@ -443,8 +440,6 @@ export default function LoginPage() {
             })
             .select()
             .single();
-
-          usuarioIdCriado = novoOperador?.id || novoId;
         } else {
           // Atualizar operador existente
           await supabase
@@ -455,15 +450,10 @@ export default function LoginPage() {
               aguardando_pagamento: true,
             })
             .eq("auth_user_id", authData.user.id);
-
-          usuarioIdCriado = operadorExistente.id;
         }
 
         console.log("✅ Usuário criado via Auth:", authData.user.id);
       }
-
-      // Salvar ID do usuário para usar no link de pagamento
-      setUsuarioCadastradoId(usuarioIdCriado);
 
       // Mostrar tela de pagamento
       setMostrarPagamento(true);
@@ -486,39 +476,9 @@ export default function LoginPage() {
     window.open(`https://wa.me/${WHATSAPP_CONTATO}`, "_blank");
   };
 
-  const abrirPagamento = async () => {
-    if (!usuarioCadastradoId) {
-      setError("Erro: ID do usuário não encontrado. Tente fazer login novamente.");
-      return;
-    }
-
-    setGerandoPagamento(true);
-
-    try {
-      // Chamar API para gerar link de pagamento personalizado
-      const response = await fetch("/api/create-payment-preference", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          usuario_id: usuarioCadastradoId,
-          forma_pagamento: novoCadastro.formaPagamento,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "Erro ao gerar link de pagamento");
-      }
-
-      // Abrir link de pagamento do Mercado Pago
-      window.open(data.init_point, "_blank");
-    } catch (error: any) {
-      console.error("Erro ao gerar link:", error);
-      setError("Erro ao gerar link de pagamento. Entre em contato pelo WhatsApp.");
-    } finally {
-      setGerandoPagamento(false);
-    }
+  const abrirPagamento = () => {
+    const link = novoCadastro.formaPagamento === "pix" ? LINK_PIX : LINK_CARTAO;
+    window.open(link, "_blank");
   };
 
   if (!dbReady) {
@@ -535,9 +495,9 @@ export default function LoginPage() {
   // Tela de Pagamento
   if (mostrarPagamento && cadastroSucesso) {
     const isPix = novoCadastro.formaPagamento === "pix";
-    const valor = isPix ? "59,90" : "149,70";
-    const dias = isPix ? 60 : 180;
-    const periodo = isPix ? "60 dias" : "180 dias";
+    const valor = isPix ? "59,90" : "49,90";
+    const dias = isPix ? 60 : 30;
+    const periodo = isPix ? "60 dias" : "30 dias";
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -562,7 +522,7 @@ export default function LoginPage() {
               </div>
               <span className="text-2xl font-bold text-blue-600">R$ {valor}</span>
             </div>
-            
+
             <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
               <div className="flex items-center space-x-2">
                 <Calendar className="w-5 h-5 text-green-600" />
@@ -572,49 +532,28 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {!isPix && (
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-4">
-                <p className="text-sm font-semibold text-purple-800 text-center">
-                  💳 Parcele em até 3x sem juros
-                </p>
-              </div>
-            )}
-
             <p className="text-sm text-gray-600 mb-4">
               Clique no botão abaixo para ser redirecionado à página segura de pagamento.
             </p>
 
             <button
               onClick={abrirPagamento}
-              disabled={gerandoPagamento}
-              className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg font-semibold"
             >
-              {gerandoPagamento ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Gerando link...</span>
-                </>
-              ) : (
-                <>
-                  <CreditCard className="w-5 h-5" />
-                  <span>{isPix ? "Pagar com PIX" : "Pagar com Cartão de Crédito"}</span>
-                  <ExternalLink className="w-4 h-4" />
-                </>
-              )}
+              <CreditCard className="w-5 h-5" />
+              <span>{isPix ? "Pagar com PIX" : "Pagar com Cartão de Crédito"}</span>
+              <ExternalLink className="w-4 h-4" />
             </button>
           </div>
 
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-            <div className="flex items-start space-x-2">
-              <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-yellow-800">
-                <p className="font-semibold mb-1">Importante:</p>
-                <p>Sua conta será ativada automaticamente após a confirmação do pagamento. Isso pode levar alguns minutos.</p>
-              </div>
+            <div className="text-sm text-yellow-800">
+              <p className="font-semibold mb-1">Importante:</p>
+              <p>Após o pagamento, entre em contato pelo WhatsApp para ativar sua conta.</p>
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-3 mb-4">
             <div className="flex items-center space-x-2 text-sm text-gray-600">
               <CheckCircle className="w-4 h-4 text-green-500" />
               <span>Acesso de R$ {valor}</span>
@@ -622,16 +561,6 @@ export default function LoginPage() {
             <div className="flex items-center space-x-2 text-sm text-gray-600">
               <CheckCircle className="w-4 h-4 text-green-500" />
               <span>{dias} dias de acesso completo</span>
-            </div>
-            {!isPix && (
-              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                <CheckCircle className="w-4 h-4 text-green-500" />
-                <span>Parcelamento em até 3x sem juros</span>
-              </div>
-            )}
-            <div className="flex items-center space-x-2 text-sm text-gray-600">
-              <CheckCircle className="w-4 h-4 text-green-500" />
-              <span>Aviso de renovação 5 dias antes do vencimento</span>
             </div>
             <div className="flex items-center space-x-2 text-sm text-gray-600">
               <CheckCircle className="w-4 h-4 text-green-500" />
@@ -641,7 +570,7 @@ export default function LoginPage() {
 
           <button
             onClick={voltarParaLogin}
-            className="w-full mt-6 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all font-semibold"
+            className="w-full px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all font-semibold"
           >
             Voltar para Login
           </button>
@@ -760,8 +689,8 @@ export default function LoginPage() {
                     <div className="flex items-center space-x-3">
                       <CreditCard className="w-10 h-10 text-blue-600" />
                       <div className="text-left">
-                        <p className="font-semibold text-gray-800">Cartão - R$ 149,70</p>
-                        <p className="text-sm text-gray-600">180 dias | Até 3x sem juros</p>
+                        <p className="font-semibold text-gray-800">Cartão - R$ 49,90</p>
+                        <p className="text-sm text-gray-600">30 dias de acesso</p>
                       </div>
                     </div>
                     {novoCadastro.formaPagamento === "cartao" && (

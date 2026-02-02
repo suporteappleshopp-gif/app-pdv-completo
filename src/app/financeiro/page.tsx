@@ -93,13 +93,6 @@ export default function FinanceiroPage() {
     try {
       setLoading(true);
 
-      // 🧹 LIMPAR PAGAMENTOS PENDENTES ANTIGOS (mais de 4 minutos)
-      try {
-        await fetch("/api/clean-pending-payments", { method: "POST" });
-      } catch (err) {
-        console.warn("Aviso ao limpar pagamentos pendentes:", err);
-      }
-
       // Buscar operador do Supabase
       const { AuthSupabase } = await import("@/lib/auth-supabase");
       const operador = await AuthSupabase.getCurrentOperador();
