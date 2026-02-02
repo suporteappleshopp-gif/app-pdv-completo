@@ -1797,7 +1797,7 @@ export default function CaixaPage() {
       {!usuarioSemMensalidade && diasRestantes <= 10 && diasRestantes >= 0 && (
         <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-40">
           <button
-            onClick={() => router.push("/financeiro")}
+            onClick={() => router.push("/extrato-pagamentos")}
             className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-6 py-3 rounded-full font-semibold transition-all shadow-lg hover:shadow-xl flex items-center space-x-2 animate-pulse"
           >
             <CreditCard className="w-5 h-5" />

@@ -32,6 +32,7 @@ import {
 import { addDays, format, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/lib/supabase";
+import SolicitacoesRenovacao from "./solicitacoes-renovacao";
 
 type FiltroStatus = "todos" | "ativo" | "suspenso" | "inativo";
 
@@ -735,6 +736,11 @@ export default function AdminPage() {
             <h3 className="text-white text-xl font-bold mb-2">Usuários Inativos</h3>
             <p className="text-slate-200 text-sm">Contas suspensas ou desativadas</p>
           </div>
+        </div>
+
+        {/* Painel de Solicitações de Renovação */}
+        <div className="mb-8">
+          <SolicitacoesRenovacao />
         </div>
 
         {/* Seção de Gerenciamento de Usuários */}

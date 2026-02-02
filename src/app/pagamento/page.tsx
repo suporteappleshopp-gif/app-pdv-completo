@@ -94,6 +94,14 @@ export default function PagamentoPage() {
         {/* Botões de Ação */}
         <div className="space-y-3">
           <button
+            onClick={() => router.push("/extrato-pagamentos")}
+            className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
+          >
+            <CreditCard className="w-5 h-5" />
+            <span>Ver Extrato de Pagamentos</span>
+          </button>
+
+          <button
             onClick={abrirWhatsApp}
             className="w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
           >
