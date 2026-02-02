@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/db";
-import { Operador } from "@/lib/types";
+import { Operador, Pagamento } from "@/lib/types";
 import {
   Wallet,
   Store,
@@ -21,6 +21,9 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  FileText,
+  Check,
+  X as XIcon,
 } from "lucide-react";
 
 export default function AdministradorPage() {
@@ -35,6 +38,10 @@ export default function AdministradorPage() {
   const [emailUsuario, setEmailUsuario] = useState("");
   const [filtroStatus, setFiltroStatus] = useState<"todos" | "ativo" | "inativo" | "suspenso">("todos");
 
+  // Estados para solicitações de renovação
+  const [solicitacoesPendentes, setSolicitacoesPendentes] = useState<Pagamento[]>([]);
+  const [loadingSolicitacoes, setLoadingSolicitacoes] = useState(false);
+
   useEffect(() => {
     setMounted(true);
     const isAdmin = localStorage.getItem("isAdmin");
@@ -43,7 +50,59 @@ export default function AdministradorPage() {
       return;
     }
     carregarUsuarios();
+    carregarSolicitacoesPendentes();
+
+    // Atualizar solicitações em tempo real a cada 10 segundos
+    const interval = setInterval(() => {
+      carregarSolicitacoesPendentes();
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, [router]);
+
+  const carregarSolicitacoesPendentes = async () => {
+    try {
+      setLoadingSolicitacoes(true);
+      const { supabase } = await import("@/lib/supabase");
+
+      // Carregar solicitações pendentes
+      const { data: solicitacoes, error } = await supabase
+        .from("historico_pagamentos")
+        .select("*")
+        .eq("status", "pendente")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Erro ao carregar solicitações:", error);
+        return;
+      }
+
+      if (solicitacoes) {
+        const solicitacoesFormatadas: Pagamento[] = solicitacoes.map((sol: any) => ({
+          id: sol.id,
+          usuarioId: sol.usuario_id,
+          mesReferencia: sol.mes_referencia,
+          valor: parseFloat(sol.valor.toString()),
+          dataVencimento: sol.data_vencimento ? new Date(sol.data_vencimento) : undefined,
+          dataPagamento: sol.data_pagamento ? new Date(sol.data_pagamento) : null,
+          status: sol.status,
+          formaPagamento: sol.forma_pagamento,
+          diasComprados: sol.dias_comprados,
+          tipoCompra: sol.tipo_compra,
+          observacao_admin: sol.observacao_admin,
+          aprovado_por: sol.aprovado_por,
+          data_aprovacao: sol.data_aprovacao ? new Date(sol.data_aprovacao) : undefined,
+        }));
+
+        setSolicitacoesPendentes(solicitacoesFormatadas);
+        console.log(`✅ ${solicitacoesFormatadas.length} solicitações pendentes carregadas`);
+      }
+    } catch (error) {
+      console.error("Erro ao carregar solicitações:", error);
+    } finally {
+      setLoadingSolicitacoes(false);
+    }
+  };
 
   const carregarUsuarios = async () => {
     try {
@@ -132,6 +191,99 @@ export default function AdministradorPage() {
     } catch (error) {
       console.error("Erro ao alterar status:", error);
       alert("Erro ao alterar status do usuário");
+    }
+  };
+
+  const handleAprovarSolicitacao = async (solicitacao: Pagamento) => {
+    if (!confirm(`Aprovar solicitação de ${solicitacao.diasComprados} dias por R$ ${solicitacao.valor.toFixed(2)}?`)) {
+      return;
+    }
+
+    try {
+      const { supabase } = await import("@/lib/supabase");
+
+      // 1. Atualizar status do pagamento para "pago"
+      const { error: updateError } = await supabase
+        .from("historico_pagamentos")
+        .update({
+          status: "pago",
+          data_pagamento: new Date().toISOString(),
+          aprovado_por: "Administrador",
+          data_aprovacao: new Date().toISOString(),
+        })
+        .eq("id", solicitacao.id);
+
+      if (updateError) throw updateError;
+
+      // 2. Buscar todos os pagamentos pagos do usuário para recalcular dias
+      const { data: pagamentosPagos } = await supabase
+        .from("historico_pagamentos")
+        .select("*")
+        .eq("usuario_id", solicitacao.usuarioId)
+        .eq("status", "pago")
+        .order("data_pagamento", { ascending: true });
+
+      if (pagamentosPagos && pagamentosPagos.length > 0) {
+        // Calcular total de dias comprados
+        const totalDiasComprados = pagamentosPagos.reduce((total, pag) => {
+          return total + (pag.dias_comprados || 0);
+        }, 0);
+
+        // Pegar a data do primeiro pagamento
+        const primeiroPagamento = new Date(pagamentosPagos[0].data_pagamento);
+
+        // Calcular data de vencimento
+        const dataVencimento = new Date(primeiroPagamento);
+        dataVencimento.setDate(dataVencimento.getDate() + totalDiasComprados);
+
+        // 3. Atualizar operador no Supabase
+        const { error: operadorError } = await supabase
+          .from("operadores")
+          .update({
+            data_proximo_vencimento: dataVencimento.toISOString(),
+            ativo: true,
+            suspenso: false,
+          })
+          .eq("id", solicitacao.usuarioId);
+
+        if (operadorError) throw operadorError;
+      }
+
+      alert(`✅ Solicitação aprovada com sucesso!\n\n${solicitacao.diasComprados} dias foram creditados na conta do usuário.`);
+
+      // Recarregar listas
+      await carregarSolicitacoesPendentes();
+      await carregarUsuarios();
+    } catch (error) {
+      console.error("Erro ao aprovar solicitação:", error);
+      alert("Erro ao aprovar solicitação. Tente novamente.");
+    }
+  };
+
+  const handleRecusarSolicitacao = async (solicitacao: Pagamento) => {
+    const motivo = prompt("Motivo da recusa (opcional):");
+
+    try {
+      const { supabase } = await import("@/lib/supabase");
+
+      // Atualizar status do pagamento para "cancelado"
+      const { error } = await supabase
+        .from("historico_pagamentos")
+        .update({
+          status: "cancelado",
+          observacao_admin: motivo || "Solicitação recusada pelo administrador",
+          aprovado_por: "Administrador",
+          data_aprovacao: new Date().toISOString(),
+        })
+        .eq("id", solicitacao.id);
+
+      if (error) throw error;
+
+      alert("Solicitação recusada com sucesso.");
+      await carregarSolicitacoesPendentes();
+    } catch (error) {
+      console.error("Erro ao recusar solicitação:", error);
+      alert("Erro ao recusar solicitação. Tente novamente.");
     }
   };
 
@@ -378,6 +530,132 @@ export default function AdministradorPage() {
               ))
             )}
           </div>
+        </div>
+
+        {/* Seção de Solicitações de Renovação */}
+        <div className="bg-white rounded-2xl shadow-lg p-6 mt-8">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-3">
+              <FileText className="w-6 h-6 text-purple-600" />
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">Solicitações de Renovação</h2>
+                <p className="text-sm text-gray-600">Aprovar ou recusar compras de dias</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              {loadingSolicitacoes && <Loader2 className="w-5 h-5 animate-spin text-purple-600" />}
+              <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-semibold">
+                {solicitacoesPendentes.length} {solicitacoesPendentes.length === 1 ? "pendente" : "pendentes"}
+              </span>
+            </div>
+          </div>
+
+          {/* Lista de Solicitações */}
+          <div className="space-y-4">
+            {solicitacoesPendentes.length === 0 ? (
+              <div className="text-center py-12 bg-gray-50 rounded-xl">
+                <CheckCircle className="w-16 h-16 mx-auto mb-3 text-gray-400" />
+                <p className="text-gray-600 font-semibold">Nenhuma solicitação pendente</p>
+                <p className="text-sm text-gray-500 mt-1">Todas as solicitações foram processadas</p>
+              </div>
+            ) : (
+              solicitacoesPendentes.map((solicitacao) => {
+                // Buscar nome do usuário
+                const usuario = usuarios.find(u => u.id === solicitacao.usuarioId);
+                const nomeUsuario = usuario?.nome || usuario?.email || "Usuário";
+
+                return (
+                  <div
+                    key={solicitacao.id}
+                    className="bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-200 rounded-xl p-5 hover:shadow-lg transition-all"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3 mb-3">
+                          <div className="bg-purple-500 text-white p-2 rounded-lg">
+                            <Clock className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-bold text-gray-800">{nomeUsuario}</h3>
+                            <p className="text-sm text-gray-600">{solicitacao.mesReferencia}</p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
+                          <div className="bg-white rounded-lg p-3 border border-purple-200">
+                            <p className="text-xs text-gray-600 mb-1">Valor</p>
+                            <p className="text-lg font-bold text-green-600">
+                              R$ {solicitacao.valor.toFixed(2)}
+                            </p>
+                          </div>
+
+                          <div className="bg-white rounded-lg p-3 border border-purple-200">
+                            <p className="text-xs text-gray-600 mb-1">Dias Solicitados</p>
+                            <p className="text-lg font-bold text-blue-600">
+                              {solicitacao.diasComprados} dias
+                            </p>
+                          </div>
+
+                          <div className="bg-white rounded-lg p-3 border border-purple-200">
+                            <p className="text-xs text-gray-600 mb-1">Forma de Pagamento</p>
+                            <p className="text-sm font-semibold text-gray-800">
+                              {solicitacao.formaPagamento === "pix" ? "PIX" : "Cartão"}
+                            </p>
+                          </div>
+
+                          <div className="bg-white rounded-lg p-3 border border-purple-200">
+                            <p className="text-xs text-gray-600 mb-1">Tipo</p>
+                            <p className="text-xs font-semibold text-gray-800">
+                              {solicitacao.tipoCompra === "renovacao-60" && "60 dias"}
+                              {solicitacao.tipoCompra === "renovacao-180" && "Semestral"}
+                              {solicitacao.tipoCompra === "renovacao-365" && "Anual"}
+                              {solicitacao.tipoCompra === "personalizado" && "Personalizado"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3">
+                          <p className="text-xs text-yellow-700">
+                            <strong>Solicitação criada em:</strong>{" "}
+                            {new Date(solicitacao.dataVencimento || Date.now()).toLocaleString("pt-BR")}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col space-y-2 ml-4">
+                        <button
+                          onClick={() => handleAprovarSolicitacao(solicitacao)}
+                          className="flex items-center space-x-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors shadow-md hover:shadow-lg"
+                          title="Aprovar e creditar dias"
+                        >
+                          <Check className="w-5 h-5" />
+                          <span className="font-semibold">Aprovar</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleRecusarSolicitacao(solicitacao)}
+                          className="flex items-center space-x-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors shadow-md hover:shadow-lg"
+                          title="Recusar solicitação"
+                        >
+                          <XIcon className="w-5 h-5" />
+                          <span className="font-semibold">Recusar</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Info sobre atualização em tempo real */}
+          {solicitacoesPendentes.length > 0 && (
+            <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-sm text-blue-700">
+                ✅ <strong>Atualização automática:</strong> Esta lista é atualizada automaticamente a cada 10 segundos para mostrar novas solicitações em tempo real.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

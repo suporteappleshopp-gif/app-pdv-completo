@@ -152,14 +152,14 @@ export default function FinanceiroPage() {
       }
 
       // 🔥 NOVO: Carregar pagamentos do Supabase e mesclar com IndexedDB
-      // ✅ FILTRAR: Mostrar apenas pagamentos PAGOS (não pendentes)
+      // ✅ MOSTRAR: Pagamentos PAGOS e PENDENTES (para acompanhar solicitações)
       const { supabase } = await import("@/lib/supabase");
       const { data: pagamentosSupabase } = await supabase
         .from("historico_pagamentos")
         .select("*")
         .eq("usuario_id", operador.id)
-        .eq("status", "pago") // ✅ APENAS PAGOS
-        .order("data_pagamento", { ascending: false });
+        .in("status", ["pago", "pendente"]) // ✅ PAGOS E PENDENTES
+        .order("created_at", { ascending: false });
 
       // Converter pagamentos do Supabase para o formato local
       const pagamentosSupabaseFormatados: Pagamento[] = (pagamentosSupabase || []).map((pag) => ({
@@ -168,11 +168,14 @@ export default function FinanceiroPage() {
         mesReferencia: pag.mes_referencia,
         valor: parseFloat(pag.valor.toString()),
         dataVencimento: pag.data_vencimento ? new Date(pag.data_vencimento) : new Date(),
-        dataPagamento: new Date(pag.data_pagamento),
+        dataPagamento: pag.data_pagamento ? new Date(pag.data_pagamento) : null,
         status: pag.status as "pendente" | "pago" | "vencido" | "cancelado",
         formaPagamento: pag.forma_pagamento as "pix" | "cartao",
         diasComprados: pag.dias_comprados,
         tipoCompra: pag.tipo_compra,
+        observacao_admin: pag.observacao_admin,
+        aprovado_por: pag.aprovado_por,
+        data_aprovacao: pag.data_aprovacao ? new Date(pag.data_aprovacao) : undefined,
       }));
 
       // Carregar pagamentos do IndexedDB
@@ -854,6 +857,27 @@ export default function FinanceiroPage() {
                                   {pagamento.tipoCompra === "renovacao-365" && "Renovação Anual"}
                                   {pagamento.tipoCompra === "personalizado" && "Compra Personalizada"}
                                 </span>
+                              </div>
+                            )}
+
+                            {/* Aviso de pagamento pendente */}
+                            {pagamento.status === "pendente" && (
+                              <div className="mt-3 bg-yellow-500/20 border border-yellow-500/30 rounded-lg p-3">
+                                <p className="text-yellow-300 text-sm font-semibold flex items-center space-x-2">
+                                  <Clock className="w-4 h-4" />
+                                  <span>Aguardando aprovação do administrador</span>
+                                </p>
+                                <p className="text-yellow-200 text-xs mt-1">
+                                  Os dias serão creditados automaticamente após a confirmação do pagamento
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Observação do admin (se houver) */}
+                            {pagamento.observacao_admin && (
+                              <div className="mt-3 bg-purple-500/20 border border-purple-500/30 rounded-lg p-3">
+                                <p className="text-purple-200 text-xs mb-1">Observação do Admin:</p>
+                                <p className="text-white text-sm">{pagamento.observacao_admin}</p>
                               </div>
                             )}
                           </div>

@@ -109,6 +109,10 @@ export interface Pagamento {
   formaPagamento: "pix" | "cartao";
   diasComprados: number; // Dias adicionados à conta (60, 100, 180, 365, etc)
   tipoCompra: "60-dias" | "180-dias" | "renovacao-60" | "renovacao-100" | "renovacao-180" | "renovacao-365" | "personalizado";
+  // Campos para aprovação do admin
+  observacao_admin?: string;
+  aprovado_por?: string;
+  data_aprovacao?: Date;
 }
 
 export interface CodigoRecuperacao {
