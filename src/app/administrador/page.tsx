@@ -65,6 +65,8 @@ export default function AdministradorPage() {
       setLoadingSolicitacoes(true);
       const { supabase } = await import("@/lib/supabase");
 
+      console.log("🔍 Buscando solicitações pendentes no Supabase...");
+
       // Carregar solicitações pendentes
       const { data: solicitacoes, error } = await supabase
         .from("historico_pagamentos")
@@ -73,9 +75,12 @@ export default function AdministradorPage() {
         .order("created_at", { ascending: false });
 
       if (error) {
-        console.error("Erro ao carregar solicitações:", error);
+        console.error("❌ Erro ao carregar solicitações:", error);
+        console.error("Detalhes do erro:", error.message, error.details, error.hint);
         return;
       }
+
+      console.log("📊 Dados retornados do Supabase:", solicitacoes);
 
       if (solicitacoes) {
         const solicitacoesFormatadas: Pagamento[] = solicitacoes.map((sol: any) => ({
@@ -545,6 +550,18 @@ export default function AdministradorPage() {
             </div>
             <div className="flex items-center space-x-2">
               {loadingSolicitacoes && <Loader2 className="w-5 h-5 animate-spin text-purple-600" />}
+              <button
+                onClick={async () => {
+                  const response = await fetch("/api/test-solicitacoes");
+                  const data = await response.json();
+                  console.log("🧪 Teste da API:", data);
+                  alert(`Pendentes: ${data.total_pendentes}\nTotal de registros: ${data.total_registros}\nVeja o console (F12) para detalhes`);
+                }}
+                className="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-xs font-semibold hover:bg-blue-200"
+                title="Testar API de solicitações"
+              >
+                🧪 Testar
+              </button>
               <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-semibold">
                 {solicitacoesPendentes.length} {solicitacoesPendentes.length === 1 ? "pendente" : "pendentes"}
               </span>
