@@ -96,6 +96,7 @@ export default function AdministradorPage() {
 
         setSolicitacoesPendentes(solicitacoesFormatadas);
         console.log(`✅ ${solicitacoesFormatadas.length} solicitações pendentes carregadas`);
+        console.log("📋 Solicitações:", solicitacoesFormatadas);
       }
     } catch (error) {
       console.error("Erro ao carregar solicitações:", error);
