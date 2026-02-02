@@ -534,7 +534,7 @@ export default function AdministradorPage() {
         </div>
 
         {/* Seção de Solicitações de Renovação */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mt-8">
+        <div className="bg-white rounded-2xl shadow-lg p-6 mt-8" style={{ minHeight: "200px" }}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center space-x-3">
               <FileText className="w-6 h-6 text-purple-600" />
