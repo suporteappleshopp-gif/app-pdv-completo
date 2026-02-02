@@ -170,7 +170,52 @@ export default function PagamentoPage() {
     }
   };
 
-  const abrirPagamentoPix = () => gerarLinkPagamento("pix");
+  const processarPagamentoPix = async () => {
+    if (!operadorId) {
+      alert("Erro: Usuário não identificado.");
+      return;
+    }
+
+    setCarregandoPagamento(true);
+
+    try {
+      // Criar preferência de pagamento PIX
+      const response = await fetch("/api/create-payment-preference", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          usuario_id: operadorId,
+          forma_pagamento: "pix",
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Erro ao gerar PIX");
+      }
+
+      // Salvar informações do pagamento para verificação posterior
+      localStorage.setItem("pending_payment", JSON.stringify({
+        preference_id: data.preference_id,
+        usuario_id: operadorId,
+        forma_pagamento: "pix",
+        timestamp: new Date().toISOString(),
+      }));
+
+      // Aqui o PIX ficaria transparente no app
+      // Por enquanto ainda redireciona, mas os dados já estão prontos para checkout transparente
+      window.open(data.init_point, "_blank");
+      setLinkPagamento(data.init_point);
+
+      alert("Link de pagamento gerado com sucesso! Uma nova aba foi aberta.\n\nNão feche esta página! Aguarde a confirmação do pagamento.");
+    } catch (error: any) {
+      console.error("❌ Erro ao gerar PIX:", error);
+      alert(`Erro ao gerar PIX.\n\n${error.message}\n\nTente novamente ou entre em contato pelo WhatsApp.`);
+    } finally {
+      setCarregandoPagamento(false);
+    }
+  };
 
   const processarPagamentoCartao = async () => {
     if (!operadorId) {
@@ -344,7 +389,7 @@ export default function PagamentoPage() {
             </p>
 
             <button
-              onClick={abrirPagamentoPix}
+              onClick={processarPagamentoPix}
               disabled={carregandoPagamento}
               className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
