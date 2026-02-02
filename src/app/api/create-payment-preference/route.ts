@@ -27,11 +27,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Criar cliente Supabase no servidor (API routes precisam das variáveis sem NEXT_PUBLIC_)
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-    console.log("🔑 Supabase URL:", supabaseUrl ? 'configurado' : 'NÃO CONFIGURADO');
-    console.log("🔑 Supabase Key:", supabaseKey ? 'configurado' : 'NÃO CONFIGURADO');
+    console.log("🔑 Supabase URL:", supabaseUrl ? supabaseUrl : 'NÃO CONFIGURADO');
+    console.log("🔑 Supabase Key:", supabaseKey ? '***configurado***' : 'NÃO CONFIGURADO');
 
     if (!supabaseUrl || !supabaseKey) {
       console.error("❌ Supabase não configurado no servidor");
@@ -128,10 +128,19 @@ export async function POST(request: NextRequest) {
       });
 
     if (historicoError) {
-      console.error("⚠️ Erro ao criar histórico pendente:", historicoError);
-      // Não bloquear o processo por isso
+      console.error("❌ ERRO CRÍTICO ao criar histórico pendente:", historicoError);
+      console.error("Detalhes:", JSON.stringify(historicoError, null, 2));
+      return NextResponse.json(
+        {
+          error: "Erro ao criar registro de pagamento no banco de dados",
+          success: false,
+          details: historicoError.message,
+          hint: historicoError.hint
+        },
+        { status: 500 }
+      );
     } else {
-      console.log("✅ Registro pendente criado:", pagamentoId);
+      console.log("✅ Registro pendente criado com sucesso:", pagamentoId);
     }
 
     // Criar preferência de pagamento no Mercado Pago
