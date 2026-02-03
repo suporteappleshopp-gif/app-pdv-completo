@@ -63,16 +63,22 @@ export default function ExtratoPagamentosPage() {
         return;
       }
 
-      // Ordenar para colocar pendentes primeiro, depois por data
+      // ✅ SEMPRE MANTER PENDENTES NO TOPO (até aprovação/recusa do admin)
       const ordenadas = (data || []).sort((a, b) => {
+        // Pendentes sempre primeiro
         if (a.status === "pendente" && b.status !== "pendente") return -1;
         if (a.status !== "pendente" && b.status === "pendente") return 1;
+        // Dentro de cada categoria, ordenar por data (mais recente primeiro)
         return new Date(b.data_solicitacao).getTime() - new Date(a.data_solicitacao).getTime();
       });
 
       setSolicitacoes(ordenadas);
+      console.log(`✅ ${ordenadas.length} solicitações carregadas`);
+      console.log(`   - ${ordenadas.filter(s => s.status === "pendente").length} PENDENTES (sempre visíveis no topo)`);
+      console.log(`   - ${ordenadas.filter(s => s.status === "aprovado").length} aprovadas`);
+      console.log(`   - ${ordenadas.filter(s => s.status === "recusado").length} recusadas`);
 
-      // Configurar atualização em tempo real
+      // ✅ Configurar atualização em tempo real (recarregar automaticamente quando admin aprovar/recusar)
       const channel = supabase
         .channel("solicitacoes_renovacao_changes")
         .on(
@@ -84,7 +90,7 @@ export default function ExtratoPagamentosPage() {
             filter: `operador_id=eq.${opId}`,
           },
           (payload) => {
-            console.log("Atualização em tempo real:", payload);
+            console.log("🔄 Atualização em tempo real detectada:", payload);
             carregarSolicitacoes(opId);
           }
         )

@@ -144,15 +144,23 @@ export default function FinanceiroPage() {
         }
       }
 
-      // 🔥 NOVO: Carregar pagamentos do Supabase e mesclar com IndexedDB
-      // ✅ MOSTRAR: Pagamentos PAGOS e PENDENTES (para acompanhar solicitações)
+      // 🔥 CARREGAR PAGAMENTOS DO SUPABASE + SOLICITAÇÕES DE RENOVAÇÃO
       const { supabase } = await import("@/lib/supabase");
+
+      // Carregar histórico de pagamentos (pagos e pendentes)
       const { data: pagamentosSupabase } = await supabase
         .from("historico_pagamentos")
         .select("*")
         .eq("usuario_id", operador.id)
-        .in("status", ["pago", "pendente"]) // ✅ PAGOS E PENDENTES
+        .in("status", ["pago", "pendente"])
         .order("created_at", { ascending: false });
+
+      // ✅ CARREGAR SOLICITAÇÕES DE RENOVAÇÃO (para mostrar no extrato)
+      const { data: solicitacoesRenovacao } = await supabase
+        .from("solicitacoes_renovacao")
+        .select("*")
+        .eq("operador_id", operador.id)
+        .order("data_solicitacao", { ascending: false });
 
       // Converter pagamentos do Supabase para o formato local
       const pagamentosSupabaseFormatados: Pagamento[] = (pagamentosSupabase || []).map((pag) => ({
@@ -171,23 +179,52 @@ export default function FinanceiroPage() {
         data_aprovacao: pag.data_aprovacao ? new Date(pag.data_aprovacao) : undefined,
       }));
 
+      // ✅ CONVERTER SOLICITAÇÕES DE RENOVAÇÃO PARA FORMATO DE PAGAMENTO
+      const solicitacoesFormatadas: Pagamento[] = (solicitacoesRenovacao || []).map((sol) => ({
+        id: `sol_${sol.id}`,
+        usuarioId: sol.operador_id,
+        mesReferencia: `Solicitação de Renovação - ${sol.dias_solicitados} dias`,
+        valor: sol.valor,
+        dataVencimento: new Date(sol.data_solicitacao),
+        dataPagamento: sol.data_resposta ? new Date(sol.data_resposta) : null,
+        status: sol.status as "pendente" | "pago" | "vencido" | "cancelado",
+        formaPagamento: sol.forma_pagamento as "pix" | "cartao",
+        diasComprados: sol.dias_solicitados,
+        tipoCompra: "renovacao-solicitada",
+        observacao_admin: sol.mensagem_admin,
+      }));
+
       // Carregar pagamentos do IndexedDB
       const pagamentosIndexedDB = await db.getPagamentosByUsuario(operador.id);
 
-      // Mesclar: usar Set para evitar duplicatas (se um pagamento com mesmo ID existe nos dois)
+      // Mesclar: usar Set para evitar duplicatas
       const idsSupabase = new Set(pagamentosSupabaseFormatados.map((p) => p.id));
       const pagamentosUnicos = pagamentosIndexedDB.filter((p) => !idsSupabase.has(p.id));
-      const todosPagamentos = [...pagamentosSupabaseFormatados, ...pagamentosUnicos];
 
-      // Ordenar por data
+      // ✅ MESCLAR TUDO: Pagamentos do Supabase + IndexedDB + Solicitações de Renovação
+      const todosPagamentos = [
+        ...pagamentosSupabaseFormatados,
+        ...pagamentosUnicos,
+        ...solicitacoesFormatadas, // ✅ Incluir solicitações no extrato
+      ];
+
+      // ✅ ORDENAR: PENDENTES PRIMEIRO, depois por data (mais recente no topo)
       todosPagamentos.sort((a, b) => {
+        // Pendentes sempre no topo
+        if (a.status === "pendente" && b.status !== "pendente") return -1;
+        if (a.status !== "pendente" && b.status === "pendente") return 1;
+        // Dentro de cada categoria, ordenar por data
         const dataA = a.dataVencimento ? new Date(a.dataVencimento).getTime() : 0;
         const dataB = b.dataVencimento ? new Date(b.dataVencimento).getTime() : 0;
         return dataB - dataA;
       });
 
       setPagamentos(todosPagamentos);
-      console.log(`📊 Total de pagamentos carregados: ${todosPagamentos.length} (${pagamentosSupabaseFormatados.length} do Supabase + ${pagamentosUnicos.length} do IndexedDB)`);
+      console.log(`📊 Total de pagamentos carregados: ${todosPagamentos.length}`);
+      console.log(`   - ${pagamentosSupabaseFormatados.length} do histórico (Supabase)`);
+      console.log(`   - ${pagamentosUnicos.length} do IndexedDB`);
+      console.log(`   - ${solicitacoesFormatadas.length} solicitações de renovação`);
+      console.log(`   - ${todosPagamentos.filter(p => p.status === "pendente").length} pendentes no topo`);
 
       // Carregar meta salva (localStorage como cache)
       const metaSalva = localStorage.getItem(`meta_${operador.id}`);
@@ -723,6 +760,30 @@ export default function FinanceiroPage() {
           </div>
         </div>
 
+        {/* Banner de Solicitações Pendentes */}
+        {pagamentos.filter((p) => p.status === "pendente").length > 0 && (
+          <div className="bg-gradient-to-r from-yellow-500 via-yellow-600 to-orange-500 rounded-2xl shadow-2xl p-6 border-2 border-yellow-300">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="bg-white/20 backdrop-blur-sm p-4 rounded-full animate-pulse">
+                  <Clock className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-white text-2xl font-bold">Pagamentos Pendentes</h3>
+                  <p className="text-yellow-100 text-sm">
+                    Você tem {pagamentos.filter((p) => p.status === "pendente").length} solicitação(ões) aguardando aprovação do administrador
+                  </p>
+                </div>
+              </div>
+              <div className="bg-white/20 backdrop-blur-sm px-6 py-3 rounded-full">
+                <p className="text-white text-3xl font-bold">
+                  {pagamentos.filter((p) => p.status === "pendente").length}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Histórico de Pagamentos - Extrato */}
         <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
           <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-8 py-6">
@@ -848,6 +909,7 @@ export default function FinanceiroPage() {
                                   {pagamento.tipoCompra === "renovacao-100" && "Renovação 100 dias"}
                                   {pagamento.tipoCompra === "renovacao-180" && "Renovação Semestral"}
                                   {pagamento.tipoCompra === "renovacao-365" && "Renovação Anual"}
+                                  {pagamento.tipoCompra === "renovacao-solicitada" && "Solicitação de Renovação"}
                                   {pagamento.tipoCompra === "personalizado" && "Compra Personalizada"}
                                 </span>
                               </div>
