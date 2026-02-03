@@ -36,7 +36,7 @@ export default function LoginPage() {
 
   // Links diretos de pagamento
   const LINK_PIX = "https://mpago.la/2FaXoGm";
-  const LINK_CARTAO = "https://mpago.la/1fAKQyc";
+  const LINK_CARTAO = "https://mpago.li/12S6mJE"; // Link atualizado - R$ 149,70
 
   useEffect(() => {
     const initDB = async () => {
@@ -496,8 +496,8 @@ export default function LoginPage() {
   if (mostrarPagamento && cadastroSucesso) {
     const isPix = novoCadastro.formaPagamento === "pix";
     const valor = isPix ? "59,90" : "149,70";
-    const dias = isPix ? 60 : 100;
-    const periodo = isPix ? "60 dias" : "100 dias";
+    const dias = isPix ? 60 : 180;
+    const periodo = isPix ? "60 dias" : "180 dias";
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -690,7 +690,7 @@ export default function LoginPage() {
                       <CreditCard className="w-10 h-10 text-blue-600" />
                       <div className="text-left">
                         <p className="font-semibold text-gray-800">Cartão - R$ 149,70</p>
-                        <p className="text-sm text-gray-600">100 dias de acesso</p>
+                        <p className="text-sm text-gray-600">180 dias de acesso</p>
                       </div>
                     </div>
                     {novoCadastro.formaPagamento === "cartao" && (

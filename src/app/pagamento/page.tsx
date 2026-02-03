@@ -12,7 +12,7 @@ export default function PagamentoPage() {
 
   // Links diretos do Mercado Pago
   const LINK_PIX = "https://mpago.la/2FaXoGm";
-  const LINK_CARTAO = "https://mpago.la/1fAKQyc";
+  const LINK_CARTAO = "https://mpago.li/12S6mJE"; // Link atualizado - R$ 149,70
 
   useEffect(() => {
     const nome = localStorage.getItem("operadorNome") || "Usuário";
