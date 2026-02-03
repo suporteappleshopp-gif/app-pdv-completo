@@ -113,74 +113,127 @@ export default function SolicitacoesRenovacao() {
     try {
       setProcessando(true);
       const { supabase } = await import("@/lib/supabase");
+      const { AuthSupabase } = await import("@/lib/auth-supabase");
 
-      // Atualizar status da solicitação
-      const { error: updateError } = await supabase
-        .from("solicitacoes_renovacao")
-        .update({
-          status: "aprovado",
-          mensagem_admin: mensagemAdmin || "Solicitação aprovada!",
-          data_resposta: new Date().toISOString(),
-        })
-        .eq("id", solicitacaoSelecionada.id);
+      console.log("🔄 Aprovando solicitação:", solicitacaoSelecionada.id);
 
-      if (updateError) {
-        console.error("Erro ao aprovar:", updateError);
-        alert("Erro ao aprovar solicitação.");
+      // Buscar admin logado
+      const adminOperador = await AuthSupabase.getCurrentOperador();
+      if (!adminOperador) {
+        alert("Erro: admin não identificado.");
         return;
       }
 
-      // Adicionar dias ao operador
+      // Buscar dados atuais do operador
       const { data: operadorData, error: fetchError } = await supabase
         .from("operadores")
-        .select("data_fim_acesso")
+        .select("id, nome, email, data_proximo_vencimento, ativo, suspenso")
         .eq("id", solicitacaoSelecionada.operador_id)
         .single();
 
-      if (fetchError) {
-        console.error("Erro ao buscar operador:", fetchError);
-        alert("Erro ao buscar dados do operador.");
+      if (fetchError || !operadorData) {
+        console.error("❌ Erro ao buscar operador:", fetchError);
+        alert("Erro ao buscar dados do operador. Verifique se o usuário existe.");
         return;
       }
 
-      const dataAtual = new Date();
-      let novaDataFim: Date;
+      console.log("✅ Operador encontrado:", operadorData.nome);
 
-      if (operadorData.data_fim_acesso) {
-        const dataFimAtual = new Date(operadorData.data_fim_acesso);
-        // Se a data fim é no futuro, adicionar a partir dela
-        if (dataFimAtual > dataAtual) {
-          novaDataFim = new Date(dataFimAtual);
-          novaDataFim.setDate(novaDataFim.getDate() + solicitacaoSelecionada.dias_solicitados);
+      // Calcular nova data de vencimento
+      const dataAtual = new Date();
+      let novaDataVencimento: Date;
+
+      if (operadorData.data_proximo_vencimento) {
+        const dataVencimentoAtual = new Date(operadorData.data_proximo_vencimento);
+        // Se a data de vencimento é no futuro, adicionar a partir dela
+        if (dataVencimentoAtual > dataAtual) {
+          novaDataVencimento = new Date(dataVencimentoAtual);
+          novaDataVencimento.setDate(novaDataVencimento.getDate() + solicitacaoSelecionada.dias_solicitados);
         } else {
-          // Se a data fim já passou, adicionar a partir de hoje
-          novaDataFim = new Date(dataAtual);
-          novaDataFim.setDate(novaDataFim.getDate() + solicitacaoSelecionada.dias_solicitados);
+          // Se a data já passou, adicionar a partir de hoje
+          novaDataVencimento = new Date(dataAtual);
+          novaDataVencimento.setDate(novaDataVencimento.getDate() + solicitacaoSelecionada.dias_solicitados);
         }
       } else {
-        // Se não tem data fim, adicionar a partir de hoje
-        novaDataFim = new Date(dataAtual);
-        novaDataFim.setDate(novaDataFim.getDate() + solicitacaoSelecionada.dias_solicitados);
+        // Se não tem data de vencimento, adicionar a partir de hoje
+        novaDataVencimento = new Date(dataAtual);
+        novaDataVencimento.setDate(novaDataVencimento.getDate() + solicitacaoSelecionada.dias_solicitados);
       }
 
-      // Atualizar operador
+      console.log("📅 Nova data de vencimento:", novaDataVencimento);
+
+      // 1. Criar registro no histórico de pagamentos
+      const { error: historicoError } = await supabase
+        .from("historico_pagamentos")
+        .insert({
+          usuario_id: solicitacaoSelecionada.operador_id,
+          mes_referencia: `Renovação ${solicitacaoSelecionada.dias_solicitados} dias - ${solicitacaoSelecionada.forma_pagamento.toUpperCase()}`,
+          valor: solicitacaoSelecionada.valor,
+          data_vencimento: new Date().toISOString(),
+          data_pagamento: new Date().toISOString(),
+          status: "pago",
+          forma_pagamento: solicitacaoSelecionada.forma_pagamento,
+          dias_comprados: solicitacaoSelecionada.dias_solicitados,
+          tipo_compra: `renovacao-${solicitacaoSelecionada.dias_solicitados}`,
+          observacao_admin: mensagemAdmin || "Aprovado pelo administrador",
+          aprovado_por: adminOperador.id,
+          data_aprovacao: new Date().toISOString(),
+        });
+
+      if (historicoError) {
+        console.error("⚠️ Erro ao criar histórico:", historicoError);
+        alert("Erro ao registrar pagamento no histórico.");
+        return;
+      }
+
+      console.log("✅ Histórico de pagamento criado");
+
+      // 2. Atualizar operador com nova data de vencimento e status ativo
       const { error: updateOpError } = await supabase
         .from("operadores")
         .update({
-          data_fim_acesso: novaDataFim.toISOString(),
+          data_proximo_vencimento: novaDataVencimento.toISOString(),
           ativo: true,
           suspenso: false,
+          aguardando_pagamento: false,
         })
         .eq("id", solicitacaoSelecionada.operador_id);
 
       if (updateOpError) {
-        console.error("Erro ao atualizar operador:", updateOpError);
+        console.error("❌ Erro ao atualizar operador:", updateOpError);
         alert("Erro ao atualizar dias do operador.");
         return;
       }
 
-      alert("Solicitação aprovada com sucesso!");
+      console.log("✅ Operador atualizado com sucesso");
+
+      // 3. Atualizar status da solicitação para "aprovado"
+      const { error: updateSolError } = await supabase
+        .from("solicitacoes_renovacao")
+        .update({
+          status: "aprovado",
+          mensagem_admin: mensagemAdmin || "Solicitação aprovada pelo administrador!",
+          data_resposta: new Date().toISOString(),
+          admin_responsavel_id: adminOperador.id,
+        })
+        .eq("id", solicitacaoSelecionada.id);
+
+      if (updateSolError) {
+        console.error("⚠️ Erro ao atualizar solicitação:", updateSolError);
+        // Não bloquear - o importante já foi feito
+      }
+
+      console.log("✅ Solicitação aprovada com sucesso!");
+      console.log(`📊 Resumo:
+        - Usuário: ${operadorData.nome}
+        - Dias adicionados: ${solicitacaoSelecionada.dias_solicitados}
+        - Nova data de vencimento: ${novaDataVencimento.toLocaleDateString('pt-BR')}
+        - Valor: R$ ${solicitacaoSelecionada.valor.toFixed(2)}`);
+
+      alert(`✅ Solicitação aprovada!\n\n${solicitacaoSelecionada.dias_solicitados} dias adicionados para ${operadorData.nome}.\nNova data de vencimento: ${novaDataVencimento.toLocaleDateString('pt-BR')}`);
       setModalAberto(false);
+      setSolicitacaoSelecionada(null);
+      setMensagemAdmin("");
       await carregarSolicitacoes();
     } catch (err) {
       console.error("Erro ao aprovar:", err);
@@ -201,6 +254,12 @@ export default function SolicitacoesRenovacao() {
     try {
       setProcessando(true);
       const { supabase } = await import("@/lib/supabase");
+      const { AuthSupabase } = await import("@/lib/auth-supabase");
+
+      // Buscar admin logado
+      const adminOperador = await AuthSupabase.getCurrentOperador();
+
+      console.log("❌ Recusando solicitação:", solicitacaoSelecionada.id);
 
       const { error } = await supabase
         .from("solicitacoes_renovacao")
@@ -208,17 +267,21 @@ export default function SolicitacoesRenovacao() {
           status: "recusado",
           mensagem_admin: mensagemAdmin,
           data_resposta: new Date().toISOString(),
+          admin_responsavel_id: adminOperador?.id || null,
         })
         .eq("id", solicitacaoSelecionada.id);
 
       if (error) {
-        console.error("Erro ao recusar:", error);
+        console.error("❌ Erro ao recusar:", error);
         alert("Erro ao recusar solicitação.");
         return;
       }
 
-      alert("Solicitação recusada.");
+      console.log("✅ Solicitação recusada com sucesso");
+      alert("Solicitação recusada. O usuário será notificado.");
       setModalAberto(false);
+      setSolicitacaoSelecionada(null);
+      setMensagemAdmin("");
       await carregarSolicitacoes();
     } catch (err) {
       console.error("Erro ao recusar:", err);
