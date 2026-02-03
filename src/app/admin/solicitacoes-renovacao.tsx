@@ -37,22 +37,39 @@ export default function SolicitacoesRenovacao() {
       setLoading(true);
       const { supabase } = await import("@/lib/supabase");
 
-      // Buscar solicitações com dados do operador
+      // Buscar solicitações
       const { data: solicitacoesData, error } = await supabase
         .from("solicitacoes_renovacao")
-        .select(`
-          *,
-          operador:operadores!solicitacoes_renovacao_operador_id_fkey (
-            id,
-            nome,
-            email
-          )
-        `)
+        .select("*")
         .order("data_solicitacao", { ascending: false });
 
       if (error) {
         console.error("Erro ao carregar solicitações:", error);
         return;
+      }
+
+      // Buscar dados dos operadores separadamente
+      if (solicitacoesData && solicitacoesData.length > 0) {
+        const operadorIds = [...new Set(solicitacoesData.map(s => s.operador_id))];
+
+        const { data: operadoresData, error: opError } = await supabase
+          .from("operadores")
+          .select("id, nome, email")
+          .in("id", operadorIds);
+
+        if (!opError && operadoresData) {
+          // Mapear operadores por ID
+          const operadoresMap = new Map(operadoresData.map(op => [op.id, op]));
+
+          // Adicionar dados do operador em cada solicitação
+          const solicitacoesComOperador = solicitacoesData.map(sol => ({
+            ...sol,
+            operador: operadoresMap.get(sol.operador_id),
+          }));
+
+          setSolicitacoes(solicitacoesComOperador);
+          return;
+        }
       }
 
       setSolicitacoes(solicitacoesData || []);
