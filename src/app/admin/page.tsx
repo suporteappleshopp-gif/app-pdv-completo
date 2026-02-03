@@ -1194,10 +1194,18 @@ export default function AdminPage() {
                   <AlertCircle className="w-5 h-5 text-blue-300 flex-shrink-0 mt-0.5" />
                   <div className="text-sm text-blue-200">
                     <p className="font-semibold mb-1">Informações de Pagamento</p>
-                    <p>
+                    <p className="mb-2">
                       {novoUsuario.formaPagamento === "pix"
-                        ? "PIX: R$ 59,90 - 60 dias de acesso. Após criar a conta, o usuário receberá o link de pagamento."
-                        : "Cartão: R$ 149,70 - 180 dias de acesso. Parcelamento em até 3x sem juros. Após criar a conta, o usuário receberá o link de pagamento."}
+                        ? "PIX: R$ 59,90 - 60 dias de acesso"
+                        : "Cartão: R$ 149,70 - 180 dias de acesso | Até 3x sem juros"}
+                    </p>
+                    <p className="text-xs">
+                      {novoUsuario.formaPagamento === "pix"
+                        ? "Link de pagamento PIX: https://mpago.la/24Hxr1X"
+                        : "Link de pagamento Cartão: https://mpago.li/12S6mJE"}
+                    </p>
+                    <p className="text-xs mt-1 text-green-200">
+                      Envie o link ao cliente. Após pagamento, volte aqui e confirme para liberar o acesso.
                     </p>
                   </div>
                 </div>

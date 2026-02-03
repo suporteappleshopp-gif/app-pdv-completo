@@ -26,8 +26,8 @@ export default function ExtratoPagamentosPage() {
   const [formaPagamento, setFormaPagamento] = useState<"pix" | "cartao">("pix");
 
   const WHATSAPP_CONTATO = "5565981032239";
-  const LINK_PIX = "https://mpago.la/2FaXoGm";
-  const LINK_CARTAO = "https://mpago.la/1fAKQyc";
+  const LINK_PIX = "https://mpago.la/24Hxr1X"; // Link atualizado - R$ 59,90
+  const LINK_CARTAO = "https://mpago.li/12S6mJE"; // Link atualizado - R$ 149,70
 
   useEffect(() => {
     const init = async () => {

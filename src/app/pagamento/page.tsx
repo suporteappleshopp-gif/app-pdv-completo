@@ -11,7 +11,7 @@ export default function PagamentoPage() {
   const WHATSAPP_CONTATO = "5565981032239";
 
   // Links diretos do Mercado Pago
-  const LINK_PIX = "https://mpago.la/2FaXoGm";
+  const LINK_PIX = "https://mpago.la/24Hxr1X"; // Link atualizado - R$ 59,90
   const LINK_CARTAO = "https://mpago.li/12S6mJE"; // Link atualizado - R$ 149,70
 
   useEffect(() => {
@@ -84,21 +84,22 @@ export default function PagamentoPage() {
         <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
           <div className="text-sm text-purple-800">
             <p className="font-semibold mb-2">Como funciona:</p>
-            <p className="mb-2">1️⃣ Clique na opção de pagamento desejada</p>
+            <p className="mb-2">1️⃣ Escolha PIX ou Cartão e clique na opção</p>
             <p className="mb-2">2️⃣ Você será redirecionado para o Mercado Pago</p>
             <p className="mb-2">3️⃣ Complete o pagamento de forma segura</p>
-            <p>4️⃣ Entre em contato pelo WhatsApp para ativar sua conta</p>
+            <p className="mb-2">4️⃣ Volte para o Financeiro e aguarde liberação do administrador</p>
+            <p>5️⃣ Seus dias serão renovados após aprovação do pagamento</p>
           </div>
         </div>
 
         {/* Botões de Ação */}
         <div className="space-y-3">
           <button
-            onClick={() => router.push("/extrato-pagamentos")}
+            onClick={() => router.push("/financeiro")}
             className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
           >
             <CreditCard className="w-5 h-5" />
-            <span>Ver Extrato de Pagamentos</span>
+            <span>Voltar para Financeiro - Acompanhar Liberação</span>
           </button>
 
           <button

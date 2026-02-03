@@ -35,7 +35,7 @@ export default function LoginPage() {
   const WHATSAPP_CONTATO = process.env.NEXT_PUBLIC_WHATSAPP_CONTATO || "5565981032239";
 
   // Links diretos de pagamento
-  const LINK_PIX = "https://mpago.la/2FaXoGm";
+  const LINK_PIX = "https://mpago.la/24Hxr1X"; // Link atualizado - R$ 59,90
   const LINK_CARTAO = "https://mpago.li/12S6mJE"; // Link atualizado - R$ 149,70
 
   useEffect(() => {
