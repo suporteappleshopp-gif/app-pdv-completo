@@ -63,7 +63,14 @@ export default function ExtratoPagamentosPage() {
         return;
       }
 
-      setSolicitacoes(data || []);
+      // Ordenar para colocar pendentes primeiro, depois por data
+      const ordenadas = (data || []).sort((a, b) => {
+        if (a.status === "pendente" && b.status !== "pendente") return -1;
+        if (a.status !== "pendente" && b.status === "pendente") return 1;
+        return new Date(b.data_solicitacao).getTime() - new Date(a.data_solicitacao).getTime();
+      });
+
+      setSolicitacoes(ordenadas);
 
       // Configurar atualização em tempo real
       const channel = supabase
@@ -226,6 +233,36 @@ export default function ExtratoPagamentosPage() {
           </button>
         </div>
 
+        {/* Solicitações Pendentes em Destaque */}
+        {solicitacoes.filter((s) => s.status === "pendente").length > 0 && (
+          <div className="bg-yellow-50 border-2 border-yellow-400 rounded-2xl shadow-2xl p-6 mb-6">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="bg-yellow-400 w-12 h-12 rounded-full flex items-center justify-center animate-pulse">
+                <Clock className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-yellow-900">
+                  Solicitações Aguardando Aprovação
+                </h2>
+                <p className="text-sm text-yellow-700">
+                  {solicitacoes.filter((s) => s.status === "pendente").length} solicitação(ões) pendente(s)
+                </p>
+              </div>
+            </div>
+            <div className="bg-white rounded-lg p-4 border border-yellow-300">
+              <p className="text-sm text-gray-700 mb-2">
+                <strong className="text-yellow-900">O que fazer agora:</strong>
+              </p>
+              <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
+                <li>Se você ainda não pagou, complete o pagamento pelo link fornecido</li>
+                <li>Aguarde a confirmação do administrador</li>
+                <li>Seus dias serão creditados automaticamente após a aprovação</li>
+                <li>Em caso de dúvidas, entre em contato pelo WhatsApp</li>
+              </ul>
+            </div>
+          </div>
+        )}
+
         {/* Lista de Solicitações */}
         <div className="space-y-4">
           {solicitacoes.length === 0 ? (
@@ -240,7 +277,9 @@ export default function ExtratoPagamentosPage() {
             solicitacoes.map((sol) => (
               <div
                 key={sol.id}
-                className={`bg-white rounded-xl shadow-lg p-6 border-2 ${getStatusBg(sol.status)}`}
+                className={`bg-white rounded-xl shadow-lg p-6 border-2 transition-all ${getStatusBg(sol.status)} ${
+                  sol.status === "pendente" ? "animate-pulse-slow border-4" : ""
+                }`}
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center space-x-3">
@@ -282,10 +321,21 @@ export default function ExtratoPagamentosPage() {
                 )}
 
                 {sol.status === "pendente" && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-4">
-                    <p className="text-sm text-yellow-800">
-                      Sua solicitação está em análise. Após efetuar o pagamento, aguarde a aprovação do administrador.
-                    </p>
+                  <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4 mt-4">
+                    <div className="flex items-start space-x-3">
+                      <Clock className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-semibold text-yellow-900 mb-2">
+                          Aguardando Confirmação do Pagamento
+                        </p>
+                        <p className="text-sm text-yellow-800 mb-2">
+                          Após efetuar o pagamento, sua solicitação ficará aqui no topo até que o administrador confirme e credite seus {sol.dias_solicitados} dias de acesso.
+                        </p>
+                        <p className="text-xs text-yellow-700 font-medium">
+                          Esta solicitação permanecerá visível até ser aprovada ou recusada pelo administrador.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -370,9 +420,20 @@ export default function ExtratoPagamentosPage() {
               </button>
             </div>
 
+            <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-4 mb-4">
+              <p className="text-sm font-semibold text-blue-900 mb-2">Como funciona:</p>
+              <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
+                <li>Clique em "Confirmar" para abrir o link de pagamento</li>
+                <li>Complete o pagamento no Mercado Pago</li>
+                <li>Sua solicitação aparecerá como <strong>"Pendente"</strong> no extrato</li>
+                <li>O administrador confirmará o pagamento</li>
+                <li>Seus dias serão creditados automaticamente</li>
+              </ol>
+            </div>
+
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
               <p className="text-sm text-yellow-800">
-                <strong>Importante:</strong> Após clicar em confirmar, você será redirecionado para o pagamento. Complete o pagamento e aguarde a aprovação do administrador.
+                <strong>Importante:</strong> A solicitação ficará visível no topo do extrato até ser aprovada pelo administrador.
               </p>
             </div>
 
