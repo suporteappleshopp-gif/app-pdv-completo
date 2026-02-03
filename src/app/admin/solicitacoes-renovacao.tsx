@@ -117,12 +117,66 @@ export default function SolicitacoesRenovacao() {
 
       console.log("🔄 Aprovando solicitação:", solicitacaoSelecionada.id);
 
-      // Buscar admin logado
-      const adminOperador = await AuthSupabase.getCurrentOperador();
+      // Buscar admin logado (com múltiplos métodos de fallback)
+      let adminOperador = await AuthSupabase.getCurrentOperador();
+
+      // Fallback 1: Buscar do localStorage direto
+      if (!adminOperador && typeof window !== 'undefined') {
+        const sessionStr = localStorage.getItem('operador_session');
+        if (sessionStr) {
+          try {
+            adminOperador = JSON.parse(sessionStr);
+            console.log("✅ Admin encontrado no localStorage:", adminOperador.email);
+          } catch (e) {
+            console.error("Erro ao parsear sessão:", e);
+          }
+        }
+      }
+
+      // Fallback 2: Buscar do localStorage com chave alternativa
+      if (!adminOperador && typeof window !== 'undefined') {
+        const adminId = localStorage.getItem('operadorId');
+        const adminNome = localStorage.getItem('operadorNome');
+        const adminEmail = localStorage.getItem('operadorEmail');
+
+        if (adminId && adminNome) {
+          adminOperador = {
+            id: adminId,
+            nome: adminNome,
+            email: adminEmail || 'admin@sistema.com',
+            isAdmin: true,
+          } as any;
+          console.log("✅ Admin construído do localStorage:", adminOperador.nome);
+        }
+      }
+
+      // Fallback 3: Buscar direto do Supabase por is_admin=true
       if (!adminOperador) {
-        alert("Erro: admin não identificado.");
+        const { data: adminData, error: adminError } = await supabase
+          .from("operadores")
+          .select("*")
+          .eq("is_admin", true)
+          .limit(1)
+          .single();
+
+        if (adminData && !adminError) {
+          adminOperador = {
+            id: adminData.id,
+            nome: adminData.nome,
+            email: adminData.email,
+            isAdmin: true,
+          } as any;
+          console.log("✅ Admin encontrado no Supabase:", adminOperador.nome);
+        }
+      }
+
+      if (!adminOperador) {
+        console.error("❌ Não foi possível identificar o admin");
+        alert("Erro: admin não identificado. Faça login novamente.");
         return;
       }
+
+      console.log("✅ Admin identificado:", adminOperador.nome, "(ID:", adminOperador.id, ")");
 
       // Buscar dados atuais do operador
       const { data: operadorData, error: fetchError } = await supabase

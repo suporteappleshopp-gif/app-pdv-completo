@@ -118,6 +118,14 @@ export default function AdminPage() {
         return false;
       }
 
+      // ✅ SALVAR ADMIN NO LOCALSTORAGE PARA IDENTIFICAÇÃO
+      localStorage.setItem('operadorId', operador.id);
+      localStorage.setItem('operadorNome', operador.nome);
+      localStorage.setItem('operadorEmail', operador.email);
+      localStorage.setItem('operador_session', JSON.stringify(operador));
+
+      console.log("✅ Admin salvo no localStorage:", operador.nome);
+
       setAdminNome(operador.nome);
       setIsAuthenticated(true);
       return true;
