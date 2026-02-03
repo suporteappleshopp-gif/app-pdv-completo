@@ -73,7 +73,7 @@ export default function PagamentoPage() {
                 <CreditCard className="w-12 h-12 text-blue-600" />
                 <span className="text-sm font-medium text-gray-700">Cartão de Crédito</span>
                 <span className="text-2xl font-bold text-blue-600">R$ 149,70</span>
-                <span className="text-xs text-gray-500">100 dias</span>
+                <span className="text-xs text-gray-500">180 dias</span>
                 <ExternalLink className="w-5 h-5 text-blue-600" />
               </div>
             </button>

@@ -108,11 +108,18 @@ export default function ExtratoPagamentosPage() {
 
   const criarSolicitacao = async () => {
     try {
-      const dias = formaPagamento === "pix" ? 60 : 100;
+      // ✅ VALORES CORRETOS: PIX = 60 dias | CARTÃO = 180 dias
+      const dias = formaPagamento === "pix" ? 60 : 180;
       const valor = formaPagamento === "pix" ? 59.9 : 149.7;
+
+      console.log("📝 Criando solicitação de renovação...");
+      console.log(`   Forma: ${formaPagamento.toUpperCase()}`);
+      console.log(`   Dias: ${dias}`);
+      console.log(`   Valor: R$ ${valor.toFixed(2)}`);
 
       const { supabase } = await import("@/lib/supabase");
 
+      // ✅ CRIAR SOLICITAÇÃO NO BANCO
       const { data, error } = await supabase
         .from("solicitacoes_renovacao")
         .insert({
@@ -129,7 +136,7 @@ export default function ExtratoPagamentosPage() {
         console.error("❌ Erro ao criar solicitação:", error);
         console.error("   Código:", error.code);
         console.error("   Detalhes:", error.details);
-        alert(`Erro ao criar solicitação: ${error.message}\n\nTente novamente ou entre em contato com o administrador.`);
+        alert(`❌ Erro ao criar solicitação!\n\n${error.message}\n\nTente novamente ou entre em contato com o administrador.`);
         return;
       }
 
@@ -139,20 +146,32 @@ export default function ExtratoPagamentosPage() {
       console.log(`   Dias: ${data.dias_solicitados}`);
       console.log(`   Valor: R$ ${data.valor}`);
 
-      // Abrir link de pagamento
+      // ✅ ABRIR LINK DE PAGAMENTO (garantir que não seja bloqueado)
       const link = formaPagamento === "pix" ? LINK_PIX : LINK_CARTAO;
-      window.open(link, "_blank");
+      console.log(`🔗 Abrindo link de pagamento: ${link}`);
 
-      // Mostrar mensagem de sucesso
-      alert(`✅ Solicitação criada com sucesso!\n\n📋 Detalhes:\n• ${data.dias_solicitados} dias\n• R$ ${data.valor.toFixed(2)}\n• Status: Aguardando aprovação\n\n💡 Complete o pagamento e aguarde a confirmação do administrador.`);
+      // Tentar abrir de 2 formas para evitar bloqueio
+      const janelaAberta = window.open(link, "_blank", "noopener,noreferrer");
 
+      if (!janelaAberta) {
+        console.warn("⚠️ Popup bloqueado, tentando abrir na mesma aba...");
+        window.location.href = link;
+      }
+
+      // ✅ FECHAR MODAL E RECARREGAR
       setMostrarModal(false);
 
       // Recarregar solicitações imediatamente
       await carregarSolicitacoes(operadorId);
-    } catch (err) {
-      console.error("Erro ao criar solicitação:", err);
-      alert("Erro ao processar solicitação.");
+
+      // ✅ MOSTRAR MENSAGEM DE SUCESSO
+      setTimeout(() => {
+        alert(`✅ Solicitação registrada!\n\n📋 Detalhes:\n• ${data.dias_solicitados} dias\n• R$ ${data.valor.toFixed(2)}\n• Status: PENDENTE\n\n💳 Complete o pagamento no Mercado Pago e aguarde a aprovação do administrador.\n\n✨ Sua solicitação já aparece no topo do extrato!`);
+      }, 500);
+
+    } catch (err: any) {
+      console.error("❌ Erro ao criar solicitação:", err);
+      alert(`❌ Erro ao processar solicitação!\n\n${err.message || "Erro desconhecido"}\n\nTente novamente.`);
     }
   };
 
@@ -429,7 +448,7 @@ export default function ExtratoPagamentosPage() {
                     <CreditCard className="w-10 h-10 text-blue-600" />
                     <div className="text-left">
                       <p className="font-semibold text-gray-800">Cartão - R$ 149,70</p>
-                      <p className="text-sm text-gray-600">100 dias de acesso</p>
+                      <p className="text-sm text-gray-600">180 dias de acesso</p>
                     </div>
                   </div>
                   {formaPagamento === "cartao" && (
