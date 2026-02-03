@@ -170,7 +170,7 @@ export default function SolicitacoesRenovacao() {
         .insert({
           id: historicoId,
           usuario_id: solicitacaoSelecionada.operador_id,
-          mes_referencia: `Renovação ${solicitacaoSelecionada.dias_solicitados} dias - ${solicitacaoSelecionada.forma_pagamento.toUpperCase()} | Admin: ${adminOperador.nome} | ${mensagemAdmin || "Aprovado"}`,
+          mes_referencia: `Renovação ${solicitacaoSelecionada.dias_solicitados} dias - ${solicitacaoSelecionada.forma_pagamento.toUpperCase()}`,
           valor: solicitacaoSelecionada.valor,
           data_vencimento: new Date().toISOString(),
           data_pagamento: new Date().toISOString(),
@@ -178,6 +178,9 @@ export default function SolicitacoesRenovacao() {
           forma_pagamento: solicitacaoSelecionada.forma_pagamento,
           dias_comprados: solicitacaoSelecionada.dias_solicitados,
           tipo_compra: `renovacao-${solicitacaoSelecionada.dias_solicitados}`,
+          observacao_admin: mensagemAdmin || "Aprovado pelo administrador",
+          aprovado_por: adminOperador.id,
+          data_aprovacao: new Date().toISOString(),
         });
 
       if (historicoError) {
