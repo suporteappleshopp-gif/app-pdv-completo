@@ -1148,13 +1148,13 @@ export default function FinanceiroPage() {
 
                       console.log("✅ Link gerado com sucesso:", data.init_point);
 
-                      // Atualizar lista
+                      // Atualizar lista para mostrar solicitação pendente
                       await carregarDados();
 
                       // Abrir link de pagamento
                       window.open(data.init_point, "_blank");
 
-                      alert(`✅ Link de pagamento gerado!\n\n⏳ Aguardando confirmação do pagamento.\n\n✅ Sua conta será ativada AUTOMATICAMENTE quando o pagamento for confirmado pelo Mercado Pago!`);
+                      alert(`✅ Link de pagamento gerado!\n\n⏳ Sua solicitação foi criada e aparecerá como PENDENTE no seu extrato.\n\n💳 Após efetuar o pagamento, aguarde a aprovação do administrador para que os dias sejam creditados.`);
                     } catch (error: any) {
                       console.error("❌ Erro ao criar pagamento:", error);
                       alert(`❌ Erro ao gerar link de pagamento.\n\n${error.message || "Erro desconhecido"}\n\nTente novamente ou contate o suporte.`);
@@ -1237,13 +1237,13 @@ export default function FinanceiroPage() {
                         return;
                       }
 
-                      // Atualizar lista
+                      // Atualizar lista para mostrar solicitação pendente
                       await carregarDados();
 
                       // Abrir link de pagamento
                       window.open(data.init_point, "_blank");
 
-                      alert(`✅ Link de pagamento gerado!\n\n⏳ Aguardando confirmação do pagamento.\n\n✅ Sua conta será ativada AUTOMATICAMENTE quando o pagamento for confirmado pelo Mercado Pago!`);
+                      alert(`✅ Link de pagamento gerado!\n\n⏳ Sua solicitação foi criada e aparecerá como PENDENTE no seu extrato.\n\n💳 Após efetuar o pagamento, aguarde a aprovação do administrador para que os dias sejam creditados.`);
                     } catch (error) {
                       console.error("Erro ao criar pagamento:", error);
                       alert("Erro ao gerar link de pagamento. Tente novamente.");
