@@ -126,16 +126,29 @@ export default function ExtratoPagamentosPage() {
         .single();
 
       if (error) {
-        console.error("Erro ao criar solicitação:", error);
-        alert("Erro ao criar solicitação. Tente novamente.");
+        console.error("❌ Erro ao criar solicitação:", error);
+        console.error("   Código:", error.code);
+        console.error("   Detalhes:", error.details);
+        alert(`Erro ao criar solicitação: ${error.message}\n\nTente novamente ou entre em contato com o administrador.`);
         return;
       }
+
+      console.log("✅ Solicitação criada com sucesso!");
+      console.log(`   ID: ${data.id}`);
+      console.log(`   Status: ${data.status}`);
+      console.log(`   Dias: ${data.dias_solicitados}`);
+      console.log(`   Valor: R$ ${data.valor}`);
 
       // Abrir link de pagamento
       const link = formaPagamento === "pix" ? LINK_PIX : LINK_CARTAO;
       window.open(link, "_blank");
 
+      // Mostrar mensagem de sucesso
+      alert(`✅ Solicitação criada com sucesso!\n\n📋 Detalhes:\n• ${data.dias_solicitados} dias\n• R$ ${data.valor.toFixed(2)}\n• Status: Aguardando aprovação\n\n💡 Complete o pagamento e aguarde a confirmação do administrador.`);
+
       setMostrarModal(false);
+
+      // Recarregar solicitações imediatamente
       await carregarSolicitacoes(operadorId);
     } catch (err) {
       console.error("Erro ao criar solicitação:", err);

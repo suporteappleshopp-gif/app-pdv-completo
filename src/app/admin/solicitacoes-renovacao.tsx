@@ -38,14 +38,24 @@ export default function SolicitacoesRenovacao() {
       const { supabase } = await import("@/lib/supabase");
 
       // Buscar solicitações
+      console.log("🔄 Admin: Carregando solicitações de renovação...");
+
       const { data: solicitacoesData, error } = await supabase
         .from("solicitacoes_renovacao")
         .select("*")
         .order("data_solicitacao", { ascending: false });
 
       if (error) {
-        console.error("Erro ao carregar solicitações:", error);
+        console.error("❌ Admin: Erro ao carregar solicitações:", error);
         return;
+      }
+
+      console.log(`✅ Admin: ${solicitacoesData?.length || 0} solicitações encontradas`);
+      if (solicitacoesData && solicitacoesData.length > 0) {
+        const pendentes = solicitacoesData.filter(s => s.status === "pendente").length;
+        const aprovadas = solicitacoesData.filter(s => s.status === "aprovado").length;
+        const recusadas = solicitacoesData.filter(s => s.status === "recusado").length;
+        console.log(`   📊 Pendentes: ${pendentes} | Aprovadas: ${aprovadas} | Recusadas: ${recusadas}`);
       }
 
       // Buscar dados dos operadores separadamente
@@ -85,7 +95,9 @@ export default function SolicitacoesRenovacao() {
             table: "solicitacoes_renovacao",
           },
           (payload) => {
-            console.log("Atualização em tempo real (admin):", payload);
+            console.log("🔔 Admin: Atualização em tempo real detectada!");
+            console.log("   Evento:", payload.eventType);
+            console.log("   Dados:", payload.new || payload.old);
             carregarSolicitacoes();
           }
         )
