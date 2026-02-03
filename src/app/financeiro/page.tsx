@@ -1019,6 +1019,14 @@ export default function FinanceiroPage() {
           <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 rounded-2xl shadow-2xl p-8 border border-white/20">
             <div className="text-center mb-6">
               <h2 className="text-3xl font-bold text-white mb-2">Renovar Assinatura</h2>
+
+              {/* Exibir dias atuais */}
+              <div className="inline-block bg-white/20 backdrop-blur-sm px-6 py-3 rounded-xl border border-white/30 mb-4">
+                <p className="text-white/80 text-sm mb-1">Dias Atuais</p>
+                <p className="text-4xl font-bold text-white">{diasRestantes}</p>
+                <p className="text-white/70 text-xs mt-1">{diasRestantes === 1 ? "dia disponível" : "dias disponíveis"}</p>
+              </div>
+
               {dataProximoVencimento && (
                 <p className="text-white/90 text-lg">
                   Você tem <span className="font-bold text-yellow-300">{diasRestantes} {diasRestantes === 1 ? "dia" : "dias"}</span> restantes
