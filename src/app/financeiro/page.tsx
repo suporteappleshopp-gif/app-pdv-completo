@@ -61,21 +61,41 @@ export default function FinanceiroPage() {
     let cleanupFunctions: (() => void)[] = [];
 
     const checkAuth = async () => {
-      // Buscar operador logado do Supabase
-      const { AuthSupabase } = await import("@/lib/auth-supabase");
-      const operador = await AuthSupabase.getCurrentOperador();
+      try {
+        // Buscar operador logado do Supabase
+        const { AuthSupabase } = await import("@/lib/auth-supabase");
+        const operador = await AuthSupabase.getCurrentOperador();
 
-      // Verificar se é admin (admin não acessa financeiro)
-      const adminMaster = localStorage.getItem("admin_master_session");
+        console.log("🔍 Verificando autenticação no financeiro...");
+        console.log("👤 Operador encontrado:", operador?.nome, operador?.email);
+        console.log("🔐 É admin?", operador?.isAdmin);
 
-      if (!operador || operador.isAdmin || adminMaster === "true") {
+        // Verificar se é admin (admin não acessa financeiro)
+        const adminMaster = localStorage.getItem("admin_master_session");
+
+        // Se não encontrou operador, redirecionar para login
+        if (!operador) {
+          console.warn("⚠️ Nenhum operador encontrado - redirecionando para login");
+          router.push("/");
+          return false;
+        }
+
+        // Se é admin, redirecionar para página admin
+        if (operador.isAdmin || adminMaster === "true") {
+          console.log("🔒 Usuário é admin - redirecionando para /admin");
+          router.push("/admin");
+          return false;
+        }
+
+        console.log("✅ Autenticação OK - carregando financeiro");
+        setOperadorId(operador.id);
+        setOperadorNome(operador.nome);
+        return true;
+      } catch (error) {
+        console.error("❌ Erro ao verificar autenticação:", error);
         router.push("/");
         return false;
       }
-
-      setOperadorId(operador.id);
-      setOperadorNome(operador.nome);
-      return true;
     };
 
     checkAuth().then(async (isAuth) => {
@@ -267,48 +287,6 @@ export default function FinanceiroPage() {
       await calcularGanhos();
       await calcularTotalDiasDisponiveis();
 
-      // ✅ CONFIGURAR REALTIME: Atualizar quando admin aprovar/recusar solicitações
-      const channelSolicitacoes = supabase
-        .channel("user_solicitacoes_renovacao")
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "solicitacoes_renovacao",
-            filter: `operador_id=eq.${operador.id}`,
-          },
-          (payload) => {
-            console.log("🔄 Atualização em tempo real (solicitações):", payload);
-            carregarDados();
-          }
-        )
-        .subscribe();
-
-      // ✅ CONFIGURAR REALTIME: Atualizar quando pagamentos mudarem
-      const channelPagamentos = supabase
-        .channel("user_historico_pagamentos")
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "historico_pagamentos",
-            filter: `usuario_id=eq.${operador.id}`,
-          },
-          (payload) => {
-            console.log("🔄 Atualização em tempo real (pagamentos):", payload);
-            carregarDados();
-          }
-        )
-        .subscribe();
-
-      // Cleanup na desmontagem
-      return () => {
-        supabase.removeChannel(channelSolicitacoes);
-        supabase.removeChannel(channelPagamentos);
-      };
-
       // Calcular dias restantes com base nos pagamentos
       const pagamentosPagos = todosPagamentos.filter(p => p.status === "pago");
 
@@ -377,6 +355,49 @@ export default function FinanceiroPage() {
           console.error("Erro ao carregar dias restantes:", error);
         }
       }
+
+      // ✅ CONFIGURAR REALTIME: Atualizar quando admin aprovar/recusar solicitações
+      const channelSolicitacoes = supabase
+        .channel("user_solicitacoes_renovacao")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "solicitacoes_renovacao",
+            filter: `operador_id=eq.${operador.id}`,
+          },
+          (payload) => {
+            console.log("🔄 Atualização em tempo real (solicitações):", payload);
+            carregarDados();
+          }
+        )
+        .subscribe();
+
+      // ✅ CONFIGURAR REALTIME: Atualizar quando pagamentos mudarem
+      const channelPagamentos = supabase
+        .channel("user_historico_pagamentos")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "historico_pagamentos",
+            filter: `usuario_id=eq.${operador.id}`,
+          },
+          (payload) => {
+            console.log("🔄 Atualização em tempo real (pagamentos):", payload);
+            carregarDados();
+          }
+        )
+        .subscribe();
+
+      // Retornar função de cleanup para remover listeners
+      return () => {
+        supabase.removeChannel(channelSolicitacoes);
+        supabase.removeChannel(channelPagamentos);
+      };
+
     } catch (err) {
       console.error("Erro ao carregar dados:", err);
     } finally {
