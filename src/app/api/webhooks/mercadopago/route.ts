@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
 
       // Verificar se o pagamento foi aprovado
       if (paymentInfo.status === "approved") {
-        console.log("✅ Pagamento aprovado!");
+        console.log("✅ Pagamento MercadoPago aprovado!");
 
         // Extrair dados da external_reference
         const externalReference = paymentInfo.external_reference;
@@ -63,83 +63,26 @@ export async function POST(request: NextRequest) {
         // Importar Supabase
         const { supabase } = await import("@/lib/supabase");
 
-        // 1. Atualizar solicitação para aprovada
+        // ⏳ ATUALIZAR SOLICITAÇÃO: Marcar que o pagamento foi confirmado, mas manter PENDENTE para o admin aprovar
         const { error: updateSolicitacaoError } = await supabase
           .from("solicitacoes_renovacao")
           .update({
-            status: "aprovado",
-            mensagem_admin: "Pagamento aprovado automaticamente via MercadoPago",
-            data_resposta: new Date().toISOString(),
+            mercadopago_payment_id: paymentId.toString(),
+            // Status continua "pendente" - admin precisa aprovar manualmente
           })
-          .eq("mercadopago_preference_id", paymentInfo.additional_info?.items?.[0]?.id?.split("-")?.[0] || "");
+          .eq("operador_id", usuario_id)
+          .eq("status", "pendente")
+          .is("mercadopago_payment_id", null)
+          .order("data_solicitacao", { ascending: false })
+          .limit(1);
 
         if (updateSolicitacaoError) {
           console.error("❌ Erro ao atualizar solicitação:", updateSolicitacaoError);
-        }
-
-        // 2. Criar registro no histórico de pagamentos
-        const { error: insertHistoricoError } = await supabase
-          .from("historico_pagamentos")
-          .insert({
-            usuario_id,
-            mes_referencia: paymentInfo.description || `Renovação ${dias_comprados} dias`,
-            valor: paymentInfo.transaction_amount,
-            data_vencimento: new Date().toISOString(),
-            data_pagamento: new Date().toISOString(),
-            status: "pago",
-            forma_pagamento,
-            dias_comprados,
-            tipo_compra,
-            observacao_admin: `Pagamento MercadoPago ID: ${paymentId}`,
-            aprovado_por: "sistema_automatico",
-            data_aprovacao: new Date().toISOString(),
-          });
-
-        if (insertHistoricoError) {
-          console.error("❌ Erro ao inserir no histórico:", insertHistoricoError);
-        }
-
-        // 3. Atualizar dias do operador
-        const { data: operador, error: operadorError } = await supabase
-          .from("operadores")
-          .select("data_proximo_vencimento")
-          .eq("id", usuario_id)
-          .single();
-
-        if (operadorError) {
-          console.error("❌ Erro ao buscar operador:", operadorError);
         } else {
-          // Calcular nova data de vencimento
-          const dataAtual = operador?.data_proximo_vencimento
-            ? new Date(operador.data_proximo_vencimento)
-            : new Date();
-
-          // Se a data já passou, usar data atual
-          if (dataAtual < new Date()) {
-            dataAtual.setTime(new Date().getTime());
-          }
-
-          // Adicionar dias comprados
-          dataAtual.setDate(dataAtual.getDate() + dias_comprados);
-
-          // Atualizar operador
-          const { error: updateOperadorError } = await supabase
-            .from("operadores")
-            .update({
-              data_proximo_vencimento: dataAtual.toISOString(),
-              ativo: true,
-              suspenso: false,
-            })
-            .eq("id", usuario_id);
-
-          if (updateOperadorError) {
-            console.error("❌ Erro ao atualizar operador:", updateOperadorError);
-          } else {
-            console.log(`✅ Operador atualizado! Novo vencimento: ${dataAtual.toISOString()}`);
-          }
+          console.log("✅ Solicitação atualizada com payment_id. Status: PENDENTE (aguardando aprovação do admin)");
         }
 
-        // 4. Registrar log do webhook
+        // 📋 Registrar log do webhook
         const { error: logError } = await supabase
           .from("webhook_logs")
           .insert({
@@ -147,15 +90,23 @@ export async function POST(request: NextRequest) {
             event_type: type,
             payload: body,
             status: "processado",
-            response: { success: true, message: "Pagamento aprovado e dias creditados" },
+            response: {
+              success: true,
+              message: "Pagamento confirmado. Aguardando aprovação do administrador.",
+              usuario_id,
+              payment_id: paymentId,
+            },
           });
 
         if (logError) {
           console.error("⚠️ Erro ao registrar log:", logError);
         }
 
-        console.log("✅ Webhook processado com sucesso!");
-        return NextResponse.json({ success: true, message: "Pagamento processado" });
+        console.log("✅ Webhook processado! Solicitação marcada como PAGA, mas continua PENDENTE para aprovação manual do admin.");
+        return NextResponse.json({
+          success: true,
+          message: "Pagamento confirmado. Aguardando aprovação do administrador."
+        });
       } else {
         console.log(`⏳ Pagamento com status: ${paymentInfo.status}`);
 

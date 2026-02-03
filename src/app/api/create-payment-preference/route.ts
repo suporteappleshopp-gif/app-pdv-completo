@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Salvar a solicitação no banco (status pendente)
+    // Salvar a solicitação no banco (status pendente - aguardando aprovação do admin)
     const { error: insertError } = await supabase
       .from("solicitacoes_renovacao")
       .insert({
@@ -129,12 +129,19 @@ export async function POST(request: NextRequest) {
         forma_pagamento: forma_pagamento,
         status: "pendente",
         mercadopago_preference_id: result.id,
+        mercadopago_payment_id: null, // Será preenchido quando o pagamento for confirmado
         data_solicitacao: new Date().toISOString(),
       });
 
     if (insertError) {
       console.error("Erro ao salvar solicitação:", insertError);
+      return NextResponse.json(
+        { success: false, error: "Erro ao salvar solicitação no banco" },
+        { status: 500 }
+      );
     }
+
+    console.log("✅ Solicitação criada com sucesso! Status: PENDENTE (aguardando pagamento e aprovação do admin)");
 
     return NextResponse.json({
       success: true,
