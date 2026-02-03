@@ -39,33 +39,35 @@ export class GerenciadorAssinatura {
     mostrarAviso: boolean;
   }> {
     try {
-      // 🔥 BUSCAR SEMPRE DO SUPABASE - NÃO USAR LOCALSTORAGE
+      // 🔥 BUSCAR SEMPRE DIRETO DO SUPABASE - DADOS EM TEMPO REAL
       console.log("🔍 Verificando acesso do usuário:", userId);
 
-      const operadores = await AdminSupabase.getAllOperadores();
-      const operador = operadores.find(op => op.id === userId);
+      const { data: operador, error } = await supabase
+        .from("operadores")
+        .select("*")
+        .eq("id", userId)
+        .single();
 
-      // Se não encontrou operador E a lista está vazia, liberar acesso temporário
-      if (!operador && operadores.length === 0) {
-        console.warn("⚠️ Não foi possível buscar operadores do Supabase. Liberando acesso temporariamente.");
-        return {
-          podeUsar: true,
-          status: "ativo",
-          diasRestantes: 999,
-          mensagem: "Acesso liberado (modo offline)",
-          mostrarAviso: false,
-        };
-      }
+      // Se deu erro ou não encontrou o operador
+      if (error || !operador) {
+        console.error("❌ Erro ao buscar operador:", error?.message || "Operador não encontrado");
 
-      if (!operador) {
-        console.error("❌ Operador não encontrado:", userId);
-        return {
-          podeUsar: false,
-          status: "pendente",
-          diasRestantes: 0,
-          mensagem: "Usuário não encontrado.",
-          mostrarAviso: false,
-        };
+        // Tentar buscar de forma alternativa (getAllOperadores) como fallback
+        const operadores = await AdminSupabase.getAllOperadores();
+        const operadorFallback = operadores.find(op => op.id === userId);
+
+        if (!operadorFallback) {
+          return {
+            podeUsar: false,
+            status: "erro",
+            diasRestantes: 0,
+            mensagem: "Usuário não encontrado. Faça login novamente.",
+            mostrarAviso: false,
+          };
+        }
+
+        // Usar operador do fallback
+        console.log("✅ Operador encontrado via fallback");
       }
 
       console.log("✅ Operador encontrado:", {
@@ -73,13 +75,13 @@ export class GerenciadorAssinatura {
         nome: operador.nome,
         ativo: operador.ativo,
         suspenso: operador.suspenso,
-        aguardandoPagamento: operador.aguardandoPagamento,
-        dataVencimento: operador.dataProximoVencimento,
-        formaPagamento: operador.formaPagamento,
+        aguardandoPagamento: operador.aguardando_pagamento,
+        dataVencimento: operador.data_proximo_vencimento,
+        formaPagamento: operador.forma_pagamento,
       });
 
       // Se não tem forma de pagamento definida, é usuário sem mensalidade
-      if (!operador.formaPagamento) {
+      if (!operador.forma_pagamento) {
         console.log("✅ Usuário sem mensalidade - acesso livre");
         return {
           podeUsar: true,
@@ -91,7 +93,7 @@ export class GerenciadorAssinatura {
       }
 
       // Verificar se está aguardando pagamento
-      if (operador.aguardandoPagamento) {
+      if (operador.aguardando_pagamento) {
         console.warn("⚠️ Usuário aguardando pagamento");
         return {
           podeUsar: false,
@@ -104,7 +106,10 @@ export class GerenciadorAssinatura {
 
       // Verificar se está suspenso
       if (operador.suspenso || !operador.ativo) {
-        console.warn("⚠️ Conta suspensa");
+        console.warn("⚠️ Conta suspensa ou inativa:", {
+          suspenso: operador.suspenso,
+          ativo: operador.ativo,
+        });
         return {
           podeUsar: false,
           status: "suspenso",
@@ -115,9 +120,9 @@ export class GerenciadorAssinatura {
       }
 
       // Calcular dias restantes
-      if (operador.dataProximoVencimento) {
+      if (operador.data_proximo_vencimento) {
         const hoje = new Date();
-        const vencimento = new Date(operador.dataProximoVencimento);
+        const vencimento = new Date(operador.data_proximo_vencimento);
         const diasRestantes = differenceInDays(vencimento, hoje);
 
         console.log("📅 Dias restantes:", diasRestantes);
@@ -125,13 +130,16 @@ export class GerenciadorAssinatura {
         // Se expirou, suspender automaticamente
         if (diasRestantes < 0) {
           console.warn("⚠️ Assinatura expirada - suspendendo conta");
-          const operadorAtualizado = {
-            ...operador,
-            ativo: false,
-            suspenso: true,
-            aguardandoPagamento: true,
-          };
-          await AdminSupabase.updateOperador(operadorAtualizado);
+
+          // Atualizar diretamente no banco
+          await supabase
+            .from("operadores")
+            .update({
+              ativo: false,
+              suspenso: true,
+              aguardando_pagamento: true,
+            })
+            .eq("id", operador.id);
 
           return {
             podeUsar: false,
