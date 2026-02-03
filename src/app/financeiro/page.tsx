@@ -925,8 +925,8 @@ export default function FinanceiroPage() {
                   </div>
                 </div>
 
-                {/* Lista de Pagamentos */}
-                <div className="space-y-3">
+                {/* Lista de Pagamentos - Com scroll limitado */}
+                <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-purple-500 scrollbar-track-white/10">
                   {pagamentos.map((pagamento) => (
                     <div
                       key={pagamento.id}

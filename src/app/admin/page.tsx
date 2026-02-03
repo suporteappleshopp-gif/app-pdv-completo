@@ -875,7 +875,7 @@ export default function AdminPage() {
                 <p className="text-purple-200 text-lg">Nenhum usuário encontrado</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-4 max-h-[700px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-purple-500 scrollbar-track-white/10">
                 {operadoresFiltrados.map((operador) => {
                   // Calcular dias restantes
                   let diasRestantes = 0;

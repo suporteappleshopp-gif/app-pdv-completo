@@ -489,11 +489,11 @@ export default function SolicitacoesRenovacao() {
             </div>
           )}
 
-          {/* Solicitações Processadas */}
+          {/* Solicitações Processadas - Com scroll limitado */}
           {solicitacoesProcessadas.length > 0 && (
             <div className="mt-6">
               <h3 className="text-lg font-semibold text-gray-700 mb-3">Histórico</h3>
-              <div className="space-y-3">
+              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200">
                 {solicitacoesProcessadas.map((sol) => (
                   <div
                     key={sol.id}

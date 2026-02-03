@@ -128,3 +128,49 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Scrollbar personalizado */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: rgba(139, 92, 246, 0.5);
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 92, 246, 0.7);
+}
+
+/* Scrollbar para o admin (lista de operadores) */
+.scrollbar-thumb-purple-500::-webkit-scrollbar-thumb {
+  background: rgba(168, 85, 247, 0.6);
+}
+
+.scrollbar-thumb-purple-500::-webkit-scrollbar-thumb:hover {
+  background: rgba(168, 85, 247, 0.8);
+}
+
+.scrollbar-track-white\/10::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Scrollbar para lista de pagamentos do usuário */
+.scrollbar-thumb-gray-400::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.6);
+}
+
+.scrollbar-thumb-gray-400::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.8);
+}
+
+.scrollbar-track-gray-200::-webkit-scrollbar-track {
+  background: rgba(229, 231, 235, 0.3);
+}
