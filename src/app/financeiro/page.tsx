@@ -58,6 +58,8 @@ export default function FinanceiroPage() {
   const [totalDiasDisponiveis, setTotalDiasDisponiveis] = useState(0);
 
   useEffect(() => {
+    let cleanupFunctions: (() => void)[] = [];
+
     const checkAuth = async () => {
       // Buscar operador logado do Supabase
       const { AuthSupabase } = await import("@/lib/auth-supabase");
@@ -76,11 +78,19 @@ export default function FinanceiroPage() {
       return true;
     };
 
-    checkAuth().then((isAuth) => {
+    checkAuth().then(async (isAuth) => {
       if (isAuth) {
-        carregarDados();
+        const cleanup = await carregarDados();
+        if (cleanup && typeof cleanup === 'function') {
+          cleanupFunctions.push(cleanup);
+        }
       }
     });
+
+    // Retornar função de cleanup
+    return () => {
+      cleanupFunctions.forEach(fn => fn());
+    };
   }, [router]);
 
   useEffect(() => {
@@ -148,19 +158,27 @@ export default function FinanceiroPage() {
       const { supabase } = await import("@/lib/supabase");
 
       // Carregar histórico de pagamentos (pagos e pendentes)
-      const { data: pagamentosSupabase } = await supabase
+      const { data: pagamentosSupabase, error: errorPagamentos } = await supabase
         .from("historico_pagamentos")
         .select("*")
         .eq("usuario_id", operador.id)
         .in("status", ["pago", "pendente"])
         .order("created_at", { ascending: false });
 
+      if (errorPagamentos) {
+        console.error("⚠️ Erro ao carregar histórico de pagamentos:", errorPagamentos);
+      }
+
       // ✅ CARREGAR SOLICITAÇÕES DE RENOVAÇÃO (para mostrar no extrato)
-      const { data: solicitacoesRenovacao } = await supabase
+      const { data: solicitacoesRenovacao, error: errorSolicitacoes } = await supabase
         .from("solicitacoes_renovacao")
         .select("*")
         .eq("operador_id", operador.id)
         .order("data_solicitacao", { ascending: false });
+
+      if (errorSolicitacoes) {
+        console.error("⚠️ Erro ao carregar solicitações de renovação:", errorSolicitacoes);
+      }
 
       // Converter pagamentos do Supabase para o formato local
       const pagamentosSupabaseFormatados: Pagamento[] = (pagamentosSupabase || []).map((pag) => ({
@@ -180,19 +198,27 @@ export default function FinanceiroPage() {
       }));
 
       // ✅ CONVERTER SOLICITAÇÕES DE RENOVAÇÃO PARA FORMATO DE PAGAMENTO
-      const solicitacoesFormatadas: Pagamento[] = (solicitacoesRenovacao || []).map((sol) => ({
-        id: `sol_${sol.id}`,
-        usuarioId: sol.operador_id,
-        mesReferencia: `Solicitação de Renovação - ${sol.dias_solicitados} dias`,
-        valor: sol.valor,
-        dataVencimento: new Date(sol.data_solicitacao),
-        dataPagamento: sol.data_resposta ? new Date(sol.data_resposta) : null,
-        status: sol.status as "pendente" | "pago" | "vencido" | "cancelado",
-        formaPagamento: sol.forma_pagamento as "pix" | "cartao",
-        diasComprados: sol.dias_solicitados,
-        tipoCompra: "renovacao-solicitada",
-        observacao_admin: sol.mensagem_admin,
-      }));
+      const solicitacoesFormatadas: Pagamento[] = (solicitacoesRenovacao || []).map((sol) => {
+        // Converter status: "aprovado" → "pago", "recusado" → "cancelado"
+        let statusConvertido: "pendente" | "pago" | "vencido" | "cancelado" = "pendente";
+        if (sol.status === "aprovado") statusConvertido = "pago";
+        else if (sol.status === "recusado") statusConvertido = "cancelado";
+        else if (sol.status === "pendente") statusConvertido = "pendente";
+
+        return {
+          id: `sol_${sol.id}`,
+          usuarioId: sol.operador_id,
+          mesReferencia: `Solicitação de Renovação - ${sol.dias_solicitados} dias`,
+          valor: sol.valor,
+          dataVencimento: new Date(sol.data_solicitacao),
+          dataPagamento: sol.data_resposta ? new Date(sol.data_resposta) : null,
+          status: statusConvertido,
+          formaPagamento: sol.forma_pagamento as "pix" | "cartao",
+          diasComprados: sol.dias_solicitados,
+          tipoCompra: "renovacao-solicitada",
+          observacao_admin: sol.mensagem_admin,
+        };
+      });
 
       // Carregar pagamentos do IndexedDB
       const pagamentosIndexedDB = await db.getPagamentosByUsuario(operador.id);
@@ -241,6 +267,48 @@ export default function FinanceiroPage() {
       await calcularGanhos();
       await calcularTotalDiasDisponiveis();
 
+      // ✅ CONFIGURAR REALTIME: Atualizar quando admin aprovar/recusar solicitações
+      const channelSolicitacoes = supabase
+        .channel("user_solicitacoes_renovacao")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "solicitacoes_renovacao",
+            filter: `operador_id=eq.${operador.id}`,
+          },
+          (payload) => {
+            console.log("🔄 Atualização em tempo real (solicitações):", payload);
+            carregarDados();
+          }
+        )
+        .subscribe();
+
+      // ✅ CONFIGURAR REALTIME: Atualizar quando pagamentos mudarem
+      const channelPagamentos = supabase
+        .channel("user_historico_pagamentos")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "historico_pagamentos",
+            filter: `usuario_id=eq.${operador.id}`,
+          },
+          (payload) => {
+            console.log("🔄 Atualização em tempo real (pagamentos):", payload);
+            carregarDados();
+          }
+        )
+        .subscribe();
+
+      // Cleanup na desmontagem
+      return () => {
+        supabase.removeChannel(channelSolicitacoes);
+        supabase.removeChannel(channelPagamentos);
+      };
+
       // Calcular dias restantes com base nos pagamentos
       const pagamentosPagos = todosPagamentos.filter(p => p.status === "pago");
 
@@ -284,7 +352,7 @@ export default function FinanceiroPage() {
               ativo: diasRestantesCalculados > 0,
               suspenso: diasRestantesCalculados <= 0,
             })
-            .eq("email", operador.email);
+            .eq("email", operador!.email);
         } catch (error) {
           console.error("Erro ao atualizar Supabase:", error);
         }
@@ -295,11 +363,11 @@ export default function FinanceiroPage() {
           const { data: operadorDB } = await supabase
             .from("operadores")
             .select("data_proximo_vencimento")
-            .eq("email", operador.email)
+            .eq("email", operador!.email)
             .single();
 
           if (operadorDB?.data_proximo_vencimento) {
-            const vencimento = new Date(operadorDB.data_proximo_vencimento);
+            const vencimento = new Date(operadorDB!.data_proximo_vencimento);
             const hoje = new Date();
             const dias = differenceInDays(vencimento, hoje);
             setDiasRestantes(dias);
