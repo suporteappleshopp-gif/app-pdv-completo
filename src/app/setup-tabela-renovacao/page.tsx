@@ -9,9 +9,9 @@ export default function SetupTabelaRenovacao() {
   const [copiado, setCopiado] = useState(false);
 
   const sqlScript = `-- Criar tabela de solicitações de renovação
-CREATE TABLE IF NOT EXISTS solicitacoes_renovacao (
-  id TEXT PRIMARY KEY DEFAULT ('sol_' || substr(md5(random()::text), 1, 16)),
-  operador_id TEXT NOT NULL REFERENCES operadores(id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS public.solicitacoes_renovacao (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  operador_id UUID NOT NULL REFERENCES public.operadores(id) ON DELETE CASCADE,
   forma_pagamento TEXT NOT NULL CHECK (forma_pagamento IN ('pix', 'cartao')),
   dias_solicitados INTEGER NOT NULL,
   valor DECIMAL(10, 2) NOT NULL,
@@ -19,57 +19,55 @@ CREATE TABLE IF NOT EXISTS solicitacoes_renovacao (
   mensagem_admin TEXT,
   data_solicitacao TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   data_resposta TIMESTAMP WITH TIME ZONE,
-  admin_responsavel_id TEXT REFERENCES operadores(id),
+  admin_responsavel_id UUID REFERENCES public.operadores(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Índices para performance
-CREATE INDEX IF NOT EXISTS idx_solicitacoes_operador ON solicitacoes_renovacao(operador_id);
-CREATE INDEX IF NOT EXISTS idx_solicitacoes_status ON solicitacoes_renovacao(status);
-CREATE INDEX IF NOT EXISTS idx_solicitacoes_data ON solicitacoes_renovacao(data_solicitacao DESC);
+CREATE INDEX IF NOT EXISTS idx_solicitacoes_operador ON public.solicitacoes_renovacao(operador_id);
+CREATE INDEX IF NOT EXISTS idx_solicitacoes_status ON public.solicitacoes_renovacao(status);
+CREATE INDEX IF NOT EXISTS idx_solicitacoes_data ON public.solicitacoes_renovacao(data_solicitacao DESC);
 
 -- Habilitar RLS
-ALTER TABLE solicitacoes_renovacao ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.solicitacoes_renovacao ENABLE ROW LEVEL SECURITY;
 
 -- Políticas RLS
 CREATE POLICY "Usuarios podem ver suas solicitacoes"
-  ON solicitacoes_renovacao FOR SELECT
+  ON public.solicitacoes_renovacao FOR SELECT
   USING (
-    operador_id = auth.uid()
-    OR EXISTS (
-      SELECT 1 FROM operadores
-      WHERE operadores.auth_user_id = auth.uid()
-      AND operadores.id = solicitacoes_renovacao.operador_id
+    EXISTS (
+      SELECT 1 FROM public.operadores
+      WHERE operadores.id = solicitacoes_renovacao.operador_id
+      AND operadores.auth_user_id = auth.uid()
     )
   );
 
 CREATE POLICY "Admins podem ver todas solicitacoes"
-  ON solicitacoes_renovacao FOR SELECT
+  ON public.solicitacoes_renovacao FOR SELECT
   USING (
     EXISTS (
-      SELECT 1 FROM operadores
+      SELECT 1 FROM public.operadores
       WHERE operadores.auth_user_id = auth.uid()
       AND operadores.is_admin = true
     )
   );
 
 CREATE POLICY "Usuarios podem criar solicitacoes"
-  ON solicitacoes_renovacao FOR INSERT
+  ON public.solicitacoes_renovacao FOR INSERT
   WITH CHECK (
-    operador_id = auth.uid()
-    OR EXISTS (
-      SELECT 1 FROM operadores
-      WHERE operadores.auth_user_id = auth.uid()
-      AND operadores.id = operador_id
+    EXISTS (
+      SELECT 1 FROM public.operadores
+      WHERE operadores.id = operador_id
+      AND operadores.auth_user_id = auth.uid()
     )
   );
 
 CREATE POLICY "Admins podem atualizar solicitacoes"
-  ON solicitacoes_renovacao FOR UPDATE
+  ON public.solicitacoes_renovacao FOR UPDATE
   USING (
     EXISTS (
-      SELECT 1 FROM operadores
+      SELECT 1 FROM public.operadores
       WHERE operadores.auth_user_id = auth.uid()
       AND operadores.is_admin = true
     )
@@ -85,11 +83,11 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER solicitacoes_renovacao_updated_at
-  BEFORE UPDATE ON solicitacoes_renovacao
+  BEFORE UPDATE ON public.solicitacoes_renovacao
   FOR EACH ROW
   EXECUTE FUNCTION update_solicitacoes_renovacao_updated_at();
 
-COMMENT ON TABLE solicitacoes_renovacao IS 'Solicitações de renovação de assinatura dos usuários';`;
+COMMENT ON TABLE public.solicitacoes_renovacao IS 'Solicitações de renovação de assinatura dos usuários';`;
 
   const copiarSQL = () => {
     navigator.clipboard.writeText(sqlScript);
