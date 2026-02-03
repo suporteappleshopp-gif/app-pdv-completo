@@ -1052,7 +1052,7 @@ export default function FinanceiroPage() {
                 <p className="text-white/90 text-lg">
                   Você tem <span className="font-bold text-yellow-300">{diasRestantes} {diasRestantes === 1 ? "dia" : "dias"}</span> restantes
                   <br />
-                  Vencimento: <span className="font-bold">{format(dataProximoVencimento, "dd/MM/yyyy", { locale: ptBR })}</span>
+                  Vencimento: <span className="font-bold">{format(new Date(dataProximoVencimento), "dd/MM/yyyy", { locale: ptBR })}</span>
                 </p>
               )}
             </div>
