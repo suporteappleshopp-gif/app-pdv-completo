@@ -1402,7 +1402,7 @@ export default function CaixaPage() {
                   {produtosFiltrados.map((produto) => (
                     <button
                       key={produto.id}
-                      onClick={() => adicionarProduto(produto)}
+                      onClick={async () => await adicionarProduto(produto)}
                       className="w-full p-4 hover:bg-blue-50 border-b last:border-b-0 text-left transition-colors"
                     >
                       <div className="flex justify-between items-center">
