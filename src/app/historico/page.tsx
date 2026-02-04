@@ -45,7 +45,50 @@ export default function HistoricoPage() {
   const [motivoDevolucao, setMotivoDevolucao] = useState("");
 
   useEffect(() => {
-    carregarVendas();
+    let channel: any = null;
+
+    const init = async () => {
+      await carregarVendas();
+
+      // Configurar subscription de realtime
+      const { AuthSupabase } = await import("@/lib/auth-supabase");
+      const operador = await AuthSupabase.getCurrentOperador();
+
+      if (operador && !operador.isAdmin) {
+        const { supabase } = await import("@/lib/supabase");
+
+        // Escutar mudanças na tabela de vendas em tempo real
+        channel = supabase
+          .channel('vendas-realtime')
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'vendas',
+              filter: `operador_id=eq.${operador.id}`,
+            },
+            (payload) => {
+              console.log('🔔 Mudança detectada em vendas:', payload);
+              // Recarregar vendas quando houver mudança
+              carregarVendas();
+            }
+          )
+          .subscribe();
+
+        console.log('✅ Realtime habilitado para histórico de vendas');
+      }
+    };
+
+    init();
+
+    // Cleanup ao desmontar
+    return () => {
+      if (channel) {
+        channel.unsubscribe();
+        console.log('🔌 Realtime desconectado');
+      }
+    };
   }, []);
 
   const carregarVendas = async () => {
