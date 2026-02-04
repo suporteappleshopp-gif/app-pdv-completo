@@ -1057,6 +1057,19 @@ export default function FinanceiroPage() {
               )}
             </div>
 
+            {/* Aviso Importante */}
+            <div className="bg-yellow-500/20 border-2 border-yellow-400 rounded-xl p-4 mb-6">
+              <div className="flex items-start space-x-3">
+                <AlertCircle className="w-6 h-6 text-yellow-300 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-yellow-100 font-bold text-sm mb-1">IMPORTANTE</p>
+                  <p className="text-white/90 text-sm leading-relaxed">
+                    Faça apenas <span className="font-bold">UM PAGAMENTO</span> e volte para Financeiro. Atualize a página - a ordem estará <span className="font-bold text-yellow-300">PENDENTE</span>. Aguarde a liberação do administrador.
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div className="grid md:grid-cols-2 gap-6">
               {/* Plano PIX - 60 dias */}
               <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border-2 border-white/30 hover:border-green-400 transition-all">
