@@ -300,6 +300,30 @@ export default function SolicitacoesRenovacao() {
       }
 
       console.log("✅ Solicitação aprovada com sucesso!");
+
+      // 4. Registrar ganho na carteira do admin
+      const ganhoId = `ganho_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      const { error: ganhoError } = await supabase
+        .from("ganhos_admin")
+        .insert({
+          id: ganhoId,
+          tipo: "mensalidade-paga",
+          usuario_id: solicitacaoSelecionada.operador_id,
+          usuario_nome: operadorData.nome,
+          valor: solicitacaoSelecionada.valor,
+          forma_pagamento: solicitacaoSelecionada.forma_pagamento,
+          descricao: `Renovação de ${solicitacaoSelecionada.dias_solicitados} dias - ${operadorData.nome}`,
+          created_at: new Date().toISOString(),
+        });
+
+      if (ganhoError) {
+        console.error("⚠️ Erro ao registrar ganho:", ganhoError);
+        console.error("📋 Detalhes do erro ganho:", JSON.stringify(ganhoError, null, 2));
+        // Não bloquear - o importante (liberação do usuário) já foi feito
+      } else {
+        console.log("✅ Ganho registrado na carteira do admin:", ganhoId);
+      }
+
       console.log(`📊 Resumo:
         - Usuário: ${operadorData.nome}
         - Dias adicionados: ${solicitacaoSelecionada.dias_solicitados}
