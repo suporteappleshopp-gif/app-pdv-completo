@@ -556,7 +556,7 @@ export default function CaixaPage() {
         if (e.key.toLowerCase() === "f") {
           e.preventDefault();
           if (carrinho.length > 0) {
-            tentarAcao(() => abrirModalFinalizacao());
+            abrirModalFinalizacao();
           }
           return;
         }
@@ -684,11 +684,18 @@ export default function CaixaPage() {
     return vendas;
   };
 
-  const adicionarProduto = (produto: Produto) => {
-    // Usuários sem mensalidade podem usar livremente
-    if (!usuarioSemMensalidade && !podeUsarApp) {
-      setMostrarBloqueio(true);
-      return;
+  const adicionarProduto = async (produto: Produto) => {
+    // 🔒🔒🔒 BLOQUEIO CRÍTICO: VERIFICAR STATUS NO SUPABASE EM TEMPO REAL
+    if (!usuarioSemMensalidade) {
+      console.log("🔒 Verificando status da conta no Supabase antes de adicionar produto...");
+      const resultadoAcesso = await GerenciadorAssinatura.verificarAcesso(operadorId);
+
+      if (!resultadoAcesso.podeUsar) {
+        console.error("❌ BLOQUEADO: Tentativa de adicionar produto com conta suspensa!");
+        alert("🔒 AÇÃO BLOQUEADA!\n\nSua conta está SUSPENSA.\nRenove sua assinatura para usar o sistema.");
+        setMostrarBloqueio(true);
+        return;
+      }
     }
 
     // Verificar se o estoque está esgotado
@@ -952,25 +959,35 @@ export default function CaixaPage() {
     }
   };
 
-  const buscarProdutoPorCodigo = (codigo: string) => {
+  const buscarProdutoPorCodigo = async (codigo: string) => {
     const codigoNormalizado = codigo.trim();
     const produto = produtos.find((p) =>
       p.codigoBarras === codigoNormalizado ||
       p.codigoBarras.toLowerCase() === codigoNormalizado.toLowerCase()
     );
     if (produto) {
-      adicionarProduto(produto);
+      await adicionarProduto(produto);
       alert(`Produto "${produto.nome}" adicionado ao carrinho!`);
     } else {
       alert(`Produto com código "${codigoNormalizado}" não encontrado.`);
     }
   };
 
-  const abrirModalFinalizacao = () => {
-    // 🔒 BLOQUEIO CRÍTICO: Usuários suspensos não podem finalizar vendas
-    if (!usuarioSemMensalidade && !podeUsarApp) {
-      setMostrarBloqueio(true);
-      return;
+  const abrirModalFinalizacao = async () => {
+    // 🔒🔒🔒 BLOQUEIO CRÍTICO E DEFINITIVO 🔒🔒🔒
+    // VERIFICAR STATUS NO SUPABASE EM TEMPO REAL ANTES DE ABRIR MODAL
+    if (!usuarioSemMensalidade) {
+      console.log("🔒 Verificando status da conta no Supabase antes de abrir modal de finalização...");
+      const resultadoAcesso = await GerenciadorAssinatura.verificarAcesso(operadorId);
+
+      if (!resultadoAcesso.podeUsar) {
+        console.error("❌ BLOQUEADO: Conta suspensa ou inativa detectada no Supabase");
+        alert("🔒 SUA CONTA ESTÁ SUSPENSA!\n\nVocê não pode realizar vendas.\nRenove sua assinatura para continuar usando o sistema.");
+        setMostrarBloqueio(true);
+        return;
+      }
+
+      console.log("✅ Status verificado: Conta ativa. Prosseguindo com abertura do modal.");
     }
 
     if (carrinho.length === 0) {
@@ -981,11 +998,21 @@ export default function CaixaPage() {
   };
 
   const finalizarVenda = async () => {
-    // 🔒 BLOQUEIO CRÍTICO: Usuários suspensos não podem finalizar vendas
-    if (!usuarioSemMensalidade && !podeUsarApp) {
-      setMostrarBloqueio(true);
-      setMostrarModalFinalizacao(false);
-      return;
+    // 🔒🔒🔒 BLOQUEIO CRÍTICO E DEFINITIVO 🔒🔒🔒
+    // VERIFICAR STATUS NO SUPABASE EM TEMPO REAL ANTES DE FINALIZAR
+    if (!usuarioSemMensalidade) {
+      console.log("🔒 Verificando status da conta no Supabase em tempo real antes de finalizar venda...");
+      const resultadoAcesso = await GerenciadorAssinatura.verificarAcesso(operadorId);
+
+      if (!resultadoAcesso.podeUsar) {
+        console.error("❌ BLOQUEADO: Tentativa de finalizar venda com conta suspensa ou inativa!");
+        alert("🔒 VENDA BLOQUEADA!\n\nSua conta está SUSPENSA ou INATIVA.\n\nRenove sua assinatura para continuar usando o sistema.");
+        setMostrarBloqueio(true);
+        setMostrarModalFinalizacao(false);
+        return;
+      }
+
+      console.log("✅ Status verificado: Conta ativa. Prosseguindo com finalização da venda.");
     }
 
     try {
@@ -1492,7 +1519,7 @@ export default function CaixaPage() {
               </div>
 
               <button
-                onClick={() => tentarAcao(() => abrirModalFinalizacao())}
+                onClick={() => abrirModalFinalizacao()}
                 disabled={carrinho.length === 0}
                 className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white py-4 rounded-lg font-bold text-lg flex items-center justify-center space-x-2 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
               >
