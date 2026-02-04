@@ -80,8 +80,10 @@ export class GerenciadorAssinatura {
         formaPagamento: operador.forma_pagamento,
       });
 
-      // Se não tem forma de pagamento definida, é usuário sem mensalidade
-      if (!operador.forma_pagamento) {
+      // 🔒 CORREÇÃO CRÍTICA: Verificar se é usuário sem mensalidade
+      // Usuário sem mensalidade tem: forma_pagamento = NULL E ativo = TRUE E suspenso = FALSE
+      // Usuário NOVO tem: forma_pagamento = NULL E ativo = FALSE E suspenso = TRUE
+      if (!operador.forma_pagamento && operador.ativo && !operador.suspenso) {
         console.log("✅ Usuário sem mensalidade - acesso livre");
         return {
           podeUsar: true,

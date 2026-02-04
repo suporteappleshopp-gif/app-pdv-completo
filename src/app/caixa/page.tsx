@@ -376,8 +376,10 @@ export default function CaixaPage() {
         setOperadorNome(operador.nome);
         setOperadorId(operador.id);
 
-        // Verificar se é usuário sem mensalidade (criado pelo admin)
-        const semMensalidade = !operador.formaPagamento;
+        // 🔒 CORREÇÃO CRÍTICA: Verificar se é usuário sem mensalidade (criado pelo admin)
+        // Usuário sem mensalidade tem: forma_pagamento = NULL E ativo = TRUE E suspenso = FALSE
+        // Usuário NOVO tem: forma_pagamento = NULL E ativo = FALSE E suspenso = TRUE
+        const semMensalidade = !operador.formaPagamento && operador.ativo && !operador.suspenso;
         setUsuarioSemMensalidade(semMensalidade);
 
         // Se é usuário sem mensalidade, libera acesso imediatamente

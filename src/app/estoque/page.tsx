@@ -78,8 +78,10 @@ export default function EstoquePage() {
         const resultado = await GerenciadorAssinatura.verificarAcesso(operador.id);
         setPodeUsarApp(resultado.podeUsar);
 
-        // Verificar se é usuário sem mensalidade (acesso livre)
-        if (!operador.formaPagamento) {
+        // 🔒 CORREÇÃO CRÍTICA: Verificar se é usuário sem mensalidade (acesso livre)
+        // Usuário sem mensalidade tem: formaPagamento = NULL E ativo = TRUE E suspenso = FALSE
+        // Usuário NOVO tem: formaPagamento = NULL E ativo = FALSE E suspenso = TRUE
+        if (!operador.formaPagamento && operador.ativo && !operador.suspenso) {
           setUsuarioSemMensalidade(true);
           setPodeUsarApp(true);
         }

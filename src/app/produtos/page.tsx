@@ -69,8 +69,10 @@ export default function ProdutosPage() {
         const resultado = await GerenciadorAssinatura.verificarAcesso(operador.id);
         setPodeUsarApp(resultado.podeUsar);
 
-        // Verificar se é usuário sem mensalidade (acesso livre)
-        if (!operador.forma_pagamento) {
+        // 🔒 CORREÇÃO CRÍTICA: Verificar se é usuário sem mensalidade (acesso livre)
+        // Usuário sem mensalidade tem: forma_pagamento = NULL E ativo = TRUE E suspenso = FALSE
+        // Usuário NOVO tem: forma_pagamento = NULL E ativo = FALSE E suspenso = TRUE
+        if (!operador.forma_pagamento && operador.ativo && !operador.suspenso) {
           setUsuarioSemMensalidade(true);
           setPodeUsarApp(true);
         }
