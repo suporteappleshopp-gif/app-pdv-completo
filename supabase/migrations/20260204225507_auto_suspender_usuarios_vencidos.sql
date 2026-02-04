@@ -26,22 +26,19 @@ BEGIN
     data_proximo_vencimento IS NOT NULL
     AND data_proximo_vencimento < NOW()
     AND (ativo = true OR suspenso = false)
-    AND is_admin = false; -- Não suspender admins
+    AND is_admin = false;
 
-  -- Log para debug
   RAISE NOTICE 'Usuários vencidos suspensos automaticamente';
 END;
 $$;
 
 -- 2. CRIAR EXTENSÃO pg_cron SE NÃO EXISTIR
--- (Necessária para agendamento de tarefas)
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 
 -- 3. AGENDAR A FUNÇÃO PARA RODAR A CADA 5 MINUTOS
--- Isso garante que usuários vencidos sejam suspensos rapidamente
 SELECT cron.schedule(
-  'suspender-usuarios-vencidos', -- nome do job
-  '*/5 * * * *',                 -- a cada 5 minutos
+  'suspender-usuarios-vencidos',
+  '*/5 * * * *',
   $$SELECT public.suspender_usuarios_vencidos()$$
 );
 
