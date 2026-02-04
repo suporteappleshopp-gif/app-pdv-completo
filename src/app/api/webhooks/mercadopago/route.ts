@@ -64,22 +64,34 @@ export async function POST(request: NextRequest) {
         const { supabase } = await import("@/lib/supabase");
 
         // ⏳ ATUALIZAR SOLICITAÇÃO: Marcar que o pagamento foi confirmado, mas manter PENDENTE para o admin aprovar
-        const { error: updateSolicitacaoError } = await supabase
+        // Verificar se a coluna mercadopago_payment_id existe
+        const { data: testColumns, error: testError } = await supabase
           .from("solicitacoes_renovacao")
-          .update({
-            mercadopago_payment_id: paymentId.toString(),
-            // Status continua "pendente" - admin precisa aprovar manualmente
-          })
-          .eq("operador_id", usuario_id)
-          .eq("status", "pendente")
-          .is("mercadopago_payment_id", null)
-          .order("data_solicitacao", { ascending: false })
+          .select("mercadopago_payment_id")
           .limit(1);
 
-        if (updateSolicitacaoError) {
-          console.error("❌ Erro ao atualizar solicitação:", updateSolicitacaoError);
+        if (!testError) {
+          // Coluna existe, atualizar com payment_id
+          const { error: updateSolicitacaoError } = await supabase
+            .from("solicitacoes_renovacao")
+            .update({
+              mercadopago_payment_id: paymentId.toString(),
+              // Status continua "pendente" - admin precisa aprovar manualmente
+            })
+            .eq("operador_id", usuario_id)
+            .eq("status", "pendente")
+            .is("mercadopago_payment_id", null)
+            .order("data_solicitacao", { ascending: false })
+            .limit(1);
+
+          if (updateSolicitacaoError) {
+            console.error("❌ Erro ao atualizar solicitação:", updateSolicitacaoError);
+          } else {
+            console.log("✅ Solicitação atualizada com payment_id. Status: PENDENTE (aguardando aprovação do admin)");
+          }
         } else {
-          console.log("✅ Solicitação atualizada com payment_id. Status: PENDENTE (aguardando aprovação do admin)");
+          console.warn("⚠️ Coluna mercadopago_payment_id não existe. Webhook processado mas solicitação não atualizada.");
+          console.warn("⚠️ Execute a migração do banco de dados (MIGRACAO_URGENTE.md)");
         }
 
         // 📋 Registrar log do webhook

@@ -120,23 +120,43 @@ export async function POST(request: NextRequest) {
     });
 
     // Salvar a solicitação no banco (status pendente - aguardando aprovação do admin)
+    // Primeiro, tentar inserir com as colunas do MercadoPago
+    let insertData: any = {
+      operador_id: usuario_id,
+      dias_solicitados: dias_comprados,
+      valor: valor,
+      forma_pagamento: forma_pagamento,
+      status: "pendente",
+      data_solicitacao: new Date().toISOString(),
+    };
+
+    // Tentar adicionar os campos do MercadoPago (se as colunas existirem)
+    const { data: testColumns, error: testError } = await supabase
+      .from("solicitacoes_renovacao")
+      .select("mercadopago_preference_id, mercadopago_payment_id")
+      .limit(1);
+
+    // Se as colunas existem (sem erro), adicionar os dados
+    if (!testError) {
+      insertData.mercadopago_preference_id = result.id;
+      insertData.mercadopago_payment_id = null;
+    } else {
+      console.warn("⚠️ Colunas do MercadoPago não existem ainda. Inserindo sem preference_id.");
+    }
+
     const { error: insertError } = await supabase
       .from("solicitacoes_renovacao")
-      .insert({
-        operador_id: usuario_id,
-        dias_solicitados: dias_comprados,
-        valor: valor,
-        forma_pagamento: forma_pagamento,
-        status: "pendente",
-        mercadopago_preference_id: result.id,
-        mercadopago_payment_id: null, // Será preenchido quando o pagamento for confirmado
-        data_solicitacao: new Date().toISOString(),
-      });
+      .insert(insertData);
 
     if (insertError) {
       console.error("Erro ao salvar solicitação:", insertError);
       return NextResponse.json(
-        { success: false, error: "Erro ao salvar solicitação no banco" },
+        {
+          success: false,
+          error: "Erro ao salvar solicitação no banco",
+          details: insertError.message,
+          hint: "Pode ser necessário executar a migração do banco de dados. Verifique MIGRACAO_URGENTE.md"
+        },
         { status: 500 }
       );
     }
