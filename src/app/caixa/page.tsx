@@ -363,6 +363,13 @@ export default function CaixaPage() {
           return;
         }
 
+        // 🔒 CRÍTICO: BLOQUEAR ADMIN DE ACESSAR PÁGINAS DE USUÁRIO
+        if (operador.isAdmin) {
+          console.error("❌ ADMIN tentando acessar área de usuário - redirecionando para painel admin");
+          router.push("/admin");
+          return;
+        }
+
         console.log("✅ Operador encontrado:", operador.email);
 
         // Configurar dados do operador a partir do banco

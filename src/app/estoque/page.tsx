@@ -57,6 +57,12 @@ export default function EstoquePage() {
       const { AuthSupabase } = await import("@/lib/auth-supabase");
       const operador = await AuthSupabase.getCurrentOperador();
 
+      // 🔒 Bloquear admin
+      if (operador && operador.isAdmin) {
+        window.location.href = "/admin";
+        return;
+      }
+
       if (operador) {
         const { SupabaseSync } = await import("@/lib/supabase-sync");
         const produtosNuvem = await SupabaseSync.loadProdutos(operador.id);

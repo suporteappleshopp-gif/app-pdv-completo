@@ -29,6 +29,12 @@ export default function MeuStatusPage() {
           return;
         }
 
+        // 🔒 Bloquear admin
+        if (operador.isAdmin) {
+          router.push("/admin");
+          return;
+        }
+
         setOperadorId(operador.id);
 
         // Buscar status via API

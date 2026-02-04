@@ -47,13 +47,11 @@ export default function ProdutosPage() {
 
     const init = async () => {
       try {
-        // Buscar operador logado do Supabase
-        const { AuthSupabase } = await import("@/lib/auth-supabase");
-        const operador = await AuthSupabase.getCurrentOperador();
+        // Proteção de rota: bloqueia admin
+        const { protectUserRoute } = await import("@/lib/protect-user-route");
+        const { operador, blocked } = await protectUserRoute(router);
 
-        if (!operador) {
-          console.error("❌ Operador não encontrado - redirecionando para login");
-          router.push("/");
+        if (blocked || !operador) {
           return;
         }
 

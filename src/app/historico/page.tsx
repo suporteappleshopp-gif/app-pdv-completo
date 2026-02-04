@@ -62,6 +62,12 @@ export default function HistoricoPage() {
         return;
       }
 
+      // 🔒 Bloquear admin
+      if (operador.isAdmin) {
+        router.push("/admin");
+        return;
+      }
+
       // Carregar vendas do Supabase
       console.log("☁️ Carregando vendas do Supabase...");
       const { SupabaseSync } = await import("@/lib/supabase-sync");
