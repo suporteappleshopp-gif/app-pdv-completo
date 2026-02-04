@@ -138,7 +138,7 @@ export default function SolicitacoesRenovacao() {
         if (sessionStr) {
           try {
             adminOperador = JSON.parse(sessionStr);
-            console.log("✅ Admin encontrado no localStorage:", adminOperador.email);
+            console.log("✅ Admin encontrado no localStorage:", adminOperador?.email);
           } catch (e) {
             console.error("Erro ao parsear sessão:", e);
           }
@@ -158,7 +158,7 @@ export default function SolicitacoesRenovacao() {
             email: adminEmail || 'admin@sistema.com',
             isAdmin: true,
           } as any;
-          console.log("✅ Admin construído do localStorage:", adminOperador.nome);
+          console.log("✅ Admin construído do localStorage:", adminOperador?.nome);
         }
       }
 
@@ -178,7 +178,7 @@ export default function SolicitacoesRenovacao() {
             email: adminData.email,
             isAdmin: true,
           } as any;
-          console.log("✅ Admin encontrado no Supabase:", adminOperador.nome);
+          console.log("✅ Admin encontrado no Supabase:", adminOperador?.nome);
         }
       }
 

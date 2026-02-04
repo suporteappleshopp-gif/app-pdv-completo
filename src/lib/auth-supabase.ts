@@ -83,6 +83,11 @@ export class AuthSupabase {
 
           console.log("✅ Login bem-sucedido! Operador:", operador.nome, "| Admin:", operador.isAdmin);
 
+          // Salvar sessão no localStorage também (para getCurrentOperador funcionar)
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('operador_session', JSON.stringify(operador));
+          }
+
           return {
             success: true,
             operador,
