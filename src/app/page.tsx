@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AuthSupabase } from "@/lib/auth-supabase";
 import { db } from "@/lib/db";
 import { Operador } from "@/lib/types";
-import { LogIn, Loader2, User, Lock, Shield, UserPlus, CreditCard, CheckCircle, ExternalLink, Calendar, MessageCircle } from "lucide-react";
+import { LogIn, Loader2, User, Lock, Shield, UserPlus, CreditCard, CheckCircle, ExternalLink, Calendar, MessageCircle, AlertCircle } from "lucide-react";
 import { addDays, differenceInDays } from "date-fns";
 
 type ModoAcesso = "usuario" | "admin" | "cadastro";
@@ -643,6 +643,19 @@ export default function LoginPage() {
                   required
                   minLength={6}
                 />
+              </div>
+            </div>
+
+            {/* Aviso Importante */}
+            <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4">
+              <div className="flex items-start space-x-3">
+                <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-yellow-800 font-bold text-sm mb-1">ATENÇÃO</p>
+                  <p className="text-yellow-700 text-sm leading-relaxed">
+                    Ao finalizar a compra, aguarde a liberação do administrador. Sua conta estará logando, mas ficará <span className="font-bold">SUSPENSA</span> até a aprovação do pagamento.
+                  </p>
+                </div>
               </div>
             </div>
 
