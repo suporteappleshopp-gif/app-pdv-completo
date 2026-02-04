@@ -201,16 +201,11 @@ export default function CaixaPage() {
     return () => clearInterval(interval);
   }, [operadorId]);
 
-  // Interceptar ações quando não pode usar (APENAS para usuários COM mensalidade)
-  const tentarAcao = (acao: () => void) => {
-    // Usuários sem mensalidade podem usar livremente
-    if (usuarioSemMensalidade) {
-      acao();
-      return;
-    }
-    
-    // Usuários com mensalidade precisam estar ativos
-    if (!podeUsarApp) {
+  // Interceptar ações quando não pode usar (VERIFICAR SEMPRE)
+  const tentarAcao = async (acao: () => void) => {
+    // 🔒 BLOQUEIO: SEMPRE verificar status no Supabase
+    const resultadoAcesso = await GerenciadorAssinatura.verificarAcesso(operadorId);
+    if (!resultadoAcesso.podeUsar) {
       setMostrarBloqueio(true);
       return;
     }
@@ -549,7 +544,7 @@ export default function CaixaPage() {
         if (e.key.toLowerCase() === "x") {
           e.preventDefault();
           if (carrinho.length > 0) {
-            tentarAcao(() => cancelarVenda());
+            cancelarVenda();
           }
           return;
         }
@@ -687,17 +682,15 @@ export default function CaixaPage() {
   };
 
   const adicionarProduto = async (produto: Produto) => {
-    // 🔒🔒🔒 BLOQUEIO CRÍTICO: VERIFICAR STATUS NO SUPABASE EM TEMPO REAL
-    if (!usuarioSemMensalidade) {
-      console.log("🔒 Verificando status da conta no Supabase antes de adicionar produto...");
-      const resultadoAcesso = await GerenciadorAssinatura.verificarAcesso(operadorId);
+    // 🔒🔒🔒 BLOQUEIO CRÍTICO: SEMPRE VERIFICAR STATUS NO SUPABASE EM TEMPO REAL
+    console.log("🔒 Verificando status da conta no Supabase antes de adicionar produto...");
+    const resultadoAcesso = await GerenciadorAssinatura.verificarAcesso(operadorId);
 
-      if (!resultadoAcesso.podeUsar) {
-        console.error("❌ BLOQUEADO: Tentativa de adicionar produto com conta suspensa!");
-        alert("🔒 AÇÃO BLOQUEADA!\n\nSua conta está SUSPENSA.\nRenove sua assinatura para usar o sistema.");
-        setMostrarBloqueio(true);
-        return;
-      }
+    if (!resultadoAcesso.podeUsar) {
+      console.error("❌ BLOQUEADO: Tentativa de adicionar produto com conta suspensa ou vencida!");
+      alert("🔒 AÇÃO BLOQUEADA!\n\nSua conta está SUSPENSA ou VENCIDA.\n\nAcesse o menu Financeiro para renovar sua assinatura.");
+      setMostrarBloqueio(true);
+      return;
     }
 
     // Verificar se o estoque está esgotado
@@ -756,8 +749,10 @@ export default function CaixaPage() {
     setMostrarProdutos(false);
   };
 
-  const alterarQuantidade = (produtoId: string, delta: number) => {
-    if (!usuarioSemMensalidade && !podeUsarApp) {
+  const alterarQuantidade = async (produtoId: string, delta: number) => {
+    // 🔒 BLOQUEIO: Verificar status antes de alterar quantidade
+    const resultadoAcesso = await GerenciadorAssinatura.verificarAcesso(operadorId);
+    if (!resultadoAcesso.podeUsar) {
       setMostrarBloqueio(true);
       return;
     }
@@ -812,8 +807,10 @@ export default function CaixaPage() {
     );
   };
 
-  const abrirConfirmacaoExcluirItem = (produtoId: string) => {
-    if (!usuarioSemMensalidade && !podeUsarApp) {
+  const abrirConfirmacaoExcluirItem = async (produtoId: string) => {
+    // 🔒 BLOQUEIO: Verificar status antes de excluir item
+    const resultadoAcesso = await GerenciadorAssinatura.verificarAcesso(operadorId);
+    if (!resultadoAcesso.podeUsar) {
       setMostrarBloqueio(true);
       return;
     }
@@ -834,7 +831,14 @@ export default function CaixaPage() {
     setItemParaExcluir(null);
   };
 
-  const cancelarVenda = () => {
+  const cancelarVenda = async () => {
+    // 🔒 BLOQUEIO: Verificar status antes de cancelar
+    const resultadoAcesso = await GerenciadorAssinatura.verificarAcesso(operadorId);
+    if (!resultadoAcesso.podeUsar) {
+      setMostrarBloqueio(true);
+      return;
+    }
+
     if (carrinho.length === 0) {
       alert("Carrinho já está vazio!");
       return;
@@ -911,7 +915,9 @@ export default function CaixaPage() {
   };
 
   const iniciarLeitorCamera = async () => {
-    if (!usuarioSemMensalidade && !podeUsarApp) {
+    // 🔒 BLOQUEIO: Verificar status antes de iniciar câmera
+    const resultadoAcesso = await GerenciadorAssinatura.verificarAcesso(operadorId);
+    if (!resultadoAcesso.podeUsar) {
       setMostrarBloqueio(true);
       return;
     }
@@ -977,20 +983,18 @@ export default function CaixaPage() {
 
   const abrirModalFinalizacao = async () => {
     // 🔒🔒🔒 BLOQUEIO CRÍTICO E DEFINITIVO 🔒🔒🔒
-    // VERIFICAR STATUS NO SUPABASE EM TEMPO REAL ANTES DE ABRIR MODAL
-    if (!usuarioSemMensalidade) {
-      console.log("🔒 Verificando status da conta no Supabase antes de abrir modal de finalização...");
-      const resultadoAcesso = await GerenciadorAssinatura.verificarAcesso(operadorId);
+    // SEMPRE VERIFICAR STATUS NO SUPABASE EM TEMPO REAL ANTES DE ABRIR MODAL
+    console.log("🔒 Verificando status da conta no Supabase antes de abrir modal de finalização...");
+    const resultadoAcesso = await GerenciadorAssinatura.verificarAcesso(operadorId);
 
-      if (!resultadoAcesso.podeUsar) {
-        console.error("❌ BLOQUEADO: Conta suspensa ou inativa detectada no Supabase");
-        alert("🔒 SUA CONTA ESTÁ SUSPENSA!\n\nVocê não pode realizar vendas.\nRenove sua assinatura para continuar usando o sistema.");
-        setMostrarBloqueio(true);
-        return;
-      }
-
-      console.log("✅ Status verificado: Conta ativa. Prosseguindo com abertura do modal.");
+    if (!resultadoAcesso.podeUsar) {
+      console.error("❌ BLOQUEADO: Conta suspensa, vencida ou inativa detectada no Supabase");
+      alert("🔒 SUA CONTA ESTÁ SUSPENSA OU VENCIDA!\n\nVocê não pode realizar vendas.\n\nAcesse o menu Financeiro para renovar sua assinatura.");
+      setMostrarBloqueio(true);
+      return;
     }
+
+    console.log("✅ Status verificado: Conta ativa. Prosseguindo com abertura do modal.");
 
     if (carrinho.length === 0) {
       alert("Carrinho vazio!");
@@ -1001,21 +1005,19 @@ export default function CaixaPage() {
 
   const finalizarVenda = async () => {
     // 🔒🔒🔒 BLOQUEIO CRÍTICO E DEFINITIVO 🔒🔒🔒
-    // VERIFICAR STATUS NO SUPABASE EM TEMPO REAL ANTES DE FINALIZAR
-    if (!usuarioSemMensalidade) {
-      console.log("🔒 Verificando status da conta no Supabase em tempo real antes de finalizar venda...");
-      const resultadoAcesso = await GerenciadorAssinatura.verificarAcesso(operadorId);
+    // SEMPRE VERIFICAR STATUS NO SUPABASE EM TEMPO REAL ANTES DE FINALIZAR
+    console.log("🔒 Verificando status da conta no Supabase em tempo real antes de finalizar venda...");
+    const resultadoAcesso = await GerenciadorAssinatura.verificarAcesso(operadorId);
 
-      if (!resultadoAcesso.podeUsar) {
-        console.error("❌ BLOQUEADO: Tentativa de finalizar venda com conta suspensa ou inativa!");
-        alert("🔒 VENDA BLOQUEADA!\n\nSua conta está SUSPENSA ou INATIVA.\n\nRenove sua assinatura para continuar usando o sistema.");
-        setMostrarBloqueio(true);
-        setMostrarModalFinalizacao(false);
-        return;
-      }
-
-      console.log("✅ Status verificado: Conta ativa. Prosseguindo com finalização da venda.");
+    if (!resultadoAcesso.podeUsar) {
+      console.error("❌ BLOQUEADO: Tentativa de finalizar venda com conta suspensa, vencida ou inativa!");
+      alert("🔒 VENDA BLOQUEADA!\n\nSua conta está SUSPENSA, VENCIDA ou INATIVA.\n\nAcesse o menu Financeiro para renovar sua assinatura.");
+      setMostrarBloqueio(true);
+      setMostrarModalFinalizacao(false);
+      return;
     }
+
+    console.log("✅ Status verificado: Conta ativa. Prosseguindo com finalização da venda.");
 
     try {
       console.log("🔄 Iniciando finalização de venda...");
@@ -1151,8 +1153,8 @@ export default function CaixaPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      {/* Modal de Bloqueio - APENAS para usuários COM mensalidade */}
-      {mostrarBloqueio && !usuarioSemMensalidade && (
+      {/* Modal de Bloqueio - Para TODOS os usuários bloqueados */}
+      {mostrarBloqueio && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
             <div className="bg-gradient-to-r from-red-600 to-orange-600 px-6 py-4 flex items-center justify-between rounded-t-2xl">
@@ -1378,7 +1380,7 @@ export default function CaixaPage() {
               {/* Botão de Leitor de Código de Barras por Câmera */}
               <div className="mb-4">
                 <button
-                  onClick={() => tentarAcao(() => iniciarLeitorCamera())}
+                  onClick={iniciarLeitorCamera}
                   className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-4 py-3 rounded-lg flex items-center justify-center space-x-2 transition-all shadow-md"
                 >
                   <Camera className="w-5 h-5" />
@@ -1454,18 +1456,18 @@ export default function CaixaPage() {
 
                       <div className="flex items-center space-x-3">
                         <button
-                          onClick={() => tentarAcao(() => alterarQuantidade(item.produtoId, -1))}
+                          onClick={() => alterarQuantidade(item.produtoId, -1)}
                           className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg transition-all"
                         >
                           <Minus className="w-4 h-4" />
                         </button>
-                        
+
                         <span className="font-bold text-lg w-12 text-center">
                           {item.quantidade}
                         </span>
-                        
+
                         <button
-                          onClick={() => tentarAcao(() => alterarQuantidade(item.produtoId, 1))}
+                          onClick={() => alterarQuantidade(item.produtoId, 1)}
                           className="bg-green-500 hover:bg-green-600 text-white p-2 rounded-lg transition-all"
                         >
                           <Plus className="w-4 h-4" />
@@ -1530,7 +1532,7 @@ export default function CaixaPage() {
               </button>
 
               <button
-                onClick={() => tentarAcao(() => cancelarVenda())}
+                onClick={cancelarVenda}
                 disabled={carrinho.length === 0}
                 className="w-full mt-3 bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg font-semibold flex items-center justify-center space-x-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
