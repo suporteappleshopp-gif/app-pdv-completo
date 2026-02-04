@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/db";
+import { GerenciadorAssinatura } from "@/lib/assinatura";
 import { Produto } from "@/lib/types";
 import {
   ArrowLeft,
@@ -18,6 +19,7 @@ import {
   Barcode,
   DollarSign,
   TrendingDown,
+  Lock,
 } from "lucide-react";
 
 export default function EstoquePage() {
@@ -29,6 +31,12 @@ export default function EstoquePage() {
   const [modoEdicao, setModoEdicao] = useState(false);
   const [erro, setErro] = useState("");
   const [sucesso, setSucesso] = useState("");
+
+  // Controle de assinatura
+  const [podeUsarApp, setPodeUsarApp] = useState(false);
+  const [mostrarBloqueio, setMostrarBloqueio] = useState(false);
+  const [usuarioSemMensalidade, setUsuarioSemMensalidade] = useState(false);
+  const [operadorId, setOperadorId] = useState("");
 
   // Formulário de produto
   const [produtoForm, setProdutoForm] = useState<Produto>({
@@ -64,6 +72,18 @@ export default function EstoquePage() {
       }
 
       if (operador) {
+        setOperadorId(operador.id);
+
+        // 🔒 VERIFICAR ASSINATURA - CRÍTICO PARA BLOQUEAR SUSPENSOS
+        const resultado = await GerenciadorAssinatura.verificarAcesso(operador.id);
+        setPodeUsarApp(resultado.podeUsar);
+
+        // Verificar se é usuário sem mensalidade (acesso livre)
+        if (!operador.formaPagamento) {
+          setUsuarioSemMensalidade(true);
+          setPodeUsarApp(true);
+        }
+
         const { SupabaseSync } = await import("@/lib/supabase-sync");
         const produtosNuvem = await SupabaseSync.loadProdutos(operador.id);
         setProdutos(produtosNuvem);
@@ -83,6 +103,12 @@ export default function EstoquePage() {
   };
 
   const abrirModalNovo = () => {
+    // 🔒 BLOQUEIO CRÍTICO: Usuários suspensos não podem adicionar produtos
+    if (!usuarioSemMensalidade && !podeUsarApp) {
+      setMostrarBloqueio(true);
+      return;
+    }
+
     setProdutoForm({
       id: "",
       nome: "",
@@ -98,6 +124,12 @@ export default function EstoquePage() {
   };
 
   const abrirModalEdicao = (produto: Produto) => {
+    // 🔒 BLOQUEIO CRÍTICO: Usuários suspensos não podem editar produtos
+    if (!usuarioSemMensalidade && !podeUsarApp) {
+      setMostrarBloqueio(true);
+      return;
+    }
+
     setProdutoForm(produto);
     setPrecoFormatado(produto.preco.toFixed(2).replace(".", ","));
     setModoEdicao(true);
@@ -126,6 +158,13 @@ export default function EstoquePage() {
   };
 
   const salvarProduto = async () => {
+    // 🔒 BLOQUEIO CRÍTICO: Usuários suspensos não podem salvar produtos
+    if (!usuarioSemMensalidade && !podeUsarApp) {
+      setMostrarBloqueio(true);
+      setShowModal(false);
+      return;
+    }
+
     try {
       // Validações
       if (!produtoForm.nome || !produtoForm.codigoBarras) {
@@ -179,6 +218,12 @@ export default function EstoquePage() {
   };
 
   const excluirProduto = async (id: string) => {
+    // 🔒 BLOQUEIO CRÍTICO: Usuários suspensos não podem excluir produtos
+    if (!usuarioSemMensalidade && !podeUsarApp) {
+      setMostrarBloqueio(true);
+      return;
+    }
+
     if (!confirm("Tem certeza que deseja excluir este produto?")) return;
 
     try {
@@ -640,6 +685,48 @@ export default function EstoquePage() {
                   <span>{modoEdicao ? "Salvar Alterações" : "Adicionar Produto"}</span>
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Bloqueio - Conta Suspensa */}
+      {mostrarBloqueio && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="bg-gradient-to-r from-red-600 to-orange-600 p-6 rounded-t-2xl text-white flex items-center space-x-4">
+              <Lock className="w-10 h-10" />
+              <div>
+                <h2 className="text-2xl font-bold">Conta Suspensa</h2>
+                <p className="text-sm opacity-90">Acesso bloqueado</p>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
+                <p className="text-red-800 font-semibold mb-2">
+                  ⚠️ Sua conta está suspensa e aguardando aprovação do administrador
+                </p>
+                <p className="text-red-700 text-sm">
+                  Você não pode usar as funcionalidades do app até que sua conta seja ativada.
+                </p>
+              </div>
+
+              <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+                <p className="text-blue-800 font-semibold mb-1">
+                  📞 Entre em contato com o administrador
+                </p>
+                <p className="text-blue-700 text-sm">
+                  Entre em contato para ativar sua conta e liberar o acesso completo ao sistema.
+                </p>
+              </div>
+
+              <button
+                onClick={() => setMostrarBloqueio(false)}
+                className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white py-3 rounded-lg font-bold transition-all"
+              >
+                Entendi
+              </button>
             </div>
           </div>
         </div>

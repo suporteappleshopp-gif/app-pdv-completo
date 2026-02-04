@@ -967,6 +967,12 @@ export default function CaixaPage() {
   };
 
   const abrirModalFinalizacao = () => {
+    // 🔒 BLOQUEIO CRÍTICO: Usuários suspensos não podem finalizar vendas
+    if (!usuarioSemMensalidade && !podeUsarApp) {
+      setMostrarBloqueio(true);
+      return;
+    }
+
     if (carrinho.length === 0) {
       alert("Carrinho vazio!");
       return;
@@ -975,9 +981,16 @@ export default function CaixaPage() {
   };
 
   const finalizarVenda = async () => {
+    // 🔒 BLOQUEIO CRÍTICO: Usuários suspensos não podem finalizar vendas
+    if (!usuarioSemMensalidade && !podeUsarApp) {
+      setMostrarBloqueio(true);
+      setMostrarModalFinalizacao(false);
+      return;
+    }
+
     try {
       console.log("🔄 Iniciando finalização de venda...");
-      
+
       const numeroVenda = await db.getProximoNumeroVenda();
       console.log("📝 Número da venda:", numeroVenda);
       
