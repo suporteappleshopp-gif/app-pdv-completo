@@ -96,6 +96,12 @@ export default function AdminPage() {
   const [showExcluirUsuarioModal, setShowExcluirUsuarioModal] = useState(false);
   const [operadorParaExcluir, setOperadorParaExcluir] = useState<Operador | null>(null);
 
+  // Modal de detalhes do usuário
+  const [showDetalhesUsuarioModal, setShowDetalhesUsuarioModal] = useState(false);
+  const [operadorParaDetalhes, setOperadorParaDetalhes] = useState<Operador | null>(null);
+  const [historicoPagamentos, setHistoricoPagamentos] = useState<any[]>([]);
+  const [loadingHistorico, setLoadingHistorico] = useState(false);
+
   const WHATSAPP_CONTATO = "5565981032239";
 
   useEffect(() => {
@@ -505,6 +511,28 @@ export default function AdminPage() {
   const abrirModalExcluirUsuario = (operador: Operador) => {
     setOperadorParaExcluir(operador);
     setShowExcluirUsuarioModal(true);
+  };
+
+  const abrirModalDetalhesUsuario = async (operador: Operador) => {
+    setOperadorParaDetalhes(operador);
+    setShowDetalhesUsuarioModal(true);
+    setLoadingHistorico(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("historico_pagamentos")
+        .select("*")
+        .eq("usuario_id", operador.id)
+        .order("created_at", { ascending: false });
+
+      if (!error && data) {
+        setHistoricoPagamentos(data);
+      }
+    } catch (err) {
+      console.error("Erro ao carregar histórico:", err);
+    } finally {
+      setLoadingHistorico(false);
+    }
   };
 
   const handleExcluirUsuario = async () => {
@@ -1038,6 +1066,15 @@ export default function AdminPage() {
                             </button>
                           )}
 
+                          {/* Botão Ver Detalhes */}
+                          <button
+                            onClick={() => abrirModalDetalhesUsuario(operador)}
+                            className="p-2 bg-purple-500/20 text-purple-300 rounded-lg hover:bg-purple-500/30 transition-all border border-purple-500/30"
+                            title="Ver detalhes e histórico"
+                          >
+                            <Eye className="w-5 h-5" />
+                          </button>
+
                           {/* Botão Editar Senha */}
                           <button
                             onClick={() => abrirModalEditarSenha(operador)}
@@ -1453,6 +1490,157 @@ export default function AdminPage() {
                   Salvar Alterações
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Detalhes do Usuário */}
+      {showDetalhesUsuarioModal && operadorParaDetalhes && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl max-w-2xl w-full border border-white/10 max-h-[90vh] overflow-y-auto">
+            <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4 flex items-center justify-between rounded-t-2xl sticky top-0 z-10">
+              <h3 className="text-xl font-bold text-white">Detalhes do Usuário</h3>
+              <button
+                onClick={() => {
+                  setShowDetalhesUsuarioModal(false);
+                  setOperadorParaDetalhes(null);
+                  setHistoricoPagamentos([]);
+                }}
+                className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Informações Básicas */}
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
+                <h4 className="text-white font-bold mb-3 flex items-center">
+                  <Users className="w-5 h-5 mr-2" />
+                  Informações Básicas
+                </h4>
+                <div className="space-y-2 text-sm">
+                  <p className="text-purple-200">
+                    <strong>Nome:</strong> {operadorParaDetalhes.nome}
+                  </p>
+                  <p className="text-purple-200">
+                    <strong>Email:</strong> {operadorParaDetalhes.email}
+                  </p>
+                  <p className="text-purple-200">
+                    <strong>Status:</strong>{" "}
+                    <span className={
+                      operadorParaDetalhes.suspenso ? "text-orange-300" :
+                      operadorParaDetalhes.ativo ? "text-green-300" : "text-red-300"
+                    }>
+                      {operadorParaDetalhes.suspenso ? "Suspenso" :
+                       operadorParaDetalhes.ativo ? "Ativo" : "Inativo"}
+                    </span>
+                  </p>
+                  {operadorParaDetalhes.dataProximoVencimento && (
+                    <p className="text-purple-200">
+                      <strong>Vencimento:</strong>{" "}
+                      {format(new Date(operadorParaDetalhes.dataProximoVencimento), "dd/MM/yyyy", { locale: ptBR })}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Dados da Compra Original */}
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
+                <h4 className="text-white font-bold mb-3 flex items-center">
+                  <CreditCard className="w-5 h-5 mr-2" />
+                  Compra Original
+                </h4>
+                <div className="space-y-2 text-sm">
+                  {operadorParaDetalhes.formaPagamento && (
+                    <>
+                      <p className="text-purple-200">
+                        <strong>Forma de Pagamento:</strong>{" "}
+                        {operadorParaDetalhes.formaPagamento === "pix" ? "PIX" : "Cartão de Crédito"}
+                      </p>
+                      <p className="text-purple-200">
+                        <strong>Valor:</strong> R$ {operadorParaDetalhes.valorMensal?.toFixed(2)}
+                      </p>
+                      <p className="text-purple-200">
+                        <strong>Dias Contratados:</strong>{" "}
+                        {operadorParaDetalhes.diasAssinatura || (operadorParaDetalhes.formaPagamento === "pix" ? "60" : "180")} dias
+                      </p>
+                    </>
+                  )}
+                  <p className="text-purple-200">
+                    <strong>Data de Cadastro:</strong>{" "}
+                    {format(new Date(operadorParaDetalhes.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                  </p>
+                </div>
+              </div>
+
+              {/* Histórico de Pagamentos */}
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
+                <h4 className="text-white font-bold mb-3 flex items-center">
+                  <Calendar className="w-5 h-5 mr-2" />
+                  Histórico de Renovações
+                </h4>
+                {loadingHistorico ? (
+                  <div className="text-center py-4">
+                    <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                    <p className="text-purple-200 text-sm mt-2">Carregando histórico...</p>
+                  </div>
+                ) : historicoPagamentos.length === 0 ? (
+                  <p className="text-purple-300 text-sm">Nenhuma renovação registrada ainda.</p>
+                ) : (
+                  <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
+                    {historicoPagamentos.map((pag) => (
+                      <div key={pag.id} className="bg-white/5 rounded-lg p-3 border border-white/10">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <p className="text-white font-semibold text-sm">{pag.mes_referencia}</p>
+                            <p className="text-purple-300 text-xs">
+                              {format(new Date(pag.data_pagamento), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                            </p>
+                          </div>
+                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                            pag.status === "pago" ? "bg-green-500/20 text-green-300" :
+                            pag.status === "pendente" ? "bg-yellow-500/20 text-yellow-300" :
+                            "bg-red-500/20 text-red-300"
+                          }`}>
+                            {pag.status}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-xs">
+                          <div className="text-purple-200">
+                            <strong>Valor:</strong> R$ {pag.valor.toFixed(2)}
+                          </div>
+                          <div className="text-purple-200">
+                            <strong>Pagamento:</strong> {pag.forma_pagamento === "pix" ? "PIX" : "Cartão"}
+                          </div>
+                          <div className="text-purple-200">
+                            <strong>Dias:</strong> {pag.dias_comprados || "N/A"}
+                          </div>
+                        </div>
+                        {pag.observacao_admin && (
+                          <div className="mt-2 bg-blue-500/10 rounded p-2 border border-blue-500/20">
+                            <p className="text-blue-300 text-xs">
+                              <strong>Obs. Admin:</strong> {pag.observacao_admin}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={() => {
+                  setShowDetalhesUsuarioModal(false);
+                  setOperadorParaDetalhes(null);
+                  setHistoricoPagamentos([]);
+                }}
+                className="w-full px-4 py-3 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors font-semibold"
+              >
+                Fechar
+              </button>
             </div>
           </div>
         </div>

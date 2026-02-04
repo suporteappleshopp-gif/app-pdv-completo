@@ -324,7 +324,8 @@ export default function SolicitacoesRenovacao() {
           usuario_nome: operadorData.nome,
           valor: solicitacaoSelecionada.valor,
           forma_pagamento: solicitacaoSelecionada.forma_pagamento,
-          descricao: `Renovação de ${diasAprovacao} dias - ${operadorData.nome}`,
+          descricao: `Renovação de ${diasAprovacao} dias - ${operadorData.nome} (${solicitacaoSelecionada.forma_pagamento.toUpperCase()})`,
+          dias_comprados: diasAprovacao,
           created_at: new Date().toISOString(),
         });
 
