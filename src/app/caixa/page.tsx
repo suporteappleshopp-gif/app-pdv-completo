@@ -180,6 +180,19 @@ export default function CaixaPage() {
       // Detectar se é usuário sem mensalidade (999999 dias = sem limite)
       setUsuarioSemMensalidade(resultado.diasRestantes >= 999999);
 
+      // 🔒 CRÍTICO: Se a conta foi suspensa/vencida, bloquear IMEDIATAMENTE
+      if (!resultado.podeUsar && resultado.diasRestantes < 999999) {
+        console.error("🔒 CONTA SUSPENSA/VENCIDA DETECTADA - BLOQUEANDO ACESSO");
+        setMostrarBloqueio(true);
+
+        // Limpar carrinho para evitar perda de dados
+        if (carrinho.length > 0) {
+          alert("⚠️ SUA CONTA EXPIROU!\n\nO carrinho foi limpo por segurança.\nRenove sua assinatura no menu Financeiro para continuar.");
+          setCarrinho([]);
+          setTotal(0);
+        }
+      }
+
       // Mostrar aviso de renovação quando especificado
       if (resultado.mostrarAviso) {
         setMostrarAvisoRenovacao(true);
@@ -199,7 +212,7 @@ export default function CaixaPage() {
     const interval = setInterval(verificarAssinaturaLoop, 30 * 1000);
 
     return () => clearInterval(interval);
-  }, [operadorId]);
+  }, [operadorId, carrinho]);
 
   // Interceptar ações quando não pode usar (VERIFICAR SEMPRE)
   const tentarAcao = async (acao: () => void) => {

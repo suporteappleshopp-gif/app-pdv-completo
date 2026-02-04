@@ -129,12 +129,15 @@ export class GerenciadorAssinatura {
 
         console.log("📅 Dias restantes:", diasRestantes);
 
-        // Se expirou, suspender automaticamente
-        if (diasRestantes < 0) {
-          console.warn("⚠️ Assinatura expirada - suspendendo conta");
+        // 🔒 CRÍTICO: Se expirou (diasRestantes < 0 OU diasRestantes === 0), suspender IMEDIATAMENTE
+        if (diasRestantes <= 0) {
+          console.warn("⚠️ Assinatura EXPIRADA - suspendendo conta IMEDIATAMENTE");
+          console.warn("⚠️ Data vencimento:", vencimento.toISOString());
+          console.warn("⚠️ Data hoje:", hoje.toISOString());
+          console.warn("⚠️ Dias restantes:", diasRestantes);
 
           // Atualizar diretamente no banco
-          await supabase
+          const { error: updateError } = await supabase
             .from("operadores")
             .update({
               ativo: false,
@@ -143,11 +146,17 @@ export class GerenciadorAssinatura {
             })
             .eq("id", operador.id);
 
+          if (updateError) {
+            console.error("❌ Erro ao suspender usuário vencido:", updateError);
+          } else {
+            console.log("✅ Usuário suspenso com sucesso no banco de dados");
+          }
+
           return {
             podeUsar: false,
             status: "suspenso",
             diasRestantes: 0,
-            mensagem: "Sua assinatura expirou. Entre em contato com o administrador para renovar.",
+            mensagem: "Sua assinatura expirou. Acesse o menu Financeiro para renovar.",
             mostrarAviso: false,
           };
         }
