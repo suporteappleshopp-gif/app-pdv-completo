@@ -55,16 +55,13 @@ export class AuthSupabase {
             email: operadorData.email,
             is_admin: operadorData.is_admin,
             ativo: operadorData.ativo,
+            suspenso: operadorData.suspenso,
           });
 
-          // Verificar se o operador está ativo (admins sempre podem logar)
-          if (!operadorData.ativo && !operadorData.is_admin) {
-            console.warn("⚠️ Operador inativo e não é admin");
-            return {
-              success: false,
-              error: "Sua conta está suspensa. Entre em contato com o administrador.",
-            };
-          }
+          // ✅ PERMITIR LOGIN MESMO SUSPENSO
+          // Usuários suspensos podem logar e acessar o app
+          // Mas as funcionalidades estarão bloqueadas até a aprovação do admin
+          // O bloqueio é feito nas páginas (caixa, produtos, etc)
 
           // Montar objeto Operador com TODOS os campos
           const operador: Operador = {
@@ -114,14 +111,10 @@ export class AuthSupabase {
       if (operadorDirectData.senha && operadorDirectData.senha === password) {
         console.log("✅ Login direto bem-sucedido:", operadorDirectData.email);
 
-        // Verificar se o operador está ativo (admins sempre podem logar)
-        if (!operadorDirectData.ativo && !operadorDirectData.is_admin) {
-          console.warn("⚠️ Operador inativo e não é admin");
-          return {
-            success: false,
-            error: "Sua conta está suspensa. Entre em contato com o administrador.",
-          };
-        }
+        // ✅ PERMITIR LOGIN MESMO SUSPENSO
+        // Usuários suspensos podem logar e acessar o app
+        // Mas as funcionalidades estarão bloqueadas até a aprovação do admin
+        // O bloqueio é feito nas páginas (caixa, produtos, etc)
 
         const operador: Operador = {
           id: operadorDirectData.id,
