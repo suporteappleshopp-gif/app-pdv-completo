@@ -26,6 +26,7 @@ export default function SolicitacoesRenovacao() {
   const [modalAberto, setModalAberto] = useState(false);
   const [solicitacaoSelecionada, setSolicitacaoSelecionada] = useState<SolicitacaoRenovacao | null>(null);
   const [mensagemAdmin, setMensagemAdmin] = useState("");
+  const [diasAprovacao, setDiasAprovacao] = useState(0);
   const [processando, setProcessando] = useState(false);
 
   useEffect(() => {
@@ -116,6 +117,17 @@ export default function SolicitacoesRenovacao() {
   const abrirModal = (solicitacao: SolicitacaoRenovacao) => {
     setSolicitacaoSelecionada(solicitacao);
     setMensagemAdmin("");
+
+    // Calcular dias baseado no valor pago
+    let diasCalculados = solicitacao.dias_solicitados; // Default: usar o que o usuário solicitou
+
+    if (solicitacao.valor === 59.90) {
+      diasCalculados = 60;
+    } else if (solicitacao.valor === 149.70) {
+      diasCalculados = 100;
+    }
+
+    setDiasAprovacao(diasCalculados);
     setModalAberto(true);
   };
 
@@ -214,16 +226,16 @@ export default function SolicitacoesRenovacao() {
         // Se a data de vencimento é no futuro, adicionar a partir dela
         if (dataVencimentoAtual > dataAtual) {
           novaDataVencimento = new Date(dataVencimentoAtual);
-          novaDataVencimento.setDate(novaDataVencimento.getDate() + solicitacaoSelecionada.dias_solicitados);
+          novaDataVencimento.setDate(novaDataVencimento.getDate() + diasAprovacao);
         } else {
           // Se a data já passou, adicionar a partir de hoje
           novaDataVencimento = new Date(dataAtual);
-          novaDataVencimento.setDate(novaDataVencimento.getDate() + solicitacaoSelecionada.dias_solicitados);
+          novaDataVencimento.setDate(novaDataVencimento.getDate() + diasAprovacao);
         }
       } else {
         // Se não tem data de vencimento, adicionar a partir de hoje
         novaDataVencimento = new Date(dataAtual);
-        novaDataVencimento.setDate(novaDataVencimento.getDate() + solicitacaoSelecionada.dias_solicitados);
+        novaDataVencimento.setDate(novaDataVencimento.getDate() + diasAprovacao);
       }
 
       console.log("📅 Nova data de vencimento:", novaDataVencimento);
@@ -236,14 +248,14 @@ export default function SolicitacoesRenovacao() {
         .insert({
           id: historicoId,
           usuario_id: solicitacaoSelecionada.operador_id,
-          mes_referencia: `Renovação ${solicitacaoSelecionada.dias_solicitados} dias - ${solicitacaoSelecionada.forma_pagamento.toUpperCase()}`,
+          mes_referencia: `Renovação ${diasAprovacao} dias - ${solicitacaoSelecionada.forma_pagamento.toUpperCase()}`,
           valor: solicitacaoSelecionada.valor,
           data_vencimento: new Date().toISOString(),
           data_pagamento: new Date().toISOString(),
           status: "pago",
           forma_pagamento: solicitacaoSelecionada.forma_pagamento,
-          dias_comprados: solicitacaoSelecionada.dias_solicitados,
-          tipo_compra: `renovacao-${solicitacaoSelecionada.dias_solicitados}`,
+          dias_comprados: diasAprovacao,
+          tipo_compra: `renovacao-${diasAprovacao}`,
           observacao_admin: mensagemAdmin || "Aprovado pelo administrador",
           aprovado_por: adminOperador.id,
           data_aprovacao: new Date().toISOString(),
@@ -312,7 +324,7 @@ export default function SolicitacoesRenovacao() {
           usuario_nome: operadorData.nome,
           valor: solicitacaoSelecionada.valor,
           forma_pagamento: solicitacaoSelecionada.forma_pagamento,
-          descricao: `Renovação de ${solicitacaoSelecionada.dias_solicitados} dias - ${operadorData.nome}`,
+          descricao: `Renovação de ${diasAprovacao} dias - ${operadorData.nome}`,
           created_at: new Date().toISOString(),
         });
 
@@ -326,11 +338,11 @@ export default function SolicitacoesRenovacao() {
 
       console.log(`📊 Resumo:
         - Usuário: ${operadorData.nome}
-        - Dias adicionados: ${solicitacaoSelecionada.dias_solicitados}
+        - Dias adicionados: ${diasAprovacao}
         - Nova data de vencimento: ${novaDataVencimento.toLocaleDateString('pt-BR')}
         - Valor: R$ ${solicitacaoSelecionada.valor.toFixed(2)}`);
 
-      alert(`✅ Solicitação aprovada!\n\n${solicitacaoSelecionada.dias_solicitados} dias adicionados para ${operadorData.nome}.\nNova data de vencimento: ${novaDataVencimento.toLocaleDateString('pt-BR')}`);
+      alert(`✅ Solicitação aprovada!\n\n${diasAprovacao} dias adicionados para ${operadorData.nome}.\nNova data de vencimento: ${novaDataVencimento.toLocaleDateString('pt-BR')}`);
       setModalAberto(false);
       setSolicitacaoSelecionada(null);
       setMensagemAdmin("");
@@ -583,10 +595,30 @@ export default function SolicitacoesRenovacao() {
                 {solicitacaoSelecionada.forma_pagamento === "pix" ? "PIX" : "Cartão de Crédito"}
               </p>
               <p className="text-sm text-gray-600 mb-1">
-                <strong>Valor:</strong> R$ {solicitacaoSelecionada.valor.toFixed(2)}
+                <strong>Valor Pago:</strong> R$ {solicitacaoSelecionada.valor.toFixed(2)}
               </p>
               <p className="text-sm text-gray-600">
-                <strong>Dias:</strong> {solicitacaoSelecionada.dias_solicitados} dias
+                <strong>Dias Solicitados:</strong> {solicitacaoSelecionada.dias_solicitados} dias
+              </p>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Dias a Aprovar {diasAprovacao !== solicitacaoSelecionada.dias_solicitados && (
+                  <span className="text-xs text-blue-600">(calculado automaticamente)</span>
+                )}
+              </label>
+              <input
+                type="number"
+                value={diasAprovacao}
+                onChange={(e) => setDiasAprovacao(Number(e.target.value))}
+                min="1"
+                max="365"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                placeholder="Digite o número de dias"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Este é o número de dias que será adicionado à assinatura do usuário
               </p>
             </div>
 
