@@ -5,6 +5,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { usuario_id, forma_pagamento } = body;
 
+    console.log("📥 Recebido:", { usuario_id, forma_pagamento });
+
     if (!usuario_id || !forma_pagamento) {
       return NextResponse.json(
         { success: false, error: "Dados inválidos" },
@@ -29,6 +31,8 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
+
+    console.log("✅ Operador encontrado:", operador.nome);
 
     // Determinar valores com base na forma de pagamento
     let valor = 0;
@@ -59,7 +63,7 @@ export async function POST(request: NextRequest) {
     // Importar MercadoPago
     const { MercadoPagoConfig, Preference } = await import("mercadopago");
 
-    // Buscar access token do Supabase (ou usar variável de ambiente)
+    // Buscar access token
     const mercadoPagoAccessToken = process.env.MERCADOPAGO_ACCESS_TOKEN || "";
 
     if (!mercadoPagoAccessToken) {
@@ -74,6 +78,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log("🔧 Criando preferência no MercadoPago...");
+
     // Configurar cliente do MercadoPago
     const client = new MercadoPagoConfig({
       accessToken: mercadoPagoAccessToken,
@@ -81,87 +87,87 @@ export async function POST(request: NextRequest) {
 
     const preference = new Preference(client);
 
-    // Criar preferência de pagamento
-    const result = await preference.create({
-      body: {
-        items: [
-          {
-            id: `${tipo_compra}-${Date.now()}`,
-            title: titulo,
-            description: descricao,
-            quantity: 1,
-            unit_price: valor,
-            currency_id: "BRL",
-          },
-        ],
-        payer: {
-          name: operador.nome,
-          email: operador.email,
-        },
-        payment_methods: {
-          excluded_payment_types: forma_pagamento === "pix"
-            ? [{ id: "credit_card" }, { id: "debit_card" }, { id: "ticket" }]
-            : [{ id: "ticket" }],
-        },
-        back_urls: {
-          success: `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/caixa`,
-          failure: `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/financeiro`,
-          pending: `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/financeiro`,
-        },
-        auto_return: "approved",
-        external_reference: JSON.stringify({
-          usuario_id,
-          forma_pagamento,
-          dias_comprados,
-          tipo_compra,
-        }),
-        notification_url: `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/webhooks/mercadopago`,
-      },
-    });
+    // Definir base URL (usar produção se disponível, senão não usar auto_return)
+    const baseUrl = process.env.NEXT_PUBLIC_URL || process.env.NEXT_PUBLIC_BASE_URL;
+    const useAutoReturn = baseUrl && !baseUrl.includes("localhost");
 
-    // Salvar a solicitação no banco (status pendente - aguardando aprovação do admin)
-    // Primeiro, tentar inserir com as colunas do MercadoPago
-    let insertData: any = {
-      operador_id: usuario_id,
-      dias_solicitados: dias_comprados,
-      valor: valor,
-      forma_pagamento: forma_pagamento,
-      status: "pendente",
-      data_solicitacao: new Date().toISOString(),
+    // Criar body da preferência
+    const preferenceBody: any = {
+      items: [
+        {
+          id: `${tipo_compra}-${Date.now()}`,
+          title: titulo,
+          description: descricao,
+          quantity: 1,
+          unit_price: valor,
+          currency_id: "BRL",
+        },
+      ],
+      payer: {
+        name: operador.nome,
+        email: operador.email,
+      },
+      payment_methods: {
+        excluded_payment_types: forma_pagamento === "pix"
+          ? [{ id: "credit_card" }, { id: "debit_card" }, { id: "ticket" }]
+          : [{ id: "ticket" }],
+      },
+      external_reference: JSON.stringify({
+        usuario_id,
+        forma_pagamento,
+        dias_comprados,
+        tipo_compra,
+      }),
     };
 
-    // Tentar adicionar os campos do MercadoPago (se as colunas existirem)
-    const { data: testColumns, error: testError } = await supabase
-      .from("solicitacoes_renovacao")
-      .select("mercadopago_preference_id, mercadopago_payment_id")
-      .limit(1);
-
-    // Se as colunas existem (sem erro), adicionar os dados
-    if (!testError) {
-      insertData.mercadopago_preference_id = result.id;
-      insertData.mercadopago_payment_id = null;
+    // Adicionar back_urls e auto_return apenas se tiver URL de produção
+    if (useAutoReturn && baseUrl) {
+      preferenceBody.back_urls = {
+        success: `${baseUrl}/financeiro`,
+        failure: `${baseUrl}/financeiro`,
+        pending: `${baseUrl}/financeiro`,
+      };
+      preferenceBody.auto_return = "approved";
+      preferenceBody.notification_url = `${baseUrl}/api/webhooks/mercadopago`;
     } else {
-      console.warn("⚠️ Colunas do MercadoPago não existem ainda. Inserindo sem preference_id.");
+      console.log("⚠️ Ambiente local detectado - usando preferência sem auto_return");
     }
 
+    // Criar preferência de pagamento (apenas link Checkout Pro)
+    const result = await preference.create({
+      body: preferenceBody,
+    });
+
+    console.log("✅ Preferência criada:", result.id);
+    console.log("🔗 Link:", result.init_point);
+
+    // Salvar a solicitação no banco (status pendente)
     const { error: insertError } = await supabase
       .from("solicitacoes_renovacao")
-      .insert(insertData);
+      .insert({
+        operador_id: usuario_id,
+        dias_solicitados: dias_comprados,
+        valor: valor,
+        forma_pagamento: forma_pagamento,
+        status: "pendente",
+        mercadopago_preference_id: result.id,
+        mercadopago_payment_id: null,
+        data_solicitacao: new Date().toISOString(),
+      });
 
     if (insertError) {
-      console.error("Erro ao salvar solicitação:", insertError);
+      console.error("❌ Erro ao salvar solicitação:", insertError);
       return NextResponse.json(
         {
           success: false,
           error: "Erro ao salvar solicitação no banco",
           details: insertError.message,
-          hint: "Pode ser necessário executar a migração do banco de dados. Verifique MIGRACAO_URGENTE.md"
         },
         { status: 500 }
       );
     }
 
-    console.log("✅ Solicitação criada com sucesso! Status: PENDENTE (aguardando pagamento e aprovação do admin)");
+    console.log("✅ Solicitação salva no banco!");
 
     return NextResponse.json({
       success: true,
