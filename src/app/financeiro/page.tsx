@@ -271,11 +271,20 @@ export default function FinanceiroPage() {
       });
 
       setPagamentos(todosPagamentos);
+
+      const totalPendentes = todosPagamentos.filter(p => p.status === "pendente").length;
+
       console.log(`📊 Total de pagamentos carregados: ${todosPagamentos.length}`);
       console.log(`   - ${pagamentosSupabaseFormatados.length} do histórico (Supabase)`);
       console.log(`   - ${pagamentosUnicos.length} do IndexedDB`);
       console.log(`   - ${solicitacoesFormatadas.length} solicitações de renovação`);
-      console.log(`   - ${todosPagamentos.filter(p => p.status === "pendente").length} pendentes no topo`);
+      console.log(`   - ${totalPendentes} PENDENTES no topo`);
+
+      if (totalPendentes > 0) {
+        console.log(`⚠️ BANNER DE PENDÊNCIAS SERÁ EXIBIDO (${totalPendentes} pagamento(s) pendente(s))`);
+      } else {
+        console.log(`✅ BANNER DE PENDÊNCIAS NÃO SERÁ EXIBIDO (nenhum pagamento pendente)`);
+      }
 
       // Carregar meta salva (localStorage como cache)
       const metaSalva = localStorage.getItem(`meta_${operador.id}`);
@@ -363,7 +372,7 @@ export default function FinanceiroPage() {
 
       // ✅ CONFIGURAR REALTIME: Atualizar quando admin aprovar/recusar solicitações
       const channelSolicitacoes = supabase
-        .channel("user_solicitacoes_renovacao")
+        .channel(`solicitacoes_renovacao_${operador.id}_${Date.now()}`)
         .on(
           "postgres_changes",
           {
@@ -374,14 +383,15 @@ export default function FinanceiroPage() {
           },
           (payload) => {
             console.log("🔄 Atualização em tempo real (solicitações):", payload);
+            console.log("📋 Recarregando dados para atualizar banner de pendências...");
             carregarDados();
           }
         )
         .subscribe();
 
-      // ✅ CONFIGURAR REALTIME: Atualizar quando pagamentos mudarem
+      // ✅ CONFIGURAR REALTIME: Atualizar quando pagamentos mudarem (CRÍTICO para remover banner)
       const channelPagamentos = supabase
-        .channel("user_historico_pagamentos")
+        .channel(`historico_pagamentos_${operador.id}_${Date.now()}`)
         .on(
           "postgres_changes",
           {
@@ -392,7 +402,8 @@ export default function FinanceiroPage() {
           },
           (payload) => {
             console.log("🔄 Atualização em tempo real (pagamentos):", payload);
-            carregarDados();
+            console.log("💳 Status do pagamento mudou! Atualizando interface...");
+            carregarDados(); // Recarregar dados para atualizar banner de pendências
           }
         )
         .subscribe();
