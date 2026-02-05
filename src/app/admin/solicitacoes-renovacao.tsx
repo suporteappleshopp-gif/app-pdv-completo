@@ -241,44 +241,35 @@ export default function SolicitacoesRenovacao() {
 
       console.log("📅 Nova data de vencimento:", novaDataVencimento);
 
-      // 1. Buscar se já existe um pagamento pendente para este usuário (primeira compra)
-      const { data: pagamentosPendentes, error: errorBusca } = await supabase
+      // 1. ATUALIZAR TODOS OS PAGAMENTOS PENDENTES DO USUÁRIO
+      console.log("🔍 Buscando pagamentos pendentes para usuario_id:", solicitacaoSelecionada.operador_id);
+
+      // Primeiro, atualizar TODOS os pagamentos pendentes para "pago"
+      const { data: pagamentosAtualizados, error: updateAllError } = await supabase
         .from("historico_pagamentos")
-        .select("*")
+        .update({
+          status: "pago",
+          data_pagamento: new Date().toISOString(),
+          dias_comprados: diasAprovacao,
+          observacao_admin: mensagemAdmin || "Aprovado pelo administrador",
+          aprovado_por: adminOperador.id,
+          data_aprovacao: new Date().toISOString(),
+        })
         .eq("usuario_id", solicitacaoSelecionada.operador_id)
         .eq("status", "pendente")
-        .order("created_at", { ascending: true })
-        .limit(1);
+        .select();
 
-      if (errorBusca) {
-        console.error("⚠️ Erro ao buscar pagamentos pendentes:", errorBusca);
+      if (updateAllError) {
+        console.error("❌ Erro ao atualizar pagamentos pendentes:", updateAllError);
+        alert(`Erro ao atualizar pagamentos pendentes: ${updateAllError.message}`);
+        return;
       }
 
-      const pagamentoPendenteExistente = pagamentosPendentes && pagamentosPendentes.length > 0 ? pagamentosPendentes[0] : null;
-
-      if (pagamentoPendenteExistente) {
-        // ATUALIZAR o pagamento pendente existente para "pago"
-        console.log("🔄 Atualizando pagamento pendente existente:", pagamentoPendenteExistente.id);
-
-        const { error: updateError } = await supabase
-          .from("historico_pagamentos")
-          .update({
-            status: "pago",
-            data_pagamento: new Date().toISOString(),
-            dias_comprados: diasAprovacao,
-            observacao_admin: mensagemAdmin || "Aprovado pelo administrador",
-            aprovado_por: adminOperador.id,
-            data_aprovacao: new Date().toISOString(),
-          })
-          .eq("id", pagamentoPendenteExistente.id);
-
-        if (updateError) {
-          console.error("❌ Erro ao atualizar pagamento:", updateError);
-          alert(`Erro ao atualizar pagamento.\nDetalhes: ${updateError.message || 'Erro desconhecido'}`);
-          return;
-        }
-
-        console.log("✅ Pagamento pendente atualizado para 'pago':", pagamentoPendenteExistente.id);
+      if (pagamentosAtualizados && pagamentosAtualizados.length > 0) {
+        console.log(`✅ ${pagamentosAtualizados.length} pagamento(s) pendente(s) atualizado(s) para 'pago'`);
+        pagamentosAtualizados.forEach(pag => {
+          console.log(`   - ${pag.mes_referencia} (ID: ${pag.id})`);
+        });
       } else {
         // CRIAR novo registro no histórico (caso não tenha pendente)
         console.log("➕ Nenhum pagamento pendente encontrado. Criando novo registro...");
