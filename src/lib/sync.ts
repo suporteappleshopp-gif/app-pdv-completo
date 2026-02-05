@@ -85,7 +85,7 @@ export class CloudSync {
         const vendaData = {
           id: venda.id,
           total: venda.total,
-          tipo_pagamento: venda.tipoPagamento || 'dinheiro',
+          forma_pagamento: venda.tipoPagamento || 'dinheiro',
           itens: venda.itens,
           updated_at: new Date().toISOString(),
         };
@@ -252,7 +252,7 @@ export class CloudSync {
         total: parseFloat(v.total),
         dataHora: new Date(v.created_at),
         status: 'concluida' as const,
-        tipoPagamento: v.tipo_pagamento as any,
+        tipoPagamento: v.forma_pagamento as any,
       }));
 
       // Salvar no IndexedDB local para acesso offline
