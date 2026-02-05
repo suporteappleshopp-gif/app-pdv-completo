@@ -388,12 +388,20 @@ export default function LoginPage() {
         },
       });
 
+      // Definir valores com base na forma de pagamento escolhida
+      const valorCompra = novoCadastro.formaPagamento === "pix" ? 59.90 : 149.70;
+      const diasComprados = novoCadastro.formaPagamento === "pix" ? 60 : 180;
+      const tipoCompra = novoCadastro.formaPagamento === "pix" ? "renovacao-60" : "renovacao-180";
+
+      let usuarioIdCriado = "";
+
       // Se deu erro de rate limit ou qualquer outro erro, criar direto no banco
       if (authError || !authData.user) {
         console.log("⚠️ Criando usuário diretamente no banco (bypass Auth)");
 
         // Gerar ID único
         const novoId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        usuarioIdCriado = novoId;
 
         // Criar operador direto no banco sem Auth
         const { data: novoOperador, error: insertError } = await supabase
@@ -407,6 +415,9 @@ export default function LoginPage() {
             ativo: false,
             suspenso: true,
             aguardando_pagamento: true,
+            forma_pagamento: novoCadastro.formaPagamento,
+            valor_mensal: valorCompra,
+            dias_assinatura: diasComprados,
           })
           .select()
           .single();
@@ -430,6 +441,7 @@ export default function LoginPage() {
         if (!operadorExistente) {
           // Criar operador manualmente
           const novoId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          usuarioIdCriado = novoId;
 
           const { data: novoOperador } = await supabase
             .from("operadores")
@@ -443,23 +455,50 @@ export default function LoginPage() {
               ativo: false,
               suspenso: true,
               aguardando_pagamento: true,
+              forma_pagamento: novoCadastro.formaPagamento,
+              valor_mensal: valorCompra,
+              dias_assinatura: diasComprados,
             })
             .select()
             .single();
         } else {
           // Atualizar operador existente
+          usuarioIdCriado = operadorExistente.id;
+
           await supabase
             .from("operadores")
             .update({
               ativo: false,
               suspenso: true,
               aguardando_pagamento: true,
+              forma_pagamento: novoCadastro.formaPagamento,
+              valor_mensal: valorCompra,
+              dias_assinatura: diasComprados,
             })
             .eq("auth_user_id", authData.user.id);
         }
 
         console.log("✅ Usuário criado via Auth:", authData.user.id);
       }
+
+      // Criar registro de pagamento pendente no histórico
+      const pagamentoId = `pag-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+      await supabase
+        .from("historico_pagamentos")
+        .insert({
+          id: pagamentoId,
+          usuario_id: usuarioIdCriado,
+          mes_referencia: `Primeira Compra - ${diasComprados} dias`,
+          valor: valorCompra,
+          data_pagamento: new Date().toISOString(),
+          status: "pendente",
+          forma_pagamento: novoCadastro.formaPagamento,
+          dias_comprados: diasComprados,
+          tipo_compra: tipoCompra,
+        });
+
+      console.log(`✅ Registro de pagamento criado: ${diasComprados} dias via ${novoCadastro.formaPagamento.toUpperCase()}`)
 
       // Mostrar tela de pagamento
       setMostrarPagamento(true);

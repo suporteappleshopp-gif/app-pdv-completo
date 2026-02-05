@@ -303,7 +303,8 @@ export default function AdministradorPage() {
           usuario_nome: operador.nome,
           valor: solicitacao.valor,
           forma_pagamento: solicitacao.formaPagamento,
-          descricao: `Pagamento aprovado: ${solicitacao.diasComprados} dias via ${solicitacao.formaPagamento.toUpperCase()}`,
+          dias_comprados: solicitacao.diasComprados,
+          descricao: `Pagamento aprovado: R$ ${solicitacao.valor.toFixed(2)} - ${solicitacao.diasComprados} dias via ${solicitacao.formaPagamento.toUpperCase()}`,
           created_at: new Date().toISOString(),
         });
 
