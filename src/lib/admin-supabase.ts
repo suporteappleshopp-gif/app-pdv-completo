@@ -543,6 +543,7 @@ export class AdminSupabase {
     valor: number;
     forma_pagamento: "pix" | "cartao";
     descricao: string;
+    dias_comprados?: number;
   }): Promise<boolean> {
     try {
       const { error } = await supabase.from("ganhos_admin").insert({
@@ -553,6 +554,7 @@ export class AdminSupabase {
         valor: ganho.valor,
         forma_pagamento: ganho.forma_pagamento,
         descricao: ganho.descricao,
+        dias_comprados: ganho.dias_comprados,
         created_at: new Date().toISOString(),
       });
 

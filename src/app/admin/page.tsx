@@ -195,20 +195,26 @@ export default function AdminPage() {
     diasAssinatura?: number
   ) => {
     try {
-      // Determinar descrição baseada na forma de pagamento e dias
-      let descricao = "";
+      // ✅ GARANTIR QUE O VALOR SEJA CORRETO
+      let valorCorreto = valor;
+      let diasCorretos = diasAssinatura || 60;
 
       if (formaPagamento === "pix") {
-        descricao = tipo === "conta-criada"
-          ? `Conta criada - ${usuarioNome} (PIX) - R$ 59,90 - 60 dias`
-          : `Pagamento confirmado - ${usuarioNome} (PIX) - R$ 59,90 - 60 dias`;
+        valorCorreto = 59.90;
+        diasCorretos = 60;
       } else if (formaPagamento === "cartao") {
-        descricao = tipo === "conta-criada"
-          ? `Conta criada - ${usuarioNome} (Cartão de Crédito) - R$ 149,70 - 180 dias`
-          : `Pagamento confirmado - ${usuarioNome} (Cartão de Crédito) - R$ 149,70 - 180 dias`;
+        valorCorreto = 149.70;
+        diasCorretos = diasAssinatura || 100; // ✅ CORRIGIDO: Padrão cartão = 100 dias
       }
 
+      // Determinar descrição baseada na forma de pagamento e dias
+      const descricao = tipo === "conta-criada"
+        ? `Conta criada - ${usuarioNome} (${formaPagamento === "pix" ? "PIX" : "Cartão de Crédito"}) - R$ ${valorCorreto.toFixed(2)} - ${diasCorretos} dias`
+        : `Pagamento confirmado - ${usuarioNome} (${formaPagamento === "pix" ? "PIX" : "Cartão de Crédito"}) - R$ ${valorCorreto.toFixed(2)} - ${diasCorretos} dias`;
+
       const ganhoId = `ganho-${Date.now()}`;
+
+      console.log(`💰 Registrando ganho: ${formaPagamento.toUpperCase()} - R$ ${valorCorreto.toFixed(2)} - ${diasCorretos} dias`);
 
       // Salvar no Supabase primeiro
       const sucessoSupabase = await AdminSupabase.addGanhoAdmin({
@@ -216,9 +222,10 @@ export default function AdminPage() {
         tipo,
         usuario_id: usuarioId,
         usuario_nome: usuarioNome,
-        valor,
+        valor: valorCorreto, // ✅ USAR VALOR CORRETO
         forma_pagamento: formaPagamento,
         descricao,
+        dias_comprados: diasCorretos, // ✅ ADICIONAR DIAS
       });
 
       if (sucessoSupabase) {
@@ -231,7 +238,7 @@ export default function AdminPage() {
         tipo,
         usuarioId,
         usuarioNome,
-        valor,
+        valor: valorCorreto, // ✅ USAR VALOR CORRETO
         formaPagamento,
         dataHora: new Date(),
         descricao,
@@ -288,7 +295,7 @@ export default function AdminPage() {
 
       if (novoUsuario.formaPagamento === "cartao") {
         valorPagamento = 149.70;
-        diasAssinatura = 180;
+        diasAssinatura = 100; // ✅ CORRIGIDO: Cartão = 100 dias
         dataProximoVencimento = addDays(new Date(), diasAssinatura);
       } else if (novoUsuario.formaPagamento === "pix") {
         valorPagamento = 59.90;
@@ -348,10 +355,10 @@ export default function AdminPage() {
     if (operador.diasAssinatura) {
       diasPadrao = operador.diasAssinatura;
     } else if (operador.formaPagamento) {
-      diasPadrao = operador.formaPagamento === "pix" ? 60 : 180;
+      diasPadrao = operador.formaPagamento === "pix" ? 60 : 100; // ✅ CORRIGIDO: Cartão = 100 dias
     } else if (operador.valorMensal) {
       // Fallback: usar o valor pago para determinar os dias
-      diasPadrao = operador.valorMensal === 59.90 ? 60 : 180;
+      diasPadrao = operador.valorMensal === 59.90 ? 60 : 100; // ✅ CORRIGIDO: Cartão = 100 dias
     }
 
     console.log('🔍 Modal Confirmação -', operador.nome, '| Forma:', operador.formaPagamento, '| Valor:', operador.valorMensal, '| Dias:', operador.diasAssinatura, '→ Calculado:', diasPadrao);
@@ -972,7 +979,7 @@ export default function AdminPage() {
                                 <CreditCard className="w-4 h-4 text-purple-300" />
                                 <span className="text-purple-300">
                                   {operador.formaPagamento === "pix" ? "PIX" : "Cartão"} - R$ {operador.valorMensal?.toFixed(2)}
-                                  {operador.formaPagamento === "pix" ? " (60 dias)" : " (180 dias)"}
+                                  {operador.formaPagamento === "pix" ? " (60 dias)" : " (100 dias)"}
                                 </span>
                                 {operador.dataProximoVencimento && (
                                   <span className="text-purple-300">
@@ -1219,7 +1226,7 @@ export default function AdminPage() {
                         <CreditCard className="w-6 h-6 text-white" />
                         <div className="text-left">
                           <p className="text-white font-semibold">Cartão de Crédito</p>
-                          <p className="text-purple-200 text-sm">R$ 149,70 - 180 dias | Até 3x sem juros</p>
+                          <p className="text-purple-200 text-sm">R$ 149,70 - 100 dias | Até 3x sem juros</p>
                         </div>
                       </div>
                       {novoUsuario.formaPagamento === "cartao" && (
@@ -1238,7 +1245,7 @@ export default function AdminPage() {
                     <p className="mb-2">
                       {novoUsuario.formaPagamento === "pix"
                         ? "PIX: R$ 59,90 - 60 dias de acesso"
-                        : "Cartão: R$ 149,70 - 180 dias de acesso | Até 3x sem juros"}
+                        : "Cartão: R$ 149,70 - 100 dias de acesso | Até 3x sem juros"}
                     </p>
                     <p className="text-xs">
                       {novoUsuario.formaPagamento === "pix"
@@ -1310,7 +1317,7 @@ export default function AdminPage() {
                   />
                 </div>
                 <p className="text-purple-300 text-xs mt-2">
-                  Padrão: {operadorParaConfirmar.formaPagamento === "pix" ? "60 dias (PIX)" : "180 dias (Cartão)"}. Você pode personalizar conforme necessário.
+                  Padrão: {operadorParaConfirmar.formaPagamento === "pix" ? "60 dias (PIX)" : "100 dias (Cartão)"}. Você pode personalizar conforme necessário.
                 </p>
               </div>
 
