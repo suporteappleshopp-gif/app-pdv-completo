@@ -95,6 +95,20 @@ export class AdminSupabase {
         if (op.dias_assinatura !== undefined) operador.diasAssinatura = op.dias_assinatura;
         if (op.data_pagamento) operador.dataPagamento = new Date(op.data_pagamento);
 
+        // 🔍 LOG: Verificar dados do operador carregado
+        if (op.email && op.email.includes('jose')) {
+          console.log('🔍 OPERADOR JOSE CARREGADO:', {
+            nome: op.nome,
+            email: op.email,
+            forma_pagamento: op.forma_pagamento,
+            valor_mensal: op.valor_mensal,
+            dias_assinatura: op.dias_assinatura,
+            formaPagamento: operador.formaPagamento,
+            valorMensal: operador.valorMensal,
+            diasAssinatura: operador.diasAssinatura,
+          });
+        }
+
         return operador;
       });
 

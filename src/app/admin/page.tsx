@@ -319,6 +319,14 @@ export default function AdminPage() {
         diasAssinatura: diasAssinatura,
       };
 
+      console.log('💾 CRIANDO USUÁRIO:', {
+        nome: nomeExtraido,
+        email: novoUsuario.email.trim(),
+        formaPagamento: novoUsuario.formaPagamento,
+        valorMensal: valorPagamento,
+        diasAssinatura: diasAssinatura,
+      });
+
       const sucesso = await AdminSupabase.addOperador(novoOperador);
 
       if (!sucesso) {
@@ -352,24 +360,33 @@ export default function AdminPage() {
     // ✅ DETECTAR DIAS BASEADO NO VALOR PAGO PELO USUÁRIO
     let diasPadrao = 60; // Default PIX
 
+    console.log('🔍 DETECÇÃO DE DIAS - Usuário:', operador.nome);
+    console.log('   📊 formaPagamento:', operador.formaPagamento);
+    console.log('   💰 valorMensal:', operador.valorMensal);
+    console.log('   📅 diasAssinatura:', operador.diasAssinatura);
+
     // Prioridade 1: Detectar pelo valor pago
     if (operador.valorMensal) {
       if (operador.valorMensal === 59.90) {
         diasPadrao = 60; // PIX = 60 dias
+        console.log('   ✅ Detectado PIX pelo valor: 60 dias');
       } else if (operador.valorMensal === 149.70) {
         diasPadrao = 180; // Cartão = 180 dias
+        console.log('   ✅ Detectado CARTÃO pelo valor: 180 dias');
       }
     }
     // Prioridade 2: Se não tem valor, usar diasAssinatura salvo
     else if (operador.diasAssinatura) {
       diasPadrao = operador.diasAssinatura;
+      console.log('   ✅ Usando diasAssinatura:', diasPadrao);
     }
     // Prioridade 3: Se não tem nada, usar forma de pagamento
     else if (operador.formaPagamento) {
       diasPadrao = operador.formaPagamento === "pix" ? 60 : 180;
+      console.log('   ✅ Detectado pela formaPagamento:', operador.formaPagamento, '→', diasPadrao, 'dias');
     }
 
-    console.log('🔍 Modal Confirmação -', operador.nome, '| Valor pago: R$', operador.valorMensal, '→ Dias detectados:', diasPadrao);
+    console.log('   🎯 DIAS FINAIS DETECTADOS:', diasPadrao);
 
     setDiasAtivacao(diasPadrao);
     setShowConfirmarPagamentoModal(true);
@@ -1309,7 +1326,17 @@ export default function AdminPage() {
                 <p className="text-purple-200 text-sm mb-4">
                   Confirmando pagamento do usuário: <span className="font-bold text-white">{operadorParaConfirmar.nome}</span>
                 </p>
-                
+
+                {/* Mostrar informações da compra */}
+                <div className="bg-blue-500/20 border border-blue-500/30 rounded-lg p-3 mb-4">
+                  <p className="text-blue-200 text-sm font-semibold mb-2">📋 Dados da Compra:</p>
+                  <div className="space-y-1 text-xs text-blue-100">
+                    <p>• <strong>Forma de Pagamento:</strong> {operadorParaConfirmar.formaPagamento === "pix" ? "PIX" : "Cartão de Crédito"}</p>
+                    <p>• <strong>Valor:</strong> R$ {operadorParaConfirmar.valorMensal?.toFixed(2) || (operadorParaConfirmar.formaPagamento === "pix" ? "59,90" : "149,70")}</p>
+                    <p>• <strong>Dias Padrão:</strong> {operadorParaConfirmar.formaPagamento === "pix" ? "60 dias" : "180 dias"}</p>
+                  </div>
+                </div>
+
                 <label className="block text-purple-200 text-sm font-semibold mb-2">
                   Quantos dias a conta ficará ativa?
                 </label>
@@ -1325,7 +1352,7 @@ export default function AdminPage() {
                   />
                 </div>
                 <p className="text-purple-300 text-xs mt-2">
-                  Padrão: {operadorParaConfirmar.formaPagamento === "pix" ? "60 dias (PIX)" : "180 dias (Cartão)"}. Você pode personalizar conforme necessário.
+                  ✅ Dias detectados automaticamente: {operadorParaConfirmar.formaPagamento === "pix" ? "60 dias (PIX)" : "180 dias (Cartão)"}. Você pode alterar se necessário.
                 </p>
               </div>
 
