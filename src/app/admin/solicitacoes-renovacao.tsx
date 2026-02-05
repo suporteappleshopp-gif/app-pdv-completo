@@ -121,10 +121,11 @@ export default function SolicitacoesRenovacao() {
     // Calcular dias baseado no valor pago
     let diasCalculados = solicitacao.dias_solicitados; // Default: usar o que o usuário solicitou
 
-    if (solicitacao.valor === 59.90) {
-      diasCalculados = 60;
-    } else if (solicitacao.valor === 149.70) {
-      diasCalculados = 100;
+    // ✅ CORREÇÃO: Usar dias corretos conforme forma de pagamento
+    if (solicitacao.forma_pagamento === "pix" || solicitacao.valor === 59.90) {
+      diasCalculados = 60; // PIX = 60 dias
+    } else if (solicitacao.forma_pagamento === "cartao" || solicitacao.valor === 149.70) {
+      diasCalculados = 180; // Cartão = 180 dias
     }
 
     setDiasAprovacao(diasCalculados);
