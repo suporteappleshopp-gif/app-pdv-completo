@@ -187,7 +187,7 @@ export class SupabaseSync {
         operador_id: v.operadorId,
         operador_nome: v.operadorNome,
         total: v.total,
-        forma_pagamento: v.tipoPagamento,
+        tipo_pagamento: v.tipoPagamento,
         status: v.status,
         created_at: v.dataHora instanceof Date ? v.dataHora.toISOString() : new Date(v.dataHora).toISOString(),
       }));
@@ -269,7 +269,7 @@ export class SupabaseSync {
             total: v.total,
             dataHora: new Date(v.created_at),
             status: v.status as "concluida" | "cancelada",
-            tipoPagamento: v.forma_pagamento,
+            tipoPagamento: v.tipo_pagamento,
             motivoCancelamento: undefined,
           };
         })
