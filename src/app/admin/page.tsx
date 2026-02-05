@@ -1527,64 +1527,96 @@ export default function AdminPage() {
             </div>
 
             <div className="p-6 space-y-6">
-              {/* Informações Básicas */}
-              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
-                <h4 className="text-white font-bold mb-3 flex items-center">
+              {/* Informações Básicas - ESTILO IGUAL AO EXEMPLO */}
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 border border-white/20">
+                <h4 className="text-white font-bold mb-4 flex items-center text-lg">
                   <Users className="w-5 h-5 mr-2" />
-                  Informações Básicas
+                  Informações do Usuário
                 </h4>
-                <div className="space-y-2 text-sm">
-                  <p className="text-purple-200">
-                    <strong>Nome:</strong> {operadorParaDetalhes.nome}
-                  </p>
-                  <p className="text-purple-200">
-                    <strong>Email:</strong> {operadorParaDetalhes.email}
-                  </p>
-                  <p className="text-purple-200">
-                    <strong>Status:</strong>{" "}
-                    <span className={
-                      operadorParaDetalhes.suspenso ? "text-orange-300" :
-                      operadorParaDetalhes.ativo ? "text-green-300" : "text-red-300"
-                    }>
-                      {operadorParaDetalhes.suspenso ? "Suspenso" :
-                       operadorParaDetalhes.ativo ? "Ativo" : "Inativo"}
-                    </span>
-                  </p>
-                  {operadorParaDetalhes.dataProximoVencimento && (
-                    <p className="text-purple-200">
-                      <strong>Vencimento:</strong>{" "}
-                      {format(new Date(operadorParaDetalhes.dataProximoVencimento), "dd/MM/yyyy", { locale: ptBR })}
-                    </p>
-                  )}
-                </div>
-              </div>
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-2 flex-1">
+                      <p className="text-purple-200 text-base">
+                        <strong className="text-white">Login:</strong> {operadorParaDetalhes.email}
+                      </p>
+                      <p className="text-purple-200 text-base">
+                        <strong className="text-white">Senha:</strong> {mostrarSenhas ? operadorParaDetalhes.senha : "••••••"}
+                      </p>
 
-              {/* Dados da Compra Original */}
-              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
-                <h4 className="text-white font-bold mb-3 flex items-center">
-                  <CreditCard className="w-5 h-5 mr-2" />
-                  Compra Original
-                </h4>
-                <div className="space-y-2 text-sm">
-                  {operadorParaDetalhes.formaPagamento && (
-                    <>
-                      <p className="text-purple-200">
-                        <strong>Forma de Pagamento:</strong>{" "}
-                        {operadorParaDetalhes.formaPagamento === "pix" ? "PIX" : "Cartão de Crédito"}
+                      {operadorParaDetalhes.dataProximoVencimento && (() => {
+                        const hoje = new Date();
+                        const vencimento = new Date(operadorParaDetalhes.dataProximoVencimento);
+                        const diasRestantesCalc = Math.ceil((vencimento.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
+
+                        return (
+                          <>
+                            <p className="text-purple-200 text-base">
+                              <strong className="text-white">Vencimento:</strong> {format(vencimento, "dd/MM/yyyy", { locale: ptBR })}
+                            </p>
+                            <p className="text-base">
+                              <strong className="text-white">Dias Restantes:</strong>{" "}
+                              <span className={`font-bold ${
+                                diasRestantesCalc > 10 ? "text-green-300" :
+                                diasRestantesCalc > 5 ? "text-yellow-300" :
+                                "text-red-300"
+                              }`}>
+                                {diasRestantesCalc >= 0 ? `${diasRestantesCalc} dias restantes` : "Vencido"}
+                              </span>
+                            </p>
+                          </>
+                        );
+                      })()}
+
+                      {operadorParaDetalhes.formaPagamento && (
+                        <p className="text-purple-200 text-base">
+                          <strong className="text-white">
+                            {operadorParaDetalhes.formaPagamento === "pix" ? "PIX" : "Cartão"} - R$ {operadorParaDetalhes.valorMensal?.toFixed(2)}
+                          </strong>
+                          {" "}({operadorParaDetalhes.diasAssinatura || (operadorParaDetalhes.formaPagamento === "pix" ? "60" : "180")} dias)
+                          {operadorParaDetalhes.dataProximoVencimento && (
+                            <span> | Vence em: {format(new Date(operadorParaDetalhes.dataProximoVencimento), "dd/MM/yyyy", { locale: ptBR })}</span>
+                          )}
+                        </p>
+                      )}
+
+                      <p className="text-purple-200 text-base">
+                        <strong className="text-white">Ativado:</strong> {format(new Date(operadorParaDetalhes.createdAt), "dd/MM/yyyy", { locale: ptBR })}
                       </p>
-                      <p className="text-purple-200">
-                        <strong>Valor:</strong> R$ {operadorParaDetalhes.valorMensal?.toFixed(2)}
-                      </p>
-                      <p className="text-purple-200">
-                        <strong>Dias Contratados:</strong>{" "}
-                        {operadorParaDetalhes.diasAssinatura || (operadorParaDetalhes.formaPagamento === "pix" ? "60" : "180")} dias
-                      </p>
-                    </>
-                  )}
-                  <p className="text-purple-200">
-                    <strong>Data de Cadastro:</strong>{" "}
-                    {format(new Date(operadorParaDetalhes.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                  </p>
+
+                      {operadorParaDetalhes.dataProximoVencimento && (() => {
+                        const hoje = new Date();
+                        const vencimento = new Date(operadorParaDetalhes.dataProximoVencimento);
+                        const diasRestantesCalc = Math.ceil((vencimento.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
+
+                        return (
+                          <p className={`text-base font-bold ${
+                            diasRestantesCalc > 10 ? "text-green-300" :
+                            diasRestantesCalc > 5 ? "text-yellow-300" :
+                            "text-red-300"
+                          }`}>
+                            {diasRestantesCalc >= 0 ? `${diasRestantesCalc} dias restantes` : "Vencido"}
+                          </p>
+                        );
+                      })()}
+                    </div>
+
+                    {/* Status Badge */}
+                    <div className="ml-4">
+                      {operadorParaDetalhes.suspenso ? (
+                        <span className="px-4 py-2 bg-orange-500/20 text-orange-300 rounded-full text-sm font-semibold border border-orange-500/30 block">
+                          Suspenso
+                        </span>
+                      ) : operadorParaDetalhes.ativo ? (
+                        <span className="px-4 py-2 bg-green-500/20 text-green-300 rounded-full text-sm font-semibold border border-green-500/30 block">
+                          Ativo
+                        </span>
+                      ) : (
+                        <span className="px-4 py-2 bg-red-500/20 text-red-300 rounded-full text-sm font-semibold border border-red-500/30 block">
+                          Inativo
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
 
