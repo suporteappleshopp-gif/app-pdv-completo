@@ -197,14 +197,14 @@ export default function AdminPage() {
     try {
       // ✅ GARANTIR QUE O VALOR SEJA CORRETO
       let valorCorreto = valor;
-      let diasCorretos = diasAssinatura || 60;
+      let diasCorretos = diasAssinatura || 100;
 
       if (formaPagamento === "pix") {
         valorCorreto = 59.90;
-        diasCorretos = 60;
+        diasCorretos = 100; // ✅ CORRIGIDO: PIX = 100 dias
       } else if (formaPagamento === "cartao") {
         valorCorreto = 149.70;
-        diasCorretos = diasAssinatura || 100; // ✅ CORRIGIDO: Padrão cartão = 100 dias
+        diasCorretos = diasAssinatura || 180; // ✅ CORRIGIDO: Padrão cartão = 180 dias
       }
 
       // Determinar descrição baseada na forma de pagamento e dias
@@ -295,11 +295,11 @@ export default function AdminPage() {
 
       if (novoUsuario.formaPagamento === "cartao") {
         valorPagamento = 149.70;
-        diasAssinatura = 100; // ✅ CORRIGIDO: Cartão = 100 dias
+        diasAssinatura = 180; // ✅ CORRIGIDO: Cartão = 180 dias
         dataProximoVencimento = addDays(new Date(), diasAssinatura);
       } else if (novoUsuario.formaPagamento === "pix") {
         valorPagamento = 59.90;
-        diasAssinatura = 60;
+        diasAssinatura = 100; // ✅ CORRIGIDO: PIX = 100 dias
         dataProximoVencimento = addDays(new Date(), diasAssinatura);
       }
 
@@ -350,14 +350,14 @@ export default function AdminPage() {
     setOperadorParaConfirmar(operador);
 
     // ✅ DETECTAR DIAS BASEADO NO VALOR PAGO PELO USUÁRIO
-    let diasPadrao = 60; // Default PIX
+    let diasPadrao = 100; // Default PIX
 
     // Prioridade 1: Detectar pelo valor pago
     if (operador.valorMensal) {
       if (operador.valorMensal === 59.90) {
-        diasPadrao = 60; // PIX
+        diasPadrao = 100; // PIX = 100 dias
       } else if (operador.valorMensal === 149.70) {
-        diasPadrao = 100; // Cartão
+        diasPadrao = 180; // Cartão = 180 dias
       }
     }
     // Prioridade 2: Se não tem valor, usar diasAssinatura salvo
@@ -366,7 +366,7 @@ export default function AdminPage() {
     }
     // Prioridade 3: Se não tem nada, usar forma de pagamento
     else if (operador.formaPagamento) {
-      diasPadrao = operador.formaPagamento === "pix" ? 60 : 100;
+      diasPadrao = operador.formaPagamento === "pix" ? 100 : 180;
     }
 
     console.log('🔍 Modal Confirmação -', operador.nome, '| Valor pago: R$', operador.valorMensal, '→ Dias detectados:', diasPadrao);
@@ -987,7 +987,7 @@ export default function AdminPage() {
                                 <CreditCard className="w-4 h-4 text-purple-300" />
                                 <span className="text-purple-300">
                                   {operador.formaPagamento === "pix" ? "PIX" : "Cartão"} - R$ {operador.valorMensal?.toFixed(2)}
-                                  {operador.formaPagamento === "pix" ? " (60 dias)" : " (100 dias)"}
+                                  {operador.formaPagamento === "pix" ? " (100 dias)" : " (180 dias)"}
                                 </span>
                                 {operador.dataProximoVencimento && (
                                   <span className="text-purple-300">
@@ -1210,7 +1210,7 @@ export default function AdminPage() {
                         </div>
                         <div className="text-left">
                           <p className="text-white font-semibold">PIX</p>
-                          <p className="text-purple-200 text-sm">R$ 59,90 - 60 dias de acesso</p>
+                          <p className="text-purple-200 text-sm">R$ 59,90 - 100 dias de acesso</p>
                         </div>
                       </div>
                       {novoUsuario.formaPagamento === "pix" && (
@@ -1234,7 +1234,7 @@ export default function AdminPage() {
                         <CreditCard className="w-6 h-6 text-white" />
                         <div className="text-left">
                           <p className="text-white font-semibold">Cartão de Crédito</p>
-                          <p className="text-purple-200 text-sm">R$ 149,70 - 100 dias | Até 3x sem juros</p>
+                          <p className="text-purple-200 text-sm">R$ 149,70 - 180 dias | Até 3x sem juros</p>
                         </div>
                       </div>
                       {novoUsuario.formaPagamento === "cartao" && (
@@ -1252,8 +1252,8 @@ export default function AdminPage() {
                     <p className="font-semibold mb-1">Informações de Pagamento</p>
                     <p className="mb-2">
                       {novoUsuario.formaPagamento === "pix"
-                        ? "PIX: R$ 59,90 - 60 dias de acesso"
-                        : "Cartão: R$ 149,70 - 100 dias de acesso | Até 3x sem juros"}
+                        ? "PIX: R$ 59,90 - 100 dias de acesso"
+                        : "Cartão: R$ 149,70 - 180 dias de acesso | Até 3x sem juros"}
                     </p>
                     <p className="text-xs">
                       {novoUsuario.formaPagamento === "pix"
@@ -1318,14 +1318,14 @@ export default function AdminPage() {
                   <input
                     type="number"
                     value={diasAtivacao}
-                    onChange={(e) => setDiasAtivacao(parseInt(e.target.value) || 60)}
+                    onChange={(e) => setDiasAtivacao(parseInt(e.target.value) || 100)}
                     className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-purple-300 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-                    placeholder="60"
+                    placeholder="100"
                     min="1"
                   />
                 </div>
                 <p className="text-purple-300 text-xs mt-2">
-                  Padrão: {operadorParaConfirmar.formaPagamento === "pix" ? "60 dias (PIX)" : "100 dias (Cartão)"}. Você pode personalizar conforme necessário.
+                  Padrão: {operadorParaConfirmar.formaPagamento === "pix" ? "100 dias (PIX)" : "180 dias (Cartão)"}. Você pode personalizar conforme necessário.
                 </p>
               </div>
 

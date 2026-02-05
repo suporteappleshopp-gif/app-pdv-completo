@@ -1098,7 +1098,7 @@ export default function FinanceiroPage() {
                     PIX
                   </div>
                   <h3 className="text-4xl font-bold text-white mb-2">R$ 59,90</h3>
-                  <p className="text-white/80">60 dias de acesso</p>
+                  <p className="text-white/80">100 dias de acesso</p>
                 </div>
 
                 <div className="space-y-2 mb-6">
@@ -1201,12 +1201,12 @@ export default function FinanceiroPage() {
 
                 {diasRestantes > 0 && (
                   <p className="text-xs text-white/70 text-center mt-3">
-                    Novo vencimento: {format(new Date(Date.now() + (diasRestantes + 60) * 24 * 60 * 60 * 1000), "dd/MM/yyyy")}
+                    Novo vencimento: {format(new Date(Date.now() + (diasRestantes + 100) * 24 * 60 * 60 * 1000), "dd/MM/yyyy")}
                   </p>
                 )}
               </div>
 
-              {/* Plano Cartão - 100 dias */}
+              {/* Plano Cartão - 180 dias */}
               <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border-2 border-yellow-400 hover:border-yellow-300 transition-all relative">
                 <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-yellow-400 text-gray-900 px-4 py-1 rounded-full font-bold text-sm">
                   MAIS VANTAJOSO
@@ -1217,7 +1217,7 @@ export default function FinanceiroPage() {
                     CARTÃO
                   </div>
                   <h3 className="text-4xl font-bold text-white mb-2">R$ 149,70</h3>
-                  <p className="text-white/80">100 dias de acesso</p>
+                  <p className="text-white/80">180 dias de acesso</p>
                   <p className="text-yellow-300 font-semibold text-sm mt-1">Parcele em até 3x sem juros</p>
                 </div>
 
@@ -1228,11 +1228,11 @@ export default function FinanceiroPage() {
                   </div>
                   <div className="flex items-center space-x-2 text-white/90">
                     <CheckCircle className="w-4 h-4 text-yellow-400" />
-                    <span className="text-sm">100 dias completos de acesso</span>
+                    <span className="text-sm">180 dias completos de acesso</span>
                   </div>
                   <div className="flex items-center space-x-2 text-white/90">
                     <CheckCircle className="w-4 h-4 text-yellow-400" />
-                    <span className="text-sm">40 dias a mais que PIX</span>
+                    <span className="text-sm">80 dias a mais que PIX</span>
                   </div>
                   <div className="flex items-center space-x-2 text-white/90">
                     <CheckCircle className="w-4 h-4 text-yellow-400" />
@@ -1290,7 +1290,7 @@ export default function FinanceiroPage() {
 
                 {diasRestantes > 0 && (
                   <p className="text-xs text-white/70 text-center mt-3">
-                    Novo vencimento: {format(new Date(Date.now() + (diasRestantes + 100) * 24 * 60 * 60 * 1000), "dd/MM/yyyy")}
+                    Novo vencimento: {format(new Date(Date.now() + (diasRestantes + 180) * 24 * 60 * 60 * 1000), "dd/MM/yyyy")}
                   </p>
                 )}
               </div>
