@@ -320,14 +320,8 @@ export default function AdminPage() {
         return;
       }
 
-      // Registrar ganho
-      await registrarGanho(
-        "conta-criada",
-        novoOperador.id,
-        novoOperador.nome,
-        valorPagamento,
-        novoUsuario.formaPagamento
-      );
+      // ❌ NÃO registrar ganho na criação - apenas após confirmar pagamento
+      // O ganho será registrado em handleConfirmarPagamento() quando o pagamento for aceito
 
       setSuccess("Usuário criado com sucesso! Aguardando pagamento.");
       setTimeout(() => setSuccess(""), 3000);
@@ -387,9 +381,15 @@ export default function AdminPage() {
       const sucesso = await AdminSupabase.updateOperador(operadorAtualizado);
 
       if (sucesso) {
-        // ❌ NÃO registrar ganho aqui - o ganho já foi registrado na criação do usuário
-        // Esta é apenas a confirmação do primeiro pagamento, não uma renovação
-        // O ganho foi registrado em handleCriarUsuario() com tipo "conta-criada"
+        // ✅ REGISTRAR GANHO AQUI - apenas quando o pagamento for confirmado e o usuário ativado
+        await registrarGanho(
+          "conta-criada",
+          operador.id,
+          operador.nome,
+          operador.valorMensal || 0,
+          operador.formaPagamento || "pix",
+          diasAtivacao
+        );
 
         setSuccess(`Pagamento confirmado! Usuário ativado com ${diasAtivacao} dias de acesso.`);
         setTimeout(() => setSuccess(""), 3000);

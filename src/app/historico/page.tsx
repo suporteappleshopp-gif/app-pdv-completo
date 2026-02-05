@@ -402,7 +402,7 @@ export default function HistoricoPage() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-4 max-h-[700px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-purple-500 scrollbar-track-white/10">
                 {vendasFiltradas.map((venda) => (
                   <div
                     key={venda.id}
