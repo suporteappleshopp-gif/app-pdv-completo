@@ -347,8 +347,21 @@ export default function AdminPage() {
   // Abrir modal de confirmação de pagamento
   const abrirModalConfirmarPagamento = (operador: Operador) => {
     setOperadorParaConfirmar(operador);
+
     // Usar diasAssinatura que foi definido ao criar o usuário, ou usar padrão baseado na forma de pagamento
-    const diasPadrao = operador.diasAssinatura || (operador.formaPagamento === "pix" ? 60 : 180);
+    let diasPadrao = 60; // Default PIX
+
+    if (operador.diasAssinatura) {
+      diasPadrao = operador.diasAssinatura;
+    } else if (operador.formaPagamento) {
+      diasPadrao = operador.formaPagamento === "pix" ? 60 : 180;
+    } else if (operador.valorMensal) {
+      // Fallback: usar o valor pago para determinar os dias
+      diasPadrao = operador.valorMensal === 59.90 ? 60 : 180;
+    }
+
+    console.log('🔍 Modal Confirmação -', operador.nome, '| Forma:', operador.formaPagamento, '| Valor:', operador.valorMensal, '| Dias:', operador.diasAssinatura, '→ Calculado:', diasPadrao);
+
     setDiasAtivacao(diasPadrao);
     setShowConfirmarPagamentoModal(true);
   };
