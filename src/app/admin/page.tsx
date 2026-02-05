@@ -1006,25 +1006,31 @@ export default function AdminPage() {
                               </div>
                             )}
 
-                            {operador.formaPagamento && (
-                              <div className="mt-2 flex items-center space-x-2 text-xs">
-                                <CreditCard className="w-4 h-4 text-purple-300" />
+                            {/* 💳 FORMA DE PAGAMENTO - EXIBIR PARA TODOS OS USUÁRIOS */}
+                            <div className="mt-2 flex items-center space-x-2 text-xs">
+                              <CreditCard className="w-4 h-4 text-purple-300" />
+                              <span className="text-purple-300">
+                                {operador.formaPagamento
+                                  ? `${operador.formaPagamento === "pix" ? "PIX" : "Cartão"} - R$ ${operador.valorMensal?.toFixed(2) || (operador.formaPagamento === "pix" ? "59,90" : "149,70")}`
+                                  : "Não definido"
+                                }
+                                {operador.formaPagamento && (
+                                  <span>
+                                    {operador.formaPagamento === "pix" ? " (60 dias)" : " (180 dias)"}
+                                  </span>
+                                )}
+                              </span>
+                              {operador.dataProximoVencimento && (
                                 <span className="text-purple-300">
-                                  {operador.formaPagamento === "pix" ? "PIX" : "Cartão"} - R$ {operador.valorMensal?.toFixed(2)}
-                                  {operador.formaPagamento === "pix" ? " (60 dias)" : " (180 dias)"}
+                                  | Vence em: {format(new Date(operador.dataProximoVencimento), "dd/MM/yyyy", { locale: ptBR })}
                                 </span>
-                                {operador.dataProximoVencimento && (
-                                  <span className="text-purple-300">
-                                    | Vence em: {format(new Date(operador.dataProximoVencimento), "dd/MM/yyyy", { locale: ptBR })}
-                                  </span>
-                                )}
-                                {operador.aguardandoPagamento && (
-                                  <span className="px-2 py-1 bg-orange-500/20 text-orange-300 rounded-full text-xs font-semibold border border-orange-500/30 ml-2">
-                                    Aguardando Pagamento
-                                  </span>
-                                )}
-                              </div>
-                            )}
+                              )}
+                              {operador.aguardandoPagamento && (
+                                <span className="px-2 py-1 bg-orange-500/20 text-orange-300 rounded-full text-xs font-semibold border border-orange-500/30 ml-2">
+                                  Aguardando Pagamento
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
