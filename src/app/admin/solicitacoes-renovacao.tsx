@@ -241,41 +241,77 @@ export default function SolicitacoesRenovacao() {
 
       console.log("📅 Nova data de vencimento:", novaDataVencimento);
 
-      // 1. Criar registro no histórico de pagamentos
-      const historicoId = `hist_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-
-      const { error: historicoError } = await supabase
+      // 1. Buscar se já existe um pagamento pendente para este usuário (primeira compra)
+      const { data: pagamentosPendentes, error: errorBusca } = await supabase
         .from("historico_pagamentos")
-        .insert({
-          id: historicoId,
-          usuario_id: solicitacaoSelecionada.operador_id,
-          mes_referencia: `Renovação ${diasAprovacao} dias - ${solicitacaoSelecionada.forma_pagamento.toUpperCase()}`,
-          valor: solicitacaoSelecionada.valor,
-          data_vencimento: new Date().toISOString(),
-          data_pagamento: new Date().toISOString(),
-          status: "pago",
-          forma_pagamento: solicitacaoSelecionada.forma_pagamento,
-          dias_comprados: diasAprovacao,
-          tipo_compra: `renovacao-${diasAprovacao}`,
-          observacao_admin: mensagemAdmin || "Aprovado pelo administrador",
-          aprovado_por: adminOperador.id,
-          data_aprovacao: new Date().toISOString(),
-        });
+        .select("*")
+        .eq("usuario_id", solicitacaoSelecionada.operador_id)
+        .eq("status", "pendente")
+        .order("created_at", { ascending: true })
+        .limit(1);
 
-      if (historicoError) {
-        console.error("❌ Erro ao criar histórico:", historicoError);
-        console.error("📋 Detalhes do erro:", JSON.stringify(historicoError, null, 2));
-        console.error("📦 Dados enviados:", {
-          id: historicoId,
-          usuario_id: solicitacaoSelecionada.operador_id,
-          dias: solicitacaoSelecionada.dias_solicitados,
-          valor: solicitacaoSelecionada.valor,
-        });
-        alert(`Erro ao registrar pagamento no histórico.\nDetalhes: ${historicoError.message || 'Erro desconhecido'}`);
-        return;
+      if (errorBusca) {
+        console.error("⚠️ Erro ao buscar pagamentos pendentes:", errorBusca);
       }
 
-      console.log("✅ Histórico de pagamento criado com ID:", historicoId);
+      const pagamentoPendenteExistente = pagamentosPendentes && pagamentosPendentes.length > 0 ? pagamentosPendentes[0] : null;
+
+      if (pagamentoPendenteExistente) {
+        // ATUALIZAR o pagamento pendente existente para "pago"
+        console.log("🔄 Atualizando pagamento pendente existente:", pagamentoPendenteExistente.id);
+
+        const { error: updateError } = await supabase
+          .from("historico_pagamentos")
+          .update({
+            status: "pago",
+            data_pagamento: new Date().toISOString(),
+            dias_comprados: diasAprovacao,
+            observacao_admin: mensagemAdmin || "Aprovado pelo administrador",
+            aprovado_por: adminOperador.id,
+            data_aprovacao: new Date().toISOString(),
+          })
+          .eq("id", pagamentoPendenteExistente.id);
+
+        if (updateError) {
+          console.error("❌ Erro ao atualizar pagamento:", updateError);
+          alert(`Erro ao atualizar pagamento.\nDetalhes: ${updateError.message || 'Erro desconhecido'}`);
+          return;
+        }
+
+        console.log("✅ Pagamento pendente atualizado para 'pago':", pagamentoPendenteExistente.id);
+      } else {
+        // CRIAR novo registro no histórico (caso não tenha pendente)
+        console.log("➕ Nenhum pagamento pendente encontrado. Criando novo registro...");
+
+        const historicoId = `hist_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+        const { error: historicoError } = await supabase
+          .from("historico_pagamentos")
+          .insert({
+            id: historicoId,
+            usuario_id: solicitacaoSelecionada.operador_id,
+            mes_referencia: `Renovação ${diasAprovacao} dias - ${solicitacaoSelecionada.forma_pagamento.toUpperCase()}`,
+            valor: solicitacaoSelecionada.valor,
+            data_vencimento: new Date().toISOString(),
+            data_pagamento: new Date().toISOString(),
+            status: "pago",
+            forma_pagamento: solicitacaoSelecionada.forma_pagamento,
+            dias_comprados: diasAprovacao,
+            tipo_compra: `renovacao-${diasAprovacao}`,
+            observacao_admin: mensagemAdmin || "Aprovado pelo administrador",
+            aprovado_por: adminOperador.id,
+            data_aprovacao: new Date().toISOString(),
+          });
+
+        if (historicoError) {
+          console.error("❌ Erro ao criar histórico:", historicoError);
+          console.error("📋 Detalhes do erro:", JSON.stringify(historicoError, null, 2));
+          alert(`Erro ao registrar pagamento no histórico.\nDetalhes: ${historicoError.message || 'Erro desconhecido'}`);
+          return;
+        }
+
+        console.log("✅ Histórico de pagamento criado com ID:", historicoId);
+      }
 
       // 2. Atualizar operador com nova data de vencimento e status ativo
       const { error: updateOpError } = await supabase
