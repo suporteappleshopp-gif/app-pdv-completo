@@ -67,14 +67,14 @@ export default function InitDiegoPage() {
         const novoPagamento = {
           id: `pag_diego_${Date.now()}`,
           usuarioId: operador.id,
-          mesReferencia: "Renovação 80 dias - PIX",
+          mesReferencia: "Renovação 60 dias - PIX",
           valor: 59.90,
           dataVencimento: new Date(),
           dataPagamento: new Date(),
           status: "pago" as const,
           formaPagamento: "pix" as const,
-          diasComprados: 80,
-          tipoCompra: "renovacao-80" as const,
+          diasComprados: 60,
+          tipoCompra: "renovacao-60" as const,
         };
 
         await db.addPagamento(novoPagamento);
@@ -82,7 +82,7 @@ export default function InitDiegoPage() {
         addLog("✅ Pagamento adicionado ao IndexedDB com sucesso!");
         addLog(`   - ID: ${novoPagamento.id}`);
         addLog(`   - Valor: R$ ${novoPagamento.valor}`);
-        addLog(`   - Dias: 80`);
+        addLog(`   - Dias: 60`);
         addLog(`   - Tipo: ${novoPagamento.tipoCompra}`);
 
         setStatus("✅ Concluído com sucesso!");

@@ -244,7 +244,7 @@ export default function CarteiraPage() {
               <div>
                 <p className="text-purple-200 text-sm mb-2">Total via PIX</p>
                 <h3 className="text-3xl font-bold text-white">R$ {totalPix.toFixed(2)}</h3>
-                <p className="text-purple-300 text-xs mt-2">Compra de 80 dias por R$ 59,90</p>
+                <p className="text-purple-300 text-xs mt-2">Compra de 60 dias por R$ 59,90</p>
               </div>
               <div className="bg-green-500/20 p-4 rounded-full">
                 <div className="w-8 h-8 flex items-center justify-center">

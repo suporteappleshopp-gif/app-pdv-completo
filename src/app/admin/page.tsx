@@ -201,7 +201,7 @@ export default function AdminPage() {
 
       if (formaPagamento === "pix") {
         valorCorreto = 59.90;
-        diasCorretos = 80; // ✅ CORRIGIDO: PIX = 80 dias
+        diasCorretos = 60; // ✅ CORRIGIDO: PIX = 60 dias
       } else if (formaPagamento === "cartao") {
         valorCorreto = 149.70;
         diasCorretos = diasAssinatura || 180; // ✅ CORRIGIDO: Padrão cartão = 180 dias
@@ -299,7 +299,7 @@ export default function AdminPage() {
         dataProximoVencimento = addDays(new Date(), diasAssinatura);
       } else if (novoUsuario.formaPagamento === "pix") {
         valorPagamento = 59.90;
-        diasAssinatura = 80; // ✅ CORRIGIDO: PIX = 80 dias
+        diasAssinatura = 60; // ✅ CORRIGIDO: PIX = 60 dias
         dataProximoVencimento = addDays(new Date(), diasAssinatura);
       }
 
@@ -350,12 +350,12 @@ export default function AdminPage() {
     setOperadorParaConfirmar(operador);
 
     // ✅ DETECTAR DIAS BASEADO NO VALOR PAGO PELO USUÁRIO
-    let diasPadrao = 80; // Default PIX
+    let diasPadrao = 60; // Default PIX
 
     // Prioridade 1: Detectar pelo valor pago
     if (operador.valorMensal) {
       if (operador.valorMensal === 59.90) {
-        diasPadrao = 80; // PIX = 80 dias
+        diasPadrao = 60; // PIX = 60 dias
       } else if (operador.valorMensal === 149.70) {
         diasPadrao = 180; // Cartão = 180 dias
       }
@@ -366,7 +366,7 @@ export default function AdminPage() {
     }
     // Prioridade 3: Se não tem nada, usar forma de pagamento
     else if (operador.formaPagamento) {
-      diasPadrao = operador.formaPagamento === "pix" ? 80 : 180;
+      diasPadrao = operador.formaPagamento === "pix" ? 60 : 180;
     }
 
     console.log('🔍 Modal Confirmação -', operador.nome, '| Valor pago: R$', operador.valorMensal, '→ Dias detectados:', diasPadrao);
@@ -987,7 +987,7 @@ export default function AdminPage() {
                                 <CreditCard className="w-4 h-4 text-purple-300" />
                                 <span className="text-purple-300">
                                   {operador.formaPagamento === "pix" ? "PIX" : "Cartão"} - R$ {operador.valorMensal?.toFixed(2)}
-                                  {operador.formaPagamento === "pix" ? " (80 dias)" : " (180 dias)"}
+                                  {operador.formaPagamento === "pix" ? " (60 dias)" : " (180 dias)"}
                                 </span>
                                 {operador.dataProximoVencimento && (
                                   <span className="text-purple-300">
@@ -1210,7 +1210,7 @@ export default function AdminPage() {
                         </div>
                         <div className="text-left">
                           <p className="text-white font-semibold">PIX</p>
-                          <p className="text-purple-200 text-sm">R$ 59,90 - 80 dias de acesso</p>
+                          <p className="text-purple-200 text-sm">R$ 59,90 - 60 dias de acesso</p>
                         </div>
                       </div>
                       {novoUsuario.formaPagamento === "pix" && (
@@ -1252,7 +1252,7 @@ export default function AdminPage() {
                     <p className="font-semibold mb-1">Informações de Pagamento</p>
                     <p className="mb-2">
                       {novoUsuario.formaPagamento === "pix"
-                        ? "PIX: R$ 59,90 - 80 dias de acesso"
+                        ? "PIX: R$ 59,90 - 60 dias de acesso"
                         : "Cartão: R$ 149,70 - 180 dias de acesso | Até 3x sem juros"}
                     </p>
                     <p className="text-xs">
@@ -1318,14 +1318,14 @@ export default function AdminPage() {
                   <input
                     type="number"
                     value={diasAtivacao}
-                    onChange={(e) => setDiasAtivacao(parseInt(e.target.value) || 80)}
+                    onChange={(e) => setDiasAtivacao(parseInt(e.target.value) || 60)}
                     className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-purple-300 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-                    placeholder="80"
+                    placeholder="60"
                     min="1"
                   />
                 </div>
                 <p className="text-purple-300 text-xs mt-2">
-                  Padrão: {operadorParaConfirmar.formaPagamento === "pix" ? "80 dias (PIX)" : "180 dias (Cartão)"}. Você pode personalizar conforme necessário.
+                  Padrão: {operadorParaConfirmar.formaPagamento === "pix" ? "60 dias (PIX)" : "180 dias (Cartão)"}. Você pode personalizar conforme necessário.
                 </p>
               </div>
 
