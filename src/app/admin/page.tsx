@@ -385,18 +385,11 @@ export default function AdminPage() {
       };
 
       const sucesso = await AdminSupabase.updateOperador(operadorAtualizado);
-      
+
       if (sucesso) {
-        // Registrar ganho do pagamento
-        if (operador.valorMensal && operador.formaPagamento && (operador.formaPagamento === "pix" || operador.formaPagamento === "cartao")) {
-          await registrarGanho(
-            "mensalidade-paga",
-            operador.id,
-            operador.nome,
-            operador.valorMensal,
-            operador.formaPagamento
-          );
-        }
+        // ❌ NÃO registrar ganho aqui - o ganho já foi registrado na criação do usuário
+        // Esta é apenas a confirmação do primeiro pagamento, não uma renovação
+        // O ganho foi registrado em handleCriarUsuario() com tipo "conta-criada"
 
         setSuccess(`Pagamento confirmado! Usuário ativado com ${diasAtivacao} dias de acesso.`);
         setTimeout(() => setSuccess(""), 3000);
