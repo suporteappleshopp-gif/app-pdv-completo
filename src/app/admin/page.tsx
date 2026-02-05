@@ -362,39 +362,60 @@ export default function AdminPage() {
 
   // Abrir modal de confirmação de pagamento
   const abrirModalConfirmarPagamento = (operador: Operador) => {
-    setOperadorParaConfirmar(operador);
+    console.log('🔍 ABRINDO MODAL - Dados do operador COMPLETOS:', {
+      nome: operador.nome,
+      email: operador.email,
+      formaPagamento: operador.formaPagamento,
+      valorMensal: operador.valorMensal,
+      diasAssinatura: operador.diasAssinatura,
+      dataProximoVencimento: operador.dataProximoVencimento,
+      aguardandoPagamento: operador.aguardandoPagamento,
+    });
 
-    // ✅ DETECTAR DIAS BASEADO NO VALOR PAGO PELO USUÁRIO
-    let diasPadrao = 60; // Default PIX
+    // 🔧 CORREÇÃO: Se formaPagamento está vazio, detectar pelo valorMensal ou diasAssinatura
+    let formaPagamentoDetectada = operador.formaPagamento;
+
+    if (!formaPagamentoDetectada) {
+      console.log('⚠️ formaPagamento VAZIO - Tentando detectar...');
+
+      // Tentar detectar pelo valor
+      if (operador.valorMensal === 59.90) {
+        formaPagamentoDetectada = "pix";
+        console.log('   ✅ Detectado PIX pelo valorMensal (59.90)');
+      } else if (operador.valorMensal === 149.70) {
+        formaPagamentoDetectada = "cartao";
+        console.log('   ✅ Detectado CARTÃO pelo valorMensal (149.70)');
+      }
+      // Tentar detectar pelos dias
+      else if (operador.diasAssinatura === 60) {
+        formaPagamentoDetectada = "pix";
+        console.log('   ✅ Detectado PIX pelos diasAssinatura (60)');
+      } else if (operador.diasAssinatura === 180) {
+        formaPagamentoDetectada = "cartao";
+        console.log('   ✅ Detectado CARTÃO pelos diasAssinatura (180)');
+      }
+      // Default: PIX
+      else {
+        formaPagamentoDetectada = "pix";
+        console.log('   ⚠️ Não foi possível detectar - usando PIX como padrão');
+      }
+
+      // Atualizar o operador com a forma de pagamento detectada
+      operador.formaPagamento = formaPagamentoDetectada;
+    }
+
+    console.log('💳 FORMA DE PAGAMENTO FINAL:', formaPagamentoDetectada);
+
+    // ✅ DETECTAR DIAS BASEADO NA FORMA DE PAGAMENTO
+    let diasPadrao = formaPagamentoDetectada === "pix" ? 60 : 180;
 
     console.log('🔍 DETECÇÃO DE DIAS - Usuário:', operador.nome);
-    console.log('   📊 formaPagamento:', operador.formaPagamento);
+    console.log('   📊 formaPagamento FINAL:', formaPagamentoDetectada);
     console.log('   💰 valorMensal:', operador.valorMensal);
     console.log('   📅 diasAssinatura:', operador.diasAssinatura);
+    console.log('   🎯 DIAS DETECTADOS:', diasPadrao);
 
-    // Prioridade 1: Detectar pelo valor pago
-    if (operador.valorMensal) {
-      if (operador.valorMensal === 59.90) {
-        diasPadrao = 60; // PIX = 60 dias
-        console.log('   ✅ Detectado PIX pelo valor: 60 dias');
-      } else if (operador.valorMensal === 149.70) {
-        diasPadrao = 180; // Cartão = 180 dias
-        console.log('   ✅ Detectado CARTÃO pelo valor: 180 dias');
-      }
-    }
-    // Prioridade 2: Se não tem valor, usar diasAssinatura salvo
-    else if (operador.diasAssinatura) {
-      diasPadrao = operador.diasAssinatura;
-      console.log('   ✅ Usando diasAssinatura:', diasPadrao);
-    }
-    // Prioridade 3: Se não tem nada, usar forma de pagamento
-    else if (operador.formaPagamento) {
-      diasPadrao = operador.formaPagamento === "pix" ? 60 : 180;
-      console.log('   ✅ Detectado pela formaPagamento:', operador.formaPagamento, '→', diasPadrao, 'dias');
-    }
-
-    console.log('   🎯 DIAS FINAIS DETECTADOS:', diasPadrao);
-
+    setOperadorParaConfirmar(operador);
     setDiasAtivacao(diasPadrao);
     setShowConfirmarPagamentoModal(true);
   };
