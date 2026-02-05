@@ -228,7 +228,7 @@ export default function CarteiraPage() {
               <div>
                 <p className="text-purple-200 text-sm mb-2">Total via Cartão de Crédito</p>
                 <h3 className="text-3xl font-bold text-white">R$ {totalCartao.toFixed(2)}</h3>
-                <p className="text-purple-300 text-xs mt-2">Compra de 180 dias por R$ 149,70</p>
+                <p className="text-purple-300 text-xs mt-2">Compra de 100 dias por R$ 149,70</p>
               </div>
               <div className="bg-blue-500/20 p-4 rounded-full">
                 <CreditCard className="w-8 h-8 text-blue-400" />

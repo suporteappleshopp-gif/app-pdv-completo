@@ -1206,7 +1206,7 @@ export default function FinanceiroPage() {
                 )}
               </div>
 
-              {/* Plano Cartão - 180 dias (6 meses) */}
+              {/* Plano Cartão - 100 dias */}
               <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border-2 border-yellow-400 hover:border-yellow-300 transition-all relative">
                 <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-yellow-400 text-gray-900 px-4 py-1 rounded-full font-bold text-sm">
                   MAIS VANTAJOSO
@@ -1217,7 +1217,7 @@ export default function FinanceiroPage() {
                     CARTÃO
                   </div>
                   <h3 className="text-4xl font-bold text-white mb-2">R$ 149,70</h3>
-                  <p className="text-white/80">180 dias (6 meses)</p>
+                  <p className="text-white/80">100 dias de acesso</p>
                   <p className="text-yellow-300 font-semibold text-sm mt-1">Parcele em até 3x sem juros</p>
                 </div>
 
@@ -1228,11 +1228,11 @@ export default function FinanceiroPage() {
                   </div>
                   <div className="flex items-center space-x-2 text-white/90">
                     <CheckCircle className="w-4 h-4 text-yellow-400" />
-                    <span className="text-sm">6 meses completos de acesso</span>
+                    <span className="text-sm">100 dias completos de acesso</span>
                   </div>
                   <div className="flex items-center space-x-2 text-white/90">
                     <CheckCircle className="w-4 h-4 text-yellow-400" />
-                    <span className="text-sm">Economia de R$ 29,40</span>
+                    <span className="text-sm">40 dias a mais que PIX</span>
                   </div>
                   <div className="flex items-center space-x-2 text-white/90">
                     <CheckCircle className="w-4 h-4 text-yellow-400" />
@@ -1285,12 +1285,12 @@ export default function FinanceiroPage() {
                   className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-4 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
                 >
                   <CreditCard className="w-5 h-5" />
-                  <span>Renovar Semestral</span>
+                  <span>Renovar com Cartão</span>
                 </button>
 
                 {diasRestantes > 0 && (
                   <p className="text-xs text-white/70 text-center mt-3">
-                    Novo vencimento: {format(new Date(Date.now() + (diasRestantes + 180) * 24 * 60 * 60 * 1000), "dd/MM/yyyy")}
+                    Novo vencimento: {format(new Date(Date.now() + (diasRestantes + 100) * 24 * 60 * 60 * 1000), "dd/MM/yyyy")}
                   </p>
                 )}
               </div>
