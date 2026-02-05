@@ -62,16 +62,21 @@ export default function FinanceiroPage() {
 
     const checkAuth = async () => {
       try {
-        // Buscar operador logado do Supabase
+        // 🔒 CRÍTICO: LIMPAR admin_master_session ANTES DE QUALQUER VERIFICAÇÃO
+        // Usuários comuns NUNCA devem ter essa flag
+        const adminMaster = localStorage.getItem("admin_master_session");
+        if (adminMaster === "true") {
+          console.warn("⚠️ Flag admin_master_session detectada - REMOVENDO (sessão de admin contaminada)");
+          localStorage.removeItem("admin_master_session");
+        }
+
+        // Buscar operador logado do Supabase (FONTE CONFIÁVEL)
         const { AuthSupabase } = await import("@/lib/auth-supabase");
         const operador = await AuthSupabase.getCurrentOperador();
 
         console.log("🔍 Verificando autenticação no financeiro...");
         console.log("👤 Operador encontrado:", operador?.nome, operador?.email);
         console.log("🔐 É admin?", operador?.isAdmin);
-
-        // Verificar se é admin (admin não acessa financeiro)
-        const adminMaster = localStorage.getItem("admin_master_session");
 
         // Se não encontrou operador, redirecionar para login
         if (!operador) {
@@ -80,14 +85,14 @@ export default function FinanceiroPage() {
           return false;
         }
 
-        // Se é admin, redirecionar para página admin
-        if (operador.isAdmin || adminMaster === "true") {
-          console.log("🔒 Usuário é admin - redirecionando para /admin");
+        // 🔒 CRÍTICO: Se é admin, redirecionar para página admin
+        if (operador.isAdmin === true) {
+          console.log("🔒 Usuário é ADMIN - redirecionando para /admin");
           router.push("/admin");
           return false;
         }
 
-        console.log("✅ Autenticação OK - carregando financeiro");
+        console.log("✅ Autenticação OK - usuário comum carregando financeiro");
         setOperadorId(operador.id);
         setOperadorNome(operador.nome);
         return true;

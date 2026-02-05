@@ -296,19 +296,35 @@ export class AuthSupabase {
     try {
       console.log("🔍 Buscando operador atual...");
 
+      // 🔒 CRÍTICO: Verificar se existe flag de admin contaminada
+      if (typeof window !== 'undefined') {
+        const adminFlag = localStorage.getItem('admin_master_session');
+        if (adminFlag === 'true') {
+          console.warn("⚠️ Flag admin detectada - limpando localStorage contaminado");
+          localStorage.removeItem('admin_master_session');
+          localStorage.removeItem('operador_session');
+        }
+      }
+
       // PRIMEIRO: Tentar buscar do localStorage (login direto - mais rápido)
       if (typeof window !== 'undefined') {
         const sessionStr = localStorage.getItem('operador_session');
         if (sessionStr) {
           try {
             const operador = JSON.parse(sessionStr);
-            console.log("✅ Operador encontrado no localStorage:", operador.email);
-            return {
-              ...operador,
-              createdAt: new Date(operador.createdAt),
-              dataProximoVencimento: operador.dataProximoVencimento ? new Date(operador.dataProximoVencimento) : undefined,
-              dataPagamento: operador.dataPagamento ? new Date(operador.dataPagamento) : undefined,
-            };
+            // 🔒 CRÍTICO: Se operador no localStorage é admin, NÃO usar
+            if (operador.isAdmin === true) {
+              console.warn("⚠️ Admin encontrado no localStorage - IGNORANDO e buscando do Supabase");
+              localStorage.removeItem('operador_session');
+            } else {
+              console.log("✅ Operador encontrado no localStorage:", operador.email);
+              return {
+                ...operador,
+                createdAt: new Date(operador.createdAt),
+                dataProximoVencimento: operador.dataProximoVencimento ? new Date(operador.dataProximoVencimento) : undefined,
+                dataPagamento: operador.dataPagamento ? new Date(operador.dataPagamento) : undefined,
+              };
+            }
           } catch (e) {
             console.warn("⚠️ Erro ao parsear sessão do localStorage:", e);
           }

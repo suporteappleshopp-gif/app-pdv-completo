@@ -361,6 +361,13 @@ export default function CaixaPage() {
     // Inicializar e carregar dados SEMPRE do Supabase (perfil único)
     const init = async () => {
       try {
+        // 🔒 CRÍTICO: Limpar flag de admin ao entrar em página de usuário
+        const adminFlag = localStorage.getItem("admin_master_session");
+        if (adminFlag === "true") {
+          console.warn("⚠️ Flag admin detectada em página de usuário - REMOVENDO");
+          localStorage.removeItem("admin_master_session");
+        }
+
         // Buscar operador logado do Supabase (OBRIGATÓRIO)
         const { AuthSupabase } = await import("@/lib/auth-supabase");
         const operador = await AuthSupabase.getCurrentOperador();
@@ -372,7 +379,7 @@ export default function CaixaPage() {
         }
 
         // 🔒 CRÍTICO: BLOQUEAR ADMIN DE ACESSAR PÁGINAS DE USUÁRIO
-        if (operador.isAdmin) {
+        if (operador.isAdmin === true) {
           console.error("❌ ADMIN tentando acessar área de usuário - redirecionando para painel admin");
           router.push("/admin");
           return;

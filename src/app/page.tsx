@@ -272,6 +272,9 @@ export default function LoginPage() {
           return;
         }
 
+        // 🔒 CRÍTICO: Remover flag de admin ANTES de fazer login de usuário comum
+        localStorage.removeItem("admin_master_session");
+
         // Fazer login com Supabase
         const resultado = await AuthSupabase.signIn(email, senha);
 
@@ -282,6 +285,9 @@ export default function LoginPage() {
         }
 
         const operador = resultado.operador;
+
+        // 🔒 CRÍTICO: Garantir que usuário comum NÃO tenha flag de admin
+        localStorage.removeItem("admin_master_session");
 
         // NÃO salvar no localStorage - usar APENAS sessão Supabase
         // Os dados virão sempre do banco de dados
