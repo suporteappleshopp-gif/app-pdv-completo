@@ -288,6 +288,9 @@ export default function AdminPage() {
       // Extrair nome do email (parte antes do @)
       const nomeExtraido = novoUsuario.email.split("@")[0];
 
+      console.log('🎯 CRIANDO USUÁRIO:', nomeExtraido);
+      console.log('💳 Forma de Pagamento SELECIONADA:', novoUsuario.formaPagamento);
+
       let valorPagamento = 0;
       let dataProximoVencimento = null;
       let ativo = false;
@@ -297,10 +300,14 @@ export default function AdminPage() {
         valorPagamento = 149.70;
         diasAssinatura = 180; // ✅ CORRIGIDO: Cartão = 180 dias
         dataProximoVencimento = addDays(new Date(), diasAssinatura);
+        console.log('   ✅ CARTÃO → R$ 149,70 | 180 dias');
       } else if (novoUsuario.formaPagamento === "pix") {
         valorPagamento = 59.90;
         diasAssinatura = 60; // ✅ CORRIGIDO: PIX = 60 dias
         dataProximoVencimento = addDays(new Date(), diasAssinatura);
+        console.log('   ✅ PIX → R$ 59,90 | 60 dias');
+      } else {
+        console.error('   ❌ ERRO: formaPagamento INVÁLIDA:', novoUsuario.formaPagamento);
       }
 
       const novoOperador: Operador = {

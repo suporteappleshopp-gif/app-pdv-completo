@@ -144,6 +144,14 @@ export class AdminSupabase {
    */
   static async addOperador(operador: Operador): Promise<boolean> {
     try {
+      console.log('💾 AdminSupabase.addOperador - Recebendo operador:', {
+        nome: operador.nome,
+        email: operador.email,
+        formaPagamento: operador.formaPagamento,
+        valorMensal: operador.valorMensal,
+        diasAssinatura: operador.diasAssinatura,
+      });
+
       const insertData: any = {
         id: operador.id,
         nome: operador.nome,
@@ -165,13 +173,24 @@ export class AdminSupabase {
       }
       if (operador.diasAssinatura !== undefined) {
         insertData.dias_assinatura = operador.diasAssinatura;
+        console.log('   ✅ diasAssinatura adicionado:', operador.diasAssinatura);
       }
       if (operador.formaPagamento) {
         insertData.forma_pagamento = operador.formaPagamento;
+        console.log('   ✅ formaPagamento adicionado:', operador.formaPagamento);
+      } else {
+        console.warn('   ⚠️ formaPagamento NÃO foi adicionado (undefined ou vazio)');
       }
       if (operador.valorMensal !== undefined) {
         insertData.valor_mensal = operador.valorMensal;
+        console.log('   ✅ valorMensal adicionado:', operador.valorMensal);
       }
+
+      console.log('📤 Dados que serão inseridos no Supabase:', {
+        forma_pagamento: insertData.forma_pagamento,
+        valor_mensal: insertData.valor_mensal,
+        dias_assinatura: insertData.dias_assinatura,
+      });
 
       const { error } = await supabase.from("operadores").insert(insertData);
 
