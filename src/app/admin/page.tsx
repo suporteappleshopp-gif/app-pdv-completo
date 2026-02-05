@@ -349,19 +349,27 @@ export default function AdminPage() {
   const abrirModalConfirmarPagamento = (operador: Operador) => {
     setOperadorParaConfirmar(operador);
 
-    // Usar diasAssinatura que foi definido ao criar o usuário, ou usar padrão baseado na forma de pagamento
+    // ✅ DETECTAR DIAS BASEADO NO VALOR PAGO PELO USUÁRIO
     let diasPadrao = 60; // Default PIX
 
-    if (operador.diasAssinatura) {
+    // Prioridade 1: Detectar pelo valor pago
+    if (operador.valorMensal) {
+      if (operador.valorMensal === 59.90) {
+        diasPadrao = 60; // PIX
+      } else if (operador.valorMensal === 149.70) {
+        diasPadrao = 100; // Cartão
+      }
+    }
+    // Prioridade 2: Se não tem valor, usar diasAssinatura salvo
+    else if (operador.diasAssinatura) {
       diasPadrao = operador.diasAssinatura;
-    } else if (operador.formaPagamento) {
-      diasPadrao = operador.formaPagamento === "pix" ? 60 : 100; // ✅ CORRIGIDO: Cartão = 100 dias
-    } else if (operador.valorMensal) {
-      // Fallback: usar o valor pago para determinar os dias
-      diasPadrao = operador.valorMensal === 59.90 ? 60 : 100; // ✅ CORRIGIDO: Cartão = 100 dias
+    }
+    // Prioridade 3: Se não tem nada, usar forma de pagamento
+    else if (operador.formaPagamento) {
+      diasPadrao = operador.formaPagamento === "pix" ? 60 : 100;
     }
 
-    console.log('🔍 Modal Confirmação -', operador.nome, '| Forma:', operador.formaPagamento, '| Valor:', operador.valorMensal, '| Dias:', operador.diasAssinatura, '→ Calculado:', diasPadrao);
+    console.log('🔍 Modal Confirmação -', operador.nome, '| Valor pago: R$', operador.valorMensal, '→ Dias detectados:', diasPadrao);
 
     setDiasAtivacao(diasPadrao);
     setShowConfirmarPagamentoModal(true);
