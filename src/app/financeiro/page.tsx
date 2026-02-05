@@ -392,10 +392,30 @@ export default function FinanceiroPage() {
         )
         .subscribe();
 
+      // ✅ CONFIGURAR REALTIME: Atualizar ganhos quando vendas mudarem
+      const channelVendas = supabase
+        .channel("user_vendas_ganhos")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "vendas",
+            filter: `operador_id=eq.${operador.id}`,
+          },
+          (payload) => {
+            console.log("🔄 Atualização em tempo real (vendas):", payload);
+            console.log("💰 Recalculando ganhos automaticamente...");
+            calcularGanhos(); // Recalcular ganhos quando houver nova venda
+          }
+        )
+        .subscribe();
+
       // Retornar função de cleanup para remover listeners
       return () => {
         supabase.removeChannel(channelSolicitacoes);
         supabase.removeChannel(channelPagamentos);
+        supabase.removeChannel(channelVendas);
       };
 
     } catch (err) {
