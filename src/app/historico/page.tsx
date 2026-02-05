@@ -111,20 +111,65 @@ export default function HistoricoPage() {
         return;
       }
 
-      // Carregar vendas do Supabase
+      // Carregar vendas diretamente do Supabase
       console.log("☁️ Carregando vendas do Supabase...");
-      const { SupabaseSync } = await import("@/lib/supabase-sync");
-      const vendasNuvem = await SupabaseSync.loadVendas(operador.id);
+      const { supabase } = await import("@/lib/supabase");
 
-      // Ordenar por data mais recente
-      const vendasOrdenadas = vendasNuvem.sort(
-        (a, b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime()
+      const { data: vendasData, error: errorVendas } = await supabase
+        .from("vendas")
+        .select("*")
+        .eq("operador_id", operador.id)
+        .order("created_at", { ascending: false });
+
+      if (errorVendas) {
+        console.error("❌ Erro ao carregar vendas:", errorVendas);
+        setErro("Erro ao carregar vendas do banco de dados");
+        setTimeout(() => setErro(""), 3000);
+        return;
+      }
+
+      if (!vendasData || vendasData.length === 0) {
+        console.log("⚠️ Nenhuma venda encontrada");
+        setVendas([]);
+        return;
+      }
+
+      console.log(`✅ ${vendasData.length} vendas encontradas no Supabase`);
+
+      // Carregar itens para cada venda
+      const vendasComItens = await Promise.all(
+        vendasData.map(async (v) => {
+          const { data: itens } = await supabase
+            .from("itens_venda")
+            .select("*")
+            .eq("venda_id", v.id);
+
+          return {
+            id: v.id,
+            numero: v.numero || 0,
+            operadorId: v.operador_id,
+            operadorNome: v.operador_nome,
+            itens: (itens || []).map((item) => ({
+              produtoId: item.produto_id,
+              nome: item.nome,
+              quantidade: item.quantidade,
+              precoUnitario: parseFloat(item.preco_unitario.toString()),
+              subtotal: parseFloat(item.subtotal.toString()),
+            })),
+            total: parseFloat(v.total.toString()),
+            dataHora: new Date(v.created_at),
+            status: v.status as "concluida" | "cancelada",
+            tipoPagamento: v.forma_pagamento,
+            motivoCancelamento: v.motivo_cancelamento,
+            devolucoes: [],
+          } as Venda;
+        })
       );
 
-      setVendas(vendasOrdenadas);
-      console.log(`✅ ${vendasOrdenadas.length} vendas carregadas`);
+      setVendas(vendasComItens);
+      console.log(`✅ ${vendasComItens.length} vendas carregadas com itens`);
     } catch (err) {
-      console.error("Erro ao carregar vendas:", err);
+      console.error("❌ Erro ao carregar vendas:", err);
       setErro("Erro ao carregar histórico de vendas");
       setTimeout(() => setErro(""), 3000);
     } finally {

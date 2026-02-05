@@ -453,22 +453,34 @@ export default function FinanceiroPage() {
 
   const calcularGanhos = async () => {
     try {
-      await db.init();
+      if (!operadorId) {
+        console.log("⚠️ Operador ID não definido ainda");
+        return;
+      }
 
       // SEMPRE buscar vendas do Supabase (dados atualizados)
-      let vendasOperador: Venda[] = [];
+      const { supabase } = await import("@/lib/supabase");
 
-      try {
-        const { SupabaseSync } = await import("@/lib/supabase-sync");
-        const vendasNuvem = await SupabaseSync.loadVendas(operadorId);
-        vendasOperador = vendasNuvem;
-        console.log("✅ Vendas carregadas do Supabase para análise de ganhos");
-      } catch (error) {
-        console.error("⚠️ Erro ao carregar vendas do Supabase, usando dados locais:", error);
-        // Fallback: usar dados locais
-        const todasVendas = await db.getAllVendas();
-        vendasOperador = todasVendas.filter(v => v.operadorId === operadorId);
+      // Buscar vendas diretamente do Supabase
+      const { data: vendas, error } = await supabase
+        .from("vendas")
+        .select("*")
+        .eq("operador_id", operadorId)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("❌ Erro ao carregar vendas:", error);
+        setGanhos(0);
+        return;
       }
+
+      if (!vendas || vendas.length === 0) {
+        console.log("⚠️ Nenhuma venda encontrada no Supabase");
+        setGanhos(0);
+        return;
+      }
+
+      console.log(`✅ ${vendas.length} vendas encontradas no Supabase`);
 
       const agora = new Date();
       let inicio: Date;
@@ -490,16 +502,21 @@ export default function FinanceiroPage() {
       }
 
       // Filtrar vendas do período e calcular ganhos reais
-      const vendasPeriodo = vendasOperador.filter(venda => {
-        const dataVenda = new Date(venda.dataHora);
+      const vendasPeriodo = vendas.filter(venda => {
+        const dataVenda = new Date(venda.created_at);
         return dataVenda >= inicio && dataVenda <= fim && venda.status !== "cancelada";
       });
 
-      const totalGanhos = vendasPeriodo.reduce((acc, venda) => acc + venda.total, 0);
+      const totalGanhos = vendasPeriodo.reduce((acc, venda) => {
+        return acc + parseFloat(venda.total.toString());
+      }, 0);
+
       setGanhos(totalGanhos);
       console.log(`📊 Ganhos calculados (${filtroTempo}): R$ ${totalGanhos.toFixed(2)}`);
+      console.log(`   - Total de vendas no período: ${vendasPeriodo.length}`);
+      console.log(`   - Total de vendas no banco: ${vendas.length}`);
     } catch (err) {
-      console.error("Erro ao calcular ganhos:", err);
+      console.error("❌ Erro ao calcular ganhos:", err);
       setGanhos(0);
     }
   };
