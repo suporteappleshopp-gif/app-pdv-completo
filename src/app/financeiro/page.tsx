@@ -223,27 +223,37 @@ export default function FinanceiroPage() {
       }));
 
       // ✅ CONVERTER SOLICITAÇÕES DE RENOVAÇÃO PARA FORMATO DE PAGAMENTO
-      const solicitacoesFormatadas: Pagamento[] = (solicitacoesRenovacao || []).map((sol) => {
-        // Converter status: "aprovado" → "pago", "recusado" → "cancelado"
-        let statusConvertido: "pendente" | "pago" | "vencido" | "cancelado" = "pendente";
-        if (sol.status === "aprovado") statusConvertido = "pago";
-        else if (sol.status === "recusado") statusConvertido = "cancelado";
-        else if (sol.status === "pendente") statusConvertido = "pendente";
+      // ⚠️ IMPORTANTE: Apenas incluir solicitações PENDENTES ou RECUSADAS
+      // Solicitações aprovadas já viram registros no historico_pagamentos
+      const solicitacoesFormatadas: Pagamento[] = (solicitacoesRenovacao || [])
+        .filter((sol) => {
+          // NÃO incluir solicitações aprovadas (elas já estão no historico_pagamentos)
+          if (sol.status === "aprovado") {
+            console.log(`⏭️ Pulando solicitação aprovada ${sol.id} (já está no histórico)`);
+            return false;
+          }
+          return true;
+        })
+        .map((sol) => {
+          // Converter status: "recusado" → "cancelado", "pendente" → "pendente"
+          let statusConvertido: "pendente" | "pago" | "vencido" | "cancelado" = "pendente";
+          if (sol.status === "recusado") statusConvertido = "cancelado";
+          else if (sol.status === "pendente") statusConvertido = "pendente";
 
-        return {
-          id: `sol_${sol.id}`,
-          usuarioId: sol.operador_id,
-          mesReferencia: `Solicitação de Renovação - ${sol.dias_solicitados} dias`,
-          valor: sol.valor,
-          dataVencimento: new Date(sol.data_solicitacao),
-          dataPagamento: sol.data_resposta ? new Date(sol.data_resposta) : null,
-          status: statusConvertido,
-          formaPagamento: sol.forma_pagamento as "pix" | "cartao",
-          diasComprados: sol.dias_solicitados,
-          tipoCompra: "renovacao-solicitada",
-          observacao_admin: sol.mensagem_admin,
-        };
-      });
+          return {
+            id: `sol_${sol.id}`,
+            usuarioId: sol.operador_id,
+            mesReferencia: `Solicitação de Renovação - ${sol.dias_solicitados} dias`,
+            valor: sol.valor,
+            dataVencimento: new Date(sol.data_solicitacao),
+            dataPagamento: sol.data_resposta ? new Date(sol.data_resposta) : null,
+            status: statusConvertido,
+            formaPagamento: sol.forma_pagamento as "pix" | "cartao",
+            diasComprados: sol.dias_solicitados,
+            tipoCompra: "renovacao-solicitada",
+            observacao_admin: sol.mensagem_admin,
+          };
+        });
 
       // Carregar pagamentos do IndexedDB
       const pagamentosIndexedDB = await db.getPagamentosByUsuario(operador.id);
