@@ -1,20 +1,47 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// 🔥 Buscar variáveis de TODAS as fontes possíveis (dev + produção)
-const supabaseUrl =
-  (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SUPABASE_URL) ||
-  (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_URL) ||
-  '';
+// 🔥 CRÍTICO: Buscar variáveis em RUNTIME para funcionar em produção
+// Next.js injeta essas variáveis no bundle quando começam com NEXT_PUBLIC_
+const getSupabaseUrl = () => {
+  // Tentar process.env primeiro (build time)
+  if (typeof process !== 'undefined') {
+    const fromEnv = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    if (fromEnv) return fromEnv;
+  }
 
-const supabaseAnonKey =
-  (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SUPABASE_ANON_KEY) ||
-  (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_ANON_KEY) ||
-  '';
+  // Fallback: tentar window.__env__ (runtime injection)
+  if (typeof window !== 'undefined' && (window as any).__env__?.SUPABASE_URL) {
+    return (window as any).__env__.SUPABASE_URL;
+  }
 
-// Log para debug (APENAS em desenvolvimento)
-if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
-  console.log('🔧 Supabase URL configurada:', supabaseUrl ? 'SIM' : 'NÃO');
-  console.log('🔧 Supabase Key configurada:', supabaseAnonKey ? 'SIM' : 'NÃO');
+  return '';
+};
+
+const getSupabaseKey = () => {
+  // Tentar process.env primeiro (build time)
+  if (typeof process !== 'undefined') {
+    const fromEnv = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+    if (fromEnv) return fromEnv;
+  }
+
+  // Fallback: tentar window.__env__ (runtime injection)
+  if (typeof window !== 'undefined' && (window as any).__env__?.SUPABASE_KEY) {
+    return (window as any).__env__.SUPABASE_KEY;
+  }
+
+  return '';
+};
+
+const supabaseUrl = getSupabaseUrl();
+const supabaseAnonKey = getSupabaseKey();
+
+// Log para debug (SEMPRE mostrar em produção para debug)
+if (typeof window !== 'undefined') {
+  console.log('🔧 [SUPABASE] URL configurada:', supabaseUrl ? '✅ SIM' : '❌ NÃO');
+  console.log('🔧 [SUPABASE] Key configurada:', supabaseAnonKey ? '✅ SIM' : '❌ NÃO');
+  if (supabaseUrl) {
+    console.log('🔧 [SUPABASE] URL:', supabaseUrl.substring(0, 30) + '...');
+  }
 }
 
 // Verificar se as credenciais são válidas

@@ -13,6 +13,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR">
+      <head>
+        <script src="/env-config.js" async></script>
+      </head>
       <body className="antialiased">
         {children}
       </body>
