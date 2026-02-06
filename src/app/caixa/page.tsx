@@ -1060,12 +1060,52 @@ export default function CaixaPage() {
       console.log("💾 Salvando venda no IndexedDB...");
       await db.addVenda(venda);
       console.log("✅ Venda salva no IndexedDB");
-      
-      // Salvar venda automaticamente (sincroniza com nuvem)
-      console.log("☁️ Sincronizando com Supabase...");
-      await salvarAutomaticamente(venda, "venda_concluida");
-      console.log("✅ Venda sincronizada com Supabase");
-      
+
+      // 🔥 SALVAR VENDA DIRETAMENTE NO SUPABASE (SEM INTERMEDIÁRIOS)
+      console.log("☁️ Salvando venda no Supabase...");
+      const { supabase } = await import("@/lib/supabase");
+
+      const { error: errorVenda } = await supabase
+        .from("vendas")
+        .insert({
+          id: venda.id,
+          numero: venda.numero,
+          operador_id: venda.operadorId,
+          operador_nome: venda.operadorNome,
+          total: venda.total,
+          forma_pagamento: venda.tipoPagamento,
+          status: venda.status,
+          created_at: venda.dataHora.toISOString(),
+        });
+
+      if (errorVenda) {
+        console.error("❌ Erro ao salvar venda no Supabase:", errorVenda);
+      } else {
+        console.log("✅ Venda salva no Supabase com sucesso");
+      }
+
+      // 🔥 SALVAR ITENS DA VENDA NO SUPABASE
+      console.log("☁️ Salvando itens da venda no Supabase...");
+      const itensParaInserir = carrinho.map((item) => ({
+        id: `item-${Date.now()}-${Math.random()}`,
+        venda_id: venda.id,
+        produto_id: item.produtoId,
+        nome: item.nome,
+        quantidade: item.quantidade,
+        preco_unitario: item.precoUnitario,
+        subtotal: item.subtotal,
+      }));
+
+      const { error: errorItens } = await supabase
+        .from("itens_venda")
+        .insert(itensParaInserir);
+
+      if (errorItens) {
+        console.error("❌ Erro ao salvar itens da venda:", errorItens);
+      } else {
+        console.log("✅ Itens da venda salvos no Supabase");
+      }
+
       // Atualizar estoque - produtos saem automaticamente
       console.log("📦 Atualizando estoque...");
       const produtosAtualizados = [...produtos];
@@ -1073,21 +1113,36 @@ export default function CaixaPage() {
       for (const item of carrinho) {
         const produtoIndex = produtosAtualizados.findIndex(p => p.id === item.produtoId);
         if (produtoIndex !== -1) {
+          const estoqueAnterior = produtosAtualizados[produtoIndex].estoque;
+          const novoEstoque = estoqueAnterior - item.quantidade;
+
           produtosAtualizados[produtoIndex] = {
             ...produtosAtualizados[produtoIndex],
-            estoque: produtosAtualizados[produtoIndex].estoque - item.quantidade
+            estoque: novoEstoque
           };
-          console.log(`📦 ${produtosAtualizados[produtoIndex].nome}: ${produtosAtualizados[produtoIndex].estoque + item.quantidade} → ${produtosAtualizados[produtoIndex].estoque}`);
+
+          console.log(`📦 ${produtosAtualizados[produtoIndex].nome}: ${estoqueAnterior} → ${novoEstoque}`);
+
+          // 🔥 ATUALIZAR ESTOQUE DIRETAMENTE NO SUPABASE
+          const { error: errorEstoque } = await supabase
+            .from("produtos")
+            .update({ estoque: novoEstoque })
+            .eq("id", item.produtoId);
+
+          if (errorEstoque) {
+            console.error(`❌ Erro ao atualizar estoque do produto ${item.nome}:`, errorEstoque);
+          } else {
+            console.log(`✅ Estoque do produto ${item.nome} atualizado no Supabase`);
+          }
+
+          // Também atualizar no IndexedDB
+          await db.updateProduto(produtosAtualizados[produtoIndex]);
         }
       }
 
-      // Sincronizar produtos atualizados com Supabase
-      console.log("☁️ Sincronizando estoque com Supabase...");
-      await SupabaseSync.syncProdutos(operadorId, produtosAtualizados);
-      console.log("✅ Estoque atualizado e sincronizado");
-
       // Atualizar lista de produtos na tela
       setProdutos(produtosAtualizados);
+      console.log("✅ Estoque atualizado em todos os lugares");
 
       // Guardar venda para impressão
       setVendaFinalizada(venda);
