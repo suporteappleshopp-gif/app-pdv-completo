@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { GerenciadorAssinatura } from "@/lib/assinatura";
 import { Produto } from "@/lib/types";
@@ -19,6 +19,7 @@ import {
   DollarSign,
   TrendingDown,
   Lock,
+  Camera,
 } from "lucide-react";
 
 export default function EstoquePage() {
@@ -50,6 +51,10 @@ export default function EstoquePage() {
 
   // Estado para o valor formatado do preço (com vírgula)
   const [precoFormatado, setPrecoFormatado] = useState("");
+
+  // Estado para câmera de código de barras
+  const [mostrarCamera, setMostrarCamera] = useState(false);
+  const [scannerAtivo, setScannerAtivo] = useState(false);
 
   useEffect(() => {
     carregarProdutos();
@@ -138,22 +143,40 @@ export default function EstoquePage() {
   const handlePrecoChange = (valor: string) => {
     // Permite apenas números e vírgula
     const valorLimpo = valor.replace(/[^\d,]/g, "");
-    
+
     // Garante apenas uma vírgula
     const partes = valorLimpo.split(",");
     let valorFormatado = partes[0];
     if (partes.length > 1) {
       valorFormatado += "," + partes[1].slice(0, 2); // Limita a 2 casas decimais
     }
-    
+
     setPrecoFormatado(valorFormatado);
-    
+
     // Converte para número (substitui vírgula por ponto)
     const valorNumerico = parseFloat(valorFormatado.replace(",", ".")) || 0;
     setProdutoForm({
       ...produtoForm,
       preco: valorNumerico,
     });
+  };
+
+  const abrirCamera = () => {
+    setMostrarCamera(true);
+    setScannerAtivo(true);
+  };
+
+  const fecharCamera = () => {
+    setMostrarCamera(false);
+    setScannerAtivo(false);
+  };
+
+  const handleScanSucesso = (codigoBarras: string) => {
+    setProdutoForm({
+      ...produtoForm,
+      codigoBarras: codigoBarras,
+    });
+    fecharCamera();
   };
 
   const salvarProduto = async () => {
@@ -256,6 +279,88 @@ export default function EstoquePage() {
       setErro("Erro ao excluir produto");
       setTimeout(() => setErro(""), 3000);
     }
+  };
+
+  // Componente de Scanner de Código de Barras
+  const BarcodeScanner = ({
+    onScanSuccess,
+    onClose,
+    isActive,
+  }: {
+    onScanSuccess: (code: string) => void;
+    onClose: () => void;
+    isActive: boolean;
+  }) => {
+    const scannerRef = useRef<any>(null);
+
+    useEffect(() => {
+      if (!isActive) return;
+
+      const iniciarScanner = async () => {
+        try {
+          const { Html5Qrcode } = await import("html5-qrcode");
+          const html5QrCode = new Html5Qrcode("barcode-reader");
+          scannerRef.current = html5QrCode;
+
+          const config = {
+            fps: 10,
+            qrbox: { width: 300, height: 150 },
+            aspectRatio: 2.0,
+          };
+
+          await html5QrCode.start(
+            { facingMode: "environment" },
+            config,
+            (decodedText) => {
+              onScanSuccess(decodedText);
+              pararScanner();
+            },
+            () => {
+              // Erro silencioso durante scan
+            }
+          );
+        } catch (err) {
+          console.error("Erro ao iniciar scanner:", err);
+          setErro("Erro ao acessar câmera");
+          setTimeout(() => setErro(""), 3000);
+          onClose();
+        }
+      };
+
+      const pararScanner = async () => {
+        if (scannerRef.current) {
+          try {
+            await scannerRef.current.stop();
+            scannerRef.current = null;
+          } catch (err) {
+            console.error("Erro ao parar scanner:", err);
+          }
+        }
+      };
+
+      iniciarScanner();
+
+      return () => {
+        pararScanner();
+      };
+    }, [isActive, onScanSuccess, onClose]);
+
+    return (
+      <div className="space-y-4">
+        <div className="bg-white/5 border border-white/10 rounded-lg overflow-hidden">
+          <div id="barcode-reader" className="w-full"></div>
+        </div>
+        <p className="text-purple-200 text-center text-sm">
+          Posicione o código de barras na frente da câmera
+        </p>
+        <button
+          onClick={onClose}
+          className="w-full px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors font-semibold"
+        >
+          Cancelar
+        </button>
+      </div>
+    );
   };
 
   const produtosFiltrados = produtos.filter((produto) => {
@@ -588,18 +693,28 @@ export default function EstoquePage() {
                   <label className="block text-purple-200 text-sm font-semibold mb-2">
                     Código de Barras *
                   </label>
-                  <input
-                    type="text"
-                    value={produtoForm.codigoBarras}
-                    onChange={(e) =>
-                      setProdutoForm({
-                        ...produtoForm,
-                        codigoBarras: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-purple-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="Ex: 7891234567890"
-                  />
+                  <div className="flex space-x-2">
+                    <input
+                      type="text"
+                      value={produtoForm.codigoBarras}
+                      onChange={(e) =>
+                        setProdutoForm({
+                          ...produtoForm,
+                          codigoBarras: e.target.value,
+                        })
+                      }
+                      className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-purple-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="Ex: 7891234567890"
+                    />
+                    <button
+                      type="button"
+                      onClick={abrirCamera}
+                      className="px-4 py-3 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/30 text-blue-300 rounded-lg transition-colors flex items-center justify-center"
+                      title="Escanear com câmera"
+                    >
+                      <Camera className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
 
                 <div>
@@ -693,6 +808,34 @@ export default function EstoquePage() {
                   <span>{modoEdicao ? "Salvar Alterações" : "Adicionar Produto"}</span>
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Câmera - Scanner de Código de Barras */}
+      {mostrarCamera && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl max-w-2xl w-full border border-white/10">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+              <h3 className="text-xl font-bold text-white flex items-center">
+                <Camera className="w-6 h-6 mr-2" />
+                Escanear Código de Barras
+              </h3>
+              <button
+                onClick={fecharCamera}
+                className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <BarcodeScanner
+                onScanSuccess={handleScanSucesso}
+                onClose={fecharCamera}
+                isActive={scannerAtivo}
+              />
             </div>
           </div>
         </div>
