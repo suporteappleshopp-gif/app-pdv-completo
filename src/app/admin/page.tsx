@@ -441,6 +441,41 @@ export default function AdminPage() {
       const sucesso = await AdminSupabase.updateOperador(operadorAtualizado);
 
       if (sucesso) {
+        // ☁️ ATUALIZAR PAGAMENTO NO SUPABASE PARA "PAGO" EM TEMPO REAL
+        try {
+          const { supabase } = await import("@/lib/supabase");
+
+          // Buscar pagamento pendente do usuário (primeira compra)
+          const { data: pagamentos } = await supabase
+            .from("pagamentos")
+            .select("*")
+            .eq("usuario_id", operador.id)
+            .eq("status", "pendente")
+            .order("created_at", { ascending: true })
+            .limit(1);
+
+          if (pagamentos && pagamentos.length > 0) {
+            const pagamento = pagamentos[0];
+
+            // Atualizar status para "pago" no Supabase (atualiza em tempo real)
+            const { error } = await supabase
+              .from("pagamentos")
+              .update({
+                status: "pago",
+                data_pagamento: new Date().toISOString(),
+              })
+              .eq("id", pagamento.id);
+
+            if (!error) {
+              console.log("✅ Pagamento atualizado para 'pago' no Supabase (tempo real)");
+            } else {
+              console.error("❌ Erro ao atualizar pagamento:", error);
+            }
+          }
+        } catch (err) {
+          console.error("❌ Erro ao atualizar status do pagamento:", err);
+        }
+
         // ✅ REGISTRAR GANHO AQUI - apenas quando o pagamento for confirmado e o usuário ativado
         await registrarGanho(
           "conta-criada",
