@@ -1,8 +1,21 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Buscar variáveis de ambiente do .env (Next.js)
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+// 🔥 Buscar variáveis de TODAS as fontes possíveis (dev + produção)
+const supabaseUrl =
+  (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SUPABASE_URL) ||
+  (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_URL) ||
+  '';
+
+const supabaseAnonKey =
+  (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SUPABASE_ANON_KEY) ||
+  (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_ANON_KEY) ||
+  '';
+
+// Log para debug (APENAS em desenvolvimento)
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+  console.log('🔧 Supabase URL configurada:', supabaseUrl ? 'SIM' : 'NÃO');
+  console.log('🔧 Supabase Key configurada:', supabaseAnonKey ? 'SIM' : 'NÃO');
+}
 
 // Verificar se as credenciais são válidas
 const hasValidCredentials =
@@ -14,7 +27,9 @@ const hasValidCredentials =
 
 // Avisar se não estiver configurado
 if (!hasValidCredentials && typeof window !== 'undefined') {
-  console.warn('⚠️ Supabase não configurado. Selecione um projeto Supabase no ícone do chat.');
+  console.error('❌ ERRO: Supabase NÃO configurado!');
+  console.error('   URL:', supabaseUrl || 'VAZIA');
+  console.error('   Key:', supabaseAnonKey ? 'DEFINIDA' : 'VAZIA');
 }
 
 // Criar cliente somente se tiver credenciais válidas

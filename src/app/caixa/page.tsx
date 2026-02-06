@@ -1063,25 +1063,39 @@ export default function CaixaPage() {
 
       // 🔥 SALVAR VENDA DIRETAMENTE NO SUPABASE (SEM INTERMEDIÁRIOS)
       console.log("☁️ Salvando venda no Supabase...");
+      console.log("   Venda ID:", venda.id);
+      console.log("   Operador:", venda.operadorNome, venda.operadorId);
+      console.log("   Total: R$", venda.total.toFixed(2));
+
       const { supabase } = await import("@/lib/supabase");
 
-      const { error: errorVenda } = await supabase
+      const dadosVenda = {
+        id: venda.id,
+        numero: venda.numero,
+        operador_id: venda.operadorId,
+        operador_nome: venda.operadorNome,
+        total: venda.total,
+        forma_pagamento: venda.tipoPagamento,
+        status: venda.status,
+        created_at: venda.dataHora.toISOString(),
+      };
+
+      console.log("📤 Enviando para Supabase:", dadosVenda);
+
+      const { data: vendaInserida, error: errorVenda } = await supabase
         .from("vendas")
-        .insert({
-          id: venda.id,
-          numero: venda.numero,
-          operador_id: venda.operadorId,
-          operador_nome: venda.operadorNome,
-          total: venda.total,
-          forma_pagamento: venda.tipoPagamento,
-          status: venda.status,
-          created_at: venda.dataHora.toISOString(),
-        });
+        .insert(dadosVenda)
+        .select();
 
       if (errorVenda) {
-        console.error("❌ Erro ao salvar venda no Supabase:", errorVenda);
+        console.error("❌ ERRO ao salvar venda no Supabase:");
+        console.error("   Mensagem:", errorVenda.message);
+        console.error("   Código:", errorVenda.code);
+        console.error("   Detalhes:", errorVenda.details);
+        alert(`ERRO ao salvar venda:\n${errorVenda.message}\n\nVerifique o console (F12) para detalhes.`);
       } else {
-        console.log("✅ Venda salva no Supabase com sucesso");
+        console.log("✅ Venda salva no Supabase com SUCESSO!");
+        console.log("   Dados inseridos:", vendaInserida);
       }
 
       // 🔥 SALVAR ITENS DA VENDA NO SUPABASE
@@ -1096,14 +1110,20 @@ export default function CaixaPage() {
         subtotal: item.subtotal,
       }));
 
-      const { error: errorItens } = await supabase
+      console.log(`   Inserindo ${itensParaInserir.length} itens...`);
+
+      const { data: itensInseridos, error: errorItens } = await supabase
         .from("itens_venda")
-        .insert(itensParaInserir);
+        .insert(itensParaInserir)
+        .select();
 
       if (errorItens) {
-        console.error("❌ Erro ao salvar itens da venda:", errorItens);
+        console.error("❌ ERRO ao salvar itens da venda:");
+        console.error("   Mensagem:", errorItens.message);
+        console.error("   Código:", errorItens.code);
       } else {
-        console.log("✅ Itens da venda salvos no Supabase");
+        console.log("✅ Itens da venda salvos no Supabase!");
+        console.log("   Total inserido:", itensInseridos?.length || 0);
       }
 
       // Atualizar estoque - produtos saem automaticamente
@@ -1124,15 +1144,19 @@ export default function CaixaPage() {
           console.log(`📦 ${produtosAtualizados[produtoIndex].nome}: ${estoqueAnterior} → ${novoEstoque}`);
 
           // 🔥 ATUALIZAR ESTOQUE DIRETAMENTE NO SUPABASE
-          const { error: errorEstoque } = await supabase
+          const { data: estoqueAtualizado, error: errorEstoque } = await supabase
             .from("produtos")
             .update({ estoque: novoEstoque })
-            .eq("id", item.produtoId);
+            .eq("id", item.produtoId)
+            .select();
 
           if (errorEstoque) {
-            console.error(`❌ Erro ao atualizar estoque do produto ${item.nome}:`, errorEstoque);
+            console.error(`❌ ERRO ao atualizar estoque do produto ${item.nome}:`);
+            console.error("   Mensagem:", errorEstoque.message);
+            console.error("   Código:", errorEstoque.code);
           } else {
-            console.log(`✅ Estoque do produto ${item.nome} atualizado no Supabase`);
+            console.log(`✅ Estoque do produto ${item.nome} atualizado no Supabase!`);
+            console.log("   Novo estoque:", estoqueAtualizado);
           }
 
           // Também atualizar no IndexedDB
