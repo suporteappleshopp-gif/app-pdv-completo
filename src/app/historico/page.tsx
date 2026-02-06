@@ -46,6 +46,7 @@ export default function HistoricoPage() {
 
   useEffect(() => {
     let channel: any = null;
+    let channelItens: any = null;
 
     const init = async () => {
       await carregarVendas();
@@ -57,9 +58,12 @@ export default function HistoricoPage() {
       if (operador && !operador.isAdmin) {
         const { supabase } = await import("@/lib/supabase");
 
+        // ✅ Canal único com timestamp para evitar conflitos
+        const channelId = `vendas_historico_${operador.id}_${Date.now()}`;
+
         // Escutar mudanças na tabela de vendas em tempo real
         channel = supabase
-          .channel('vendas-realtime')
+          .channel(channelId)
           .on(
             'postgres_changes',
             {
@@ -69,14 +73,31 @@ export default function HistoricoPage() {
               filter: `operador_id=eq.${operador.id}`,
             },
             (payload) => {
-              console.log('🔔 Mudança detectada em vendas:', payload);
+              console.log('🔔 Mudança detectada em vendas (histórico):', payload);
               // Recarregar vendas quando houver mudança
               carregarVendas();
             }
           )
           .subscribe();
 
-        console.log('✅ Realtime habilitado para histórico de vendas');
+        // ✅ Também escutar mudanças nos itens de venda
+        channelItens = supabase
+          .channel(`itens_venda_historico_${operador.id}_${Date.now()}`)
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'itens_venda',
+            },
+            (payload) => {
+              console.log('🔔 Mudança detectada em itens de venda:', payload);
+              carregarVendas();
+            }
+          )
+          .subscribe();
+
+        console.log('✅ Realtime habilitado para histórico de vendas (vendas + itens)');
       }
     };
 
@@ -86,7 +107,11 @@ export default function HistoricoPage() {
     return () => {
       if (channel) {
         channel.unsubscribe();
-        console.log('🔌 Realtime desconectado');
+        console.log('🔌 Realtime de vendas desconectado');
+      }
+      if (channelItens) {
+        channelItens.unsubscribe();
+        console.log('🔌 Realtime de itens desconectado');
       }
     };
   }, []);

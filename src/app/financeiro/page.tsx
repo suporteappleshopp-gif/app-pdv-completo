@@ -124,6 +124,47 @@ export default function FinanceiroPage() {
     }
   }, [filtroTempo, operadorId]);
 
+  // ✅ Hook separado para sincronização em tempo real de vendas (análise de ganhos)
+  useEffect(() => {
+    let channelVendasGanhos: any = null;
+
+    const setupRealtimeGanhos = async () => {
+      if (!operadorId) return;
+
+      const { supabase } = await import("@/lib/supabase");
+
+      // Canal específico para atualizar ganhos em tempo real
+      channelVendasGanhos = supabase
+        .channel(`vendas_ganhos_${operadorId}_${Date.now()}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "vendas",
+            filter: `operador_id=eq.${operadorId}`,
+          },
+          (payload) => {
+            console.log("🔔 Nova venda detectada! Atualizando ganhos...", payload);
+            calcularGanhos(); // Recalcular ganhos automaticamente
+          }
+        )
+        .subscribe();
+
+      console.log("✅ Realtime configurado para análise de ganhos");
+    };
+
+    setupRealtimeGanhos();
+
+    // Cleanup
+    return () => {
+      if (channelVendasGanhos) {
+        channelVendasGanhos.unsubscribe();
+        console.log("🔌 Realtime de ganhos desconectado");
+      }
+    };
+  }, [operadorId]);
+
   const carregarDados = async () => {
     try {
       setLoading(true);
@@ -418,30 +459,10 @@ export default function FinanceiroPage() {
         )
         .subscribe();
 
-      // ✅ CONFIGURAR REALTIME: Atualizar ganhos quando vendas mudarem
-      const channelVendas = supabase
-        .channel("user_vendas_ganhos")
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "vendas",
-            filter: `operador_id=eq.${operador.id}`,
-          },
-          (payload) => {
-            console.log("🔄 Atualização em tempo real (vendas):", payload);
-            console.log("💰 Recalculando ganhos automaticamente...");
-            calcularGanhos(); // Recalcular ganhos quando houver nova venda
-          }
-        )
-        .subscribe();
-
       // Retornar função de cleanup para remover listeners
       return () => {
         supabase.removeChannel(channelSolicitacoes);
         supabase.removeChannel(channelPagamentos);
-        supabase.removeChannel(channelVendas);
       };
 
     } catch (err) {
