@@ -19,7 +19,17 @@ if (!hasValidCredentials && typeof window !== 'undefined') {
 
 // Criar cliente somente se tiver credenciais válidas
 export const supabase: SupabaseClient = hasValidCredentials
-  ? createClient(supabaseUrl, supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      realtime: {
+        params: {
+          eventsPerSecond: 10,
+        },
+      },
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+      },
+    })
   : createClient('https://placeholder.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYWNlaG9sZGVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE2NDUxOTI4MDAsImV4cCI6MTk2MDc2ODgwMH0.placeholder');
 
 // Tipos para o banco de dados

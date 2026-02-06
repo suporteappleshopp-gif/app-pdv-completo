@@ -60,6 +60,8 @@ export default function HistoricoPage() {
 
         // ✅ Canal único com timestamp para evitar conflitos
         const channelId = `vendas_historico_${operador.id}_${Date.now()}`;
+        console.log('🔧 Configurando realtime para histórico. Canal:', channelId);
+        console.log('🔧 Filtro:', `operador_id=eq.${operador.id}`);
 
         // Escutar mudanças na tabela de vendas em tempo real
         channel = supabase
@@ -78,11 +80,20 @@ export default function HistoricoPage() {
               carregarVendas();
             }
           )
-          .subscribe();
+          .subscribe((status, err) => {
+            if (status === 'SUBSCRIBED') {
+              console.log('✅ Realtime CONECTADO para histórico de vendas');
+            } else if (status === 'CLOSED') {
+              console.warn('⚠️ Realtime histórico FECHADO');
+            } else if (status === 'CHANNEL_ERROR') {
+              console.error('❌ Erro no canal realtime histórico:', err);
+            }
+          });
 
         // ✅ Também escutar mudanças nos itens de venda
+        const channelItensId = `itens_venda_historico_${operador.id}_${Date.now()}`;
         channelItens = supabase
-          .channel(`itens_venda_historico_${operador.id}_${Date.now()}`)
+          .channel(channelItensId)
           .on(
             'postgres_changes',
             {
@@ -95,9 +106,15 @@ export default function HistoricoPage() {
               carregarVendas();
             }
           )
-          .subscribe();
-
-        console.log('✅ Realtime habilitado para histórico de vendas (vendas + itens)');
+          .subscribe((status, err) => {
+            if (status === 'SUBSCRIBED') {
+              console.log('✅ Realtime CONECTADO para itens de venda');
+            } else if (status === 'CLOSED') {
+              console.warn('⚠️ Realtime itens FECHADO');
+            } else if (status === 'CHANNEL_ERROR') {
+              console.error('❌ Erro no canal realtime itens:', err);
+            }
+          });
       }
     };
 

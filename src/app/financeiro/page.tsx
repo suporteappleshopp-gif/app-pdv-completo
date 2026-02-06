@@ -134,8 +134,12 @@ export default function FinanceiroPage() {
       const { supabase } = await import("@/lib/supabase");
 
       // Canal específico para atualizar ganhos em tempo real
+      const channelName = `vendas_ganhos_${operadorId}_${Date.now()}`;
+      console.log("🔧 Configurando realtime para ganhos. Canal:", channelName);
+      console.log("🔧 Filtro:", `operador_id=eq.${operadorId}`);
+
       channelVendasGanhos = supabase
-        .channel(`vendas_ganhos_${operadorId}_${Date.now()}`)
+        .channel(channelName)
         .on(
           "postgres_changes",
           {
@@ -149,9 +153,15 @@ export default function FinanceiroPage() {
             calcularGanhos(); // Recalcular ganhos automaticamente
           }
         )
-        .subscribe();
-
-      console.log("✅ Realtime configurado para análise de ganhos");
+        .subscribe((status, err) => {
+          if (status === "SUBSCRIBED") {
+            console.log("✅ Realtime CONECTADO para análise de ganhos");
+          } else if (status === "CLOSED") {
+            console.warn("⚠️ Realtime FECHADO");
+          } else if (status === "CHANNEL_ERROR") {
+            console.error("❌ Erro no canal realtime:", err);
+          }
+        });
     };
 
     setupRealtimeGanhos();
