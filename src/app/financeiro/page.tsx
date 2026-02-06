@@ -644,14 +644,35 @@ export default function FinanceiroPage() {
         return dataVenda >= inicio && dataVenda <= fim && venda.status !== "cancelada";
       });
 
-      const totalGanhos = vendasPeriodo.reduce((acc, venda) => {
+      const totalVendas = vendasPeriodo.reduce((acc, venda) => {
         return acc + parseFloat(venda.total.toString());
       }, 0);
 
-      setGanhos(totalGanhos);
-      console.log(`📊 Ganhos calculados (${filtroTempo}): R$ ${totalGanhos.toFixed(2)}`);
-      console.log(`   - Total de vendas no período: ${vendasPeriodo.length}`);
-      console.log(`   - Total de vendas no banco: ${vendas.length}`);
+      // ☁️ BUSCAR AVARIAS DO PERÍODO NO SUPABASE
+      const { data: avariasData } = await supabase
+        .from("avarias")
+        .select("*")
+        .eq("user_id", operadorId);
+
+      const avariasNoPeriodo = (avariasData || []).filter((avaria: any) => {
+        const dataAvaria = new Date(avaria.created_at);
+        return dataAvaria >= inicio && dataAvaria <= fim;
+      });
+
+      const totalAvarias = avariasNoPeriodo.reduce((acc: number, avaria: any) => {
+        return acc + parseFloat(avaria.valor_total.toString());
+      }, 0);
+
+      // GANHOS REAIS = Total de Vendas - Total de Avarias
+      const ganhosReais = totalVendas - totalAvarias;
+
+      setGanhos(ganhosReais);
+      console.log(`📊 Ganhos calculados (${filtroTempo}):`);
+      console.log(`   - Total de vendas: R$ ${totalVendas.toFixed(2)}`);
+      console.log(`   - Total de avarias: R$ ${totalAvarias.toFixed(2)}`);
+      console.log(`   - Ganhos reais: R$ ${ganhosReais.toFixed(2)}`);
+      console.log(`   - Vendas no período: ${vendasPeriodo.length}`);
+      console.log(`   - Avarias no período: ${avariasNoPeriodo.length}`);
     } catch (err) {
       console.error("❌ Erro ao calcular ganhos:", err);
       setGanhos(0);
@@ -1020,11 +1041,18 @@ export default function FinanceiroPage() {
             </div>
           </div>
 
-          {/* Informação sobre integração */}
-          <div className="mt-6 bg-blue-500/20 border border-blue-500/30 rounded-lg p-4">
-            <p className="text-blue-200 text-sm">
-              ✅ <strong>Integrado automaticamente:</strong> Os ganhos são calculados em tempo real com base nas vendas realizadas no caixa, incluindo devoluções e cancelamentos.
-            </p>
+          {/* Informações sobre integração */}
+          <div className="mt-6 space-y-3">
+            <div className="bg-blue-500/20 border border-blue-500/30 rounded-lg p-4">
+              <p className="text-blue-200 text-sm">
+                ✅ <strong>Integrado automaticamente:</strong> Os ganhos são calculados em tempo real com base nas vendas realizadas no caixa, incluindo devoluções e cancelamentos.
+              </p>
+            </div>
+            <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-4">
+              <p className="text-green-200 text-sm">
+                💰 <strong>Cálculo preciso:</strong> O valor exibido já desconta automaticamente todas as avarias registradas (produtos danificados, vencidos, etc).
+              </p>
+            </div>
           </div>
         </div>
 
@@ -1142,11 +1170,18 @@ export default function FinanceiroPage() {
             </div>
           )}
 
-          {/* Informação */}
-          <div className="mt-6 bg-orange-500/20 border border-orange-500/30 rounded-lg p-4">
-            <p className="text-orange-200 text-sm">
-              ⚠️ <strong>Atenção:</strong> Produtos registrados como avaria NÃO retornam ao estoque. Use esta opção apenas para produtos danificados, vencidos ou com defeito.
-            </p>
+          {/* Informações */}
+          <div className="mt-6 space-y-3">
+            <div className="bg-blue-500/20 border border-blue-500/30 rounded-lg p-4">
+              <p className="text-blue-200 text-sm">
+                💰 <strong>Impacto nos Ganhos:</strong> O valor total das avarias é automaticamente descontado do cálculo de ganhos na Análise de Ganhos acima.
+              </p>
+            </div>
+            <div className="bg-orange-500/20 border border-orange-500/30 rounded-lg p-4">
+              <p className="text-orange-200 text-sm">
+                ⚠️ <strong>Atenção:</strong> Produtos registrados como avaria NÃO retornam ao estoque. Use esta opção apenas para produtos danificados, vencidos ou com defeito.
+              </p>
+            </div>
           </div>
         </div>
 
