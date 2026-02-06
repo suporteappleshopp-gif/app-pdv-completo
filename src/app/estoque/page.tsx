@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { db } from "@/lib/db";
 import { GerenciadorAssinatura } from "@/lib/assinatura";
 import { Produto } from "@/lib/types";
 import {
@@ -59,7 +58,6 @@ export default function EstoquePage() {
   const carregarProdutos = async () => {
     try {
       setLoading(true);
-      await db.init();
 
       // SEMPRE carregar produtos do Supabase (dados atualizados)
       const { AuthSupabase } = await import("@/lib/auth-supabase");
@@ -86,14 +84,13 @@ export default function EstoquePage() {
           setPodeUsarApp(true);
         }
 
+        // ☁️ CORREÇÃO CRÍTICA: Carregar DIRETO do Supabase (sem IndexedDB)
         const { SupabaseSync } = await import("@/lib/supabase-sync");
         const produtosNuvem = await SupabaseSync.loadProdutos(operador.id);
         setProdutos(produtosNuvem);
         console.log("✅ Produtos carregados do Supabase (dados atualizados)");
       } else {
-        // Fallback: carregar localmente se não conseguir autenticar
-        const todosProdutos = await db.getAllProdutos();
-        setProdutos(todosProdutos);
+        setProdutos([]);
       }
     } catch (err) {
       console.error("Erro ao carregar produtos:", err);
@@ -191,23 +188,28 @@ export default function EstoquePage() {
         return;
       }
 
+      // ☁️ CORREÇÃO CRÍTICA: Salvar DIRETO no Supabase (sem IndexedDB)
+      const { SupabaseSync } = await import("@/lib/supabase-sync");
+
       if (modoEdicao) {
-        await db.updateProduto(produtoForm);
+        // Atualizar produto existente
+        const produtosAtualizados = produtos.map(p =>
+          p.id === produtoForm.id ? produtoForm : p
+        );
+        await SupabaseSync.syncProdutos(operador.id, produtosAtualizados);
         setSucesso("Produto atualizado com sucesso!");
       } else {
+        // Adicionar novo produto
         const novoProduto = {
           ...produtoForm,
           id: `produto-${Date.now()}`,
         };
-        await db.addProduto(novoProduto);
+        const produtosAtualizados = [...produtos, novoProduto];
+        await SupabaseSync.syncProdutos(operador.id, produtosAtualizados);
         setSucesso("Produto adicionado com sucesso!");
       }
 
-      // Sincronizar com Supabase imediatamente
-      const { SupabaseSync } = await import("@/lib/supabase-sync");
-      const todosProdutos = await db.getAllProdutos();
-      await SupabaseSync.syncProdutos(operador.id, todosProdutos);
-      console.log("✅ Produtos sincronizados com Supabase");
+      console.log("✅ Produtos salvos no Supabase");
 
       setTimeout(() => setSucesso(""), 3000);
       setShowModal(false);
@@ -229,19 +231,23 @@ export default function EstoquePage() {
     if (!confirm("Tem certeza que deseja excluir este produto?")) return;
 
     try {
-      await db.deleteProduto(id);
-      setSucesso("Produto excluído com sucesso!");
-
-      // Sincronizar com Supabase imediatamente
+      // Buscar operador atual
       const { AuthSupabase } = await import("@/lib/auth-supabase");
       const operador = await AuthSupabase.getCurrentOperador();
 
-      if (operador) {
-        const { SupabaseSync } = await import("@/lib/supabase-sync");
-        const todosProdutos = await db.getAllProdutos();
-        await SupabaseSync.syncProdutos(operador.id, todosProdutos);
-        console.log("✅ Produtos sincronizados com Supabase após exclusão");
+      if (!operador) {
+        setErro("Erro: Operador não encontrado");
+        setTimeout(() => setErro(""), 3000);
+        return;
       }
+
+      // ☁️ CORREÇÃO CRÍTICA: Deletar DIRETO no Supabase (sem IndexedDB)
+      const { SupabaseSync } = await import("@/lib/supabase-sync");
+      const produtosAtualizados = produtos.filter(p => p.id !== id);
+      await SupabaseSync.syncProdutos(operador.id, produtosAtualizados);
+
+      setSucesso("Produto excluído com sucesso!");
+      console.log("✅ Produto excluído do Supabase");
 
       setTimeout(() => setSucesso(""), 3000);
       carregarProdutos();
