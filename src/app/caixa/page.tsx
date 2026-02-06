@@ -1540,7 +1540,7 @@ export default function CaixaPage() {
                   <p className="text-sm">Busque e adicione produtos</p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="max-h-[500px] overflow-y-auto space-y-3 pr-2">
                   {carrinho.map((item) => (
                     <div
                       key={item.produtoId}
