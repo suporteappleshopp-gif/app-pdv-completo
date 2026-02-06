@@ -54,6 +54,21 @@ export interface Devolucao {
   quantidade: number;
   motivo: string;
   dataHora: Date;
+  tipoDestino?: "estoque" | "avaria"; // Para onde foi o produto devolvido
+}
+
+export interface Avaria {
+  id: string;
+  userId: string;
+  vendaId?: string;
+  produtoId: string;
+  produtoNome: string;
+  quantidade: number;
+  valorUnitario: number;
+  valorTotal: number;
+  motivo: string;
+  observacoes?: string;
+  createdAt: Date;
 }
 
 export type TipoPagamento = "dinheiro" | "credito" | "debito" | "pix" | "outros";

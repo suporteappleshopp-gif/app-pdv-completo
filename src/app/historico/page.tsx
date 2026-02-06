@@ -43,6 +43,8 @@ export default function HistoricoPage() {
   const [itemParaDevolver, setItemParaDevolver] = useState<ItemVenda | null>(null);
   const [quantidadeDevolver, setQuantidadeDevolver] = useState(1);
   const [motivoDevolucao, setMotivoDevolucao] = useState("");
+  const [tipoDestino, setTipoDestino] = useState<"estoque" | "avaria">("estoque");
+  const [observacoesAvaria, setObservacoesAvaria] = useState("");
 
   useEffect(() => {
     let channel: any = null;
@@ -236,6 +238,8 @@ export default function HistoricoPage() {
     setItemParaDevolver(item);
     setQuantidadeDevolver(1);
     setMotivoDevolucao("");
+    setTipoDestino("estoque");
+    setObservacoesAvaria("");
     setShowModalDevolucao(true);
   };
 
@@ -256,11 +260,47 @@ export default function HistoricoPage() {
         return;
       }
 
-      // Devolver produto ao estoque
-      const produto = await db.getProduto(itemParaDevolver.produtoId);
-      if (produto) {
-        produto.estoque += quantidadeDevolver;
-        await db.updateProduto(produto);
+      // Buscar operador atual
+      const { AuthSupabase } = await import("@/lib/auth-supabase");
+      const operador = await AuthSupabase.getCurrentOperador();
+
+      if (!operador) {
+        setErro("Erro: Operador não encontrado");
+        setTimeout(() => setErro(""), 3000);
+        return;
+      }
+
+      // ☁️ SINCRONIZAR COM SUPABASE EM TEMPO REAL
+      const { SupabaseSync } = await import("@/lib/supabase-sync");
+
+      if (tipoDestino === "estoque") {
+        // Devolver produto ao estoque
+        const { SupabaseSync: SupabaseSyncProdutos } = await import("@/lib/supabase-sync");
+        const produtosAtuais = await SupabaseSyncProdutos.loadProdutos(operador.id);
+        const produto = produtosAtuais.find(p => p.id === itemParaDevolver.produtoId);
+
+        if (produto) {
+          produto.estoque += quantidadeDevolver;
+          await SupabaseSyncProdutos.syncProdutos(operador.id, produtosAtuais);
+          console.log("✅ Produto devolvido ao estoque no Supabase");
+        }
+      } else {
+        // Registrar como avaria (NÃO volta ao estoque)
+        const avaria = {
+          id: `avaria-${Date.now()}`,
+          userId: operador.id,
+          vendaId: vendaSelecionada.id,
+          produtoId: itemParaDevolver.produtoId,
+          produtoNome: itemParaDevolver.nome,
+          quantidade: quantidadeDevolver,
+          valorUnitario: itemParaDevolver.precoUnitario,
+          valorTotal: itemParaDevolver.precoUnitario * quantidadeDevolver,
+          motivo: motivoDevolucao,
+          observacoes: observacoesAvaria,
+        };
+
+        await SupabaseSync.addAvaria(avaria);
+        console.log("✅ Avaria registrada no Supabase");
       }
 
       // Atualizar venda
@@ -271,7 +311,7 @@ export default function HistoricoPage() {
 
       if (itemIndex !== -1) {
         const itemAtual = vendaAtualizada.itens[itemIndex];
-        
+
         if (quantidadeDevolver === itemAtual.quantidade) {
           // Remover item completamente
           vendaAtualizada.itens.splice(itemIndex, 1);
@@ -297,14 +337,17 @@ export default function HistoricoPage() {
           quantidade: quantidadeDevolver,
           motivo: motivoDevolucao,
           dataHora: new Date(),
+          tipoDestino: tipoDestino,
         });
 
         await db.updateVenda(vendaAtualizada);
         await carregarVendas();
 
-        setSucesso(
-          `Devolução processada! ${quantidadeDevolver}x ${itemParaDevolver.nome} devolvido(s) ao estoque.`
-        );
+        const mensagem = tipoDestino === "estoque"
+          ? `Devolução processada! ${quantidadeDevolver}x ${itemParaDevolver.nome} devolvido(s) ao estoque.`
+          : `Avaria registrada! ${quantidadeDevolver}x ${itemParaDevolver.nome} - ${motivoDevolucao}`;
+
+        setSucesso(mensagem);
         setTimeout(() => setSucesso(""), 5000);
         setShowModalDevolucao(false);
       }
@@ -658,7 +701,37 @@ export default function HistoricoPage() {
 
               <div>
                 <label className="block text-purple-200 text-sm font-semibold mb-2">
-                  Motivo da Devolução *
+                  Destino do Produto *
+                </label>
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => setTipoDestino("estoque")}
+                    className={`px-4 py-3 rounded-lg font-semibold transition-all ${
+                      tipoDestino === "estoque"
+                        ? "bg-green-600 text-white"
+                        : "bg-white/10 text-purple-200 hover:bg-white/20"
+                    }`}
+                  >
+                    ✅ Estoque
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTipoDestino("avaria")}
+                    className={`px-4 py-3 rounded-lg font-semibold transition-all ${
+                      tipoDestino === "avaria"
+                        ? "bg-red-600 text-white"
+                        : "bg-white/10 text-purple-200 hover:bg-white/20"
+                    }`}
+                  >
+                    ⚠️ Avaria
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-purple-200 text-sm font-semibold mb-2">
+                  Motivo {tipoDestino === "avaria" ? "da Avaria" : "da Devolução"} *
                 </label>
                 <select
                   value={motivoDevolucao}
@@ -668,31 +741,87 @@ export default function HistoricoPage() {
                   <option value="" className="bg-slate-800">
                     Selecione o motivo
                   </option>
-                  <option value="Produto com defeito" className="bg-slate-800">
-                    Produto com defeito
-                  </option>
-                  <option value="Produto errado" className="bg-slate-800">
-                    Produto errado
-                  </option>
-                  <option value="Cancelamento do cliente" className="bg-slate-800">
-                    Cancelamento do cliente
-                  </option>
-                  <option value="Arrependimento" className="bg-slate-800">
-                    Arrependimento
-                  </option>
-                  <option value="Outro motivo" className="bg-slate-800">
-                    Outro motivo
-                  </option>
+                  {tipoDestino === "estoque" ? (
+                    <>
+                      <option value="Produto errado" className="bg-slate-800">
+                        Produto errado
+                      </option>
+                      <option value="Cancelamento do cliente" className="bg-slate-800">
+                        Cancelamento do cliente
+                      </option>
+                      <option value="Arrependimento" className="bg-slate-800">
+                        Arrependimento
+                      </option>
+                      <option value="Outro motivo" className="bg-slate-800">
+                        Outro motivo
+                      </option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="Produto danificado" className="bg-slate-800">
+                        Produto danificado
+                      </option>
+                      <option value="Produto vencido" className="bg-slate-800">
+                        Produto vencido
+                      </option>
+                      <option value="Defeito de fabricação" className="bg-slate-800">
+                        Defeito de fabricação
+                      </option>
+                      <option value="Embalagem violada" className="bg-slate-800">
+                        Embalagem violada
+                      </option>
+                      <option value="Perda no transporte" className="bg-slate-800">
+                        Perda no transporte
+                      </option>
+                      <option value="Contaminação" className="bg-slate-800">
+                        Contaminação
+                      </option>
+                      <option value="Outros danos" className="bg-slate-800">
+                        Outros danos
+                      </option>
+                    </>
+                  )}
                 </select>
               </div>
 
-              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
-                <p className="text-blue-300 text-sm">
-                  ✅ O produto será devolvido automaticamente ao estoque
-                </p>
-                <p className="text-blue-300 text-sm mt-1">
-                  ✅ O valor da venda será atualizado
-                </p>
+              {tipoDestino === "avaria" && (
+                <div>
+                  <label className="block text-purple-200 text-sm font-semibold mb-2">
+                    Observações (Opcional)
+                  </label>
+                  <textarea
+                    value={observacoesAvaria}
+                    onChange={(e) => setObservacoesAvaria(e.target.value)}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-purple-300 focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
+                    placeholder="Detalhes adicionais sobre a avaria..."
+                    rows={3}
+                  />
+                </div>
+              )}
+
+              <div className={`${tipoDestino === "estoque" ? "bg-blue-500/10 border-blue-500/30" : "bg-red-500/10 border-red-500/30"} border rounded-lg p-3`}>
+                {tipoDestino === "estoque" ? (
+                  <>
+                    <p className="text-blue-300 text-sm">
+                      ✅ O produto será devolvido automaticamente ao estoque
+                    </p>
+                    <p className="text-blue-300 text-sm mt-1">
+                      ✅ O valor da venda será atualizado
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-red-300 text-sm">
+                      ⚠️ O produto NÃO voltará ao estoque
+                    </p>
+                    <p className="text-red-300 text-sm mt-1">
+                      ⚠️ Será registrado como avaria no sistema
+                    </p>
+                    <p className="text-red-300 text-sm mt-1">
+                      ✅ O valor da venda será atualizado
+                    </p>
+                  </>
+                )}
               </div>
 
               <div className="flex space-x-3 pt-2">

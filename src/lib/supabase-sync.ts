@@ -359,6 +359,96 @@ export class SupabaseSync {
   }
 
   /**
+   * Adicionar avaria
+   */
+  static async addAvaria(avaria: {
+    id: string;
+    userId: string;
+    vendaId?: string;
+    produtoId: string;
+    produtoNome: string;
+    quantidade: number;
+    valorUnitario: number;
+    valorTotal: number;
+    motivo: string;
+    observacoes?: string;
+  }): Promise<boolean> {
+    try {
+      const { error } = await supabase.from("avarias").insert({
+        id: avaria.id,
+        user_id: avaria.userId,
+        venda_id: avaria.vendaId,
+        produto_id: avaria.produtoId,
+        produto_nome: avaria.produtoNome,
+        quantidade: avaria.quantidade,
+        valor_unitario: avaria.valorUnitario,
+        valor_total: avaria.valorTotal,
+        motivo: avaria.motivo,
+        observacoes: avaria.observacoes,
+      });
+
+      if (error) {
+        console.error("Erro ao adicionar avaria:", error);
+        return false;
+      }
+
+      console.log("✅ Avaria registrada com sucesso no Supabase");
+      return true;
+    } catch (error) {
+      console.error("Erro ao adicionar avaria:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Carregar avarias do usuário
+   */
+  static async loadAvarias(userId: string): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from("avarias")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Erro ao carregar avarias:", error);
+        return [];
+      }
+
+      console.log(`✅ Avarias carregadas: ${data?.length || 0}`);
+      return data || [];
+    } catch (error) {
+      console.error("Erro ao carregar avarias:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Observar mudanças nas avarias em tempo real
+   */
+  static watchAvarias(userId: string, callback: (avarias: any[]) => void) {
+    const channel = supabase
+      .channel(`avarias-${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "avarias",
+          filter: `user_id=eq.${userId}`,
+        },
+        async () => {
+          const avarias = await this.loadAvarias(userId);
+          callback(avarias);
+        }
+      )
+      .subscribe();
+
+    return channel;
+  }
+
+  /**
    * Verificar se Supabase está configurado
    */
   static isConfigured(): boolean {
