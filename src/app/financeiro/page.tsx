@@ -166,8 +166,15 @@ export default function FinanceiroPage() {
 
     setupRealtimeGanhos();
 
+    // ✅ FALLBACK: Atualizar a cada 15 segundos caso realtime não funcione
+    const intervaloFallback = setInterval(() => {
+      console.log("🔄 Atualizando ganhos (polling)...");
+      calcularGanhos();
+    }, 15000);
+
     // Cleanup
     return () => {
+      clearInterval(intervaloFallback);
       if (channelVendasGanhos) {
         channelVendasGanhos.unsubscribe();
         console.log("🔌 Realtime de ganhos desconectado");

@@ -120,8 +120,15 @@ export default function HistoricoPage() {
 
     init();
 
+    // ✅ FALLBACK: Recarregar vendas a cada 15 segundos (caso realtime não funcione)
+    const intervaloFallback = setInterval(() => {
+      console.log('🔄 Recarregando histórico (polling)...');
+      carregarVendas();
+    }, 15000);
+
     // Cleanup ao desmontar
     return () => {
+      clearInterval(intervaloFallback);
       if (channel) {
         channel.unsubscribe();
         console.log('🔌 Realtime de vendas desconectado');
