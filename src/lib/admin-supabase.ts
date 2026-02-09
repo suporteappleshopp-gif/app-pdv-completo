@@ -58,13 +58,18 @@ export class AdminSupabase {
    */
   static async getAllOperadores(): Promise<Operador[]> {
     try {
+      console.log("🔍 AdminSupabase.getAllOperadores - Iniciando busca...");
+
       // Tentar buscar com select("*") primeiro
       const { data, error } = await supabase
         .from("operadores")
         .select("*");
 
       if (error) {
-        console.error("Erro ao buscar operadores:", error);
+        console.error("❌ Erro ao buscar operadores:", error);
+        console.error("   Código:", error.code);
+        console.error("   Mensagem:", error.message);
+        console.error("   Detalhes:", error.details);
         // Se falhar, retornar array vazio - o sistema continua funcionando
         return [];
       }

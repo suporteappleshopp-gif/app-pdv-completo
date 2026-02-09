@@ -243,3 +243,34 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trigger_criar_operador AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION criar_operador_automatico();
+
+-- ============================================
+-- CORREÇÃO: Função SECURITY DEFINER para evitar recursão infinita
+-- ============================================
+
+CREATE OR REPLACE FUNCTION is_admin(user_auth_id UUID)
+RETURNS BOOLEAN AS $$
+DECLARE
+  admin_status BOOLEAN;
+BEGIN
+  SELECT is_admin INTO admin_status 
+  FROM operadores 
+  WHERE auth_user_id = user_auth_id
+  LIMIT 1;
+  
+  RETURN COALESCE(admin_status, false);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Atualizar políticas para usar a função
+DROP POLICY IF EXISTS "Operadores podem ver seus dados" ON operadores CASCADE;
+DROP POLICY IF EXISTS "Admins podem ver todos operadores" ON operadores CASCADE;
+
+CREATE POLICY "select_operadores_v2" ON operadores FOR SELECT
+  USING (auth_user_id = auth.uid() OR is_admin(auth.uid()));
+
+CREATE POLICY "update_operadores_v2" ON operadores FOR UPDATE
+  USING (auth_user_id = auth.uid() OR is_admin(auth.uid()));
+
+CREATE POLICY "delete_operadores_v2" ON operadores FOR DELETE
+  USING (is_admin(auth.uid()));
