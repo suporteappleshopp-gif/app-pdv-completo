@@ -64,7 +64,7 @@ export class AdminSupabase {
         .select("*");
 
       if (error) {
-        console.error("Erro ao buscar operadores:", error);
+        console.error("Erro ao buscar operadores:", error?.message || error || "Erro desconhecido");
         // Se falhar, retornar array vazio - o sistema continua funcionando
         return [];
       }

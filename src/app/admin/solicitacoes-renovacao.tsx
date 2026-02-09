@@ -47,7 +47,7 @@ export default function SolicitacoesRenovacao() {
         .order("data_solicitacao", { ascending: false });
 
       if (error) {
-        console.error("❌ Admin: Erro ao carregar solicitações:", error);
+        console.error("❌ Admin: Erro ao carregar solicitações:", error?.message || error || "Erro desconhecido");
         return;
       }
 
