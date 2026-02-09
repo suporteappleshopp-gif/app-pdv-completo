@@ -25,12 +25,11 @@ CREATE INDEX IF NOT EXISTS idx_solicitacoes_data ON solicitacoes_renovacao(data_
 ALTER TABLE solicitacoes_renovacao ENABLE ROW LEVEL SECURITY;
 
 -- Política: Usuários podem ver apenas suas próprias solicitações
+DROP POLICY IF EXISTS "Usuarios podem ver suas solicitacoes" ON solicitacoes_renovacao;
 CREATE POLICY "Usuarios podem ver suas solicitacoes"
   ON solicitacoes_renovacao
   FOR SELECT
   USING (
-    operador_id = auth.uid()
-    OR
     EXISTS (
       SELECT 1 FROM operadores
       WHERE operadores.auth_user_id = auth.uid()
@@ -39,6 +38,7 @@ CREATE POLICY "Usuarios podem ver suas solicitacoes"
   );
 
 -- Política: Admins podem ver todas as solicitações
+DROP POLICY IF EXISTS "Admins podem ver todas solicitacoes" ON solicitacoes_renovacao;
 CREATE POLICY "Admins podem ver todas solicitacoes"
   ON solicitacoes_renovacao
   FOR SELECT
@@ -51,12 +51,11 @@ CREATE POLICY "Admins podem ver todas solicitacoes"
   );
 
 -- Política: Usuários podem criar solicitações
+DROP POLICY IF EXISTS "Usuarios podem criar solicitacoes" ON solicitacoes_renovacao;
 CREATE POLICY "Usuarios podem criar solicitacoes"
   ON solicitacoes_renovacao
   FOR INSERT
   WITH CHECK (
-    operador_id = auth.uid()
-    OR
     EXISTS (
       SELECT 1 FROM operadores
       WHERE operadores.auth_user_id = auth.uid()
@@ -65,6 +64,7 @@ CREATE POLICY "Usuarios podem criar solicitacoes"
   );
 
 -- Política: Apenas admins podem atualizar solicitações (aprovar/recusar)
+DROP POLICY IF EXISTS "Admins podem atualizar solicitacoes" ON solicitacoes_renovacao;
 CREATE POLICY "Admins podem atualizar solicitacoes"
   ON solicitacoes_renovacao
   FOR UPDATE

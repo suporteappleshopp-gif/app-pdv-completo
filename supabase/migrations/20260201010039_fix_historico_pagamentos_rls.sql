@@ -7,6 +7,7 @@ DROP POLICY IF EXISTS "Sistema pode inserir pagamentos" ON historico_pagamentos;
 DROP POLICY IF EXISTS "Sistema pode atualizar pagamentos" ON historico_pagamentos;
 
 -- Nova política: SELECT - Permitir leitura via API (service_role) ou pelo próprio usuário
+DROP POLICY IF EXISTS "Usuarios e API podem ver pagamentos" ON historico_pagamentos;
 CREATE POLICY "Usuarios e API podem ver pagamentos"
 ON historico_pagamentos
 FOR SELECT
@@ -15,12 +16,14 @@ USING (
 );
 
 -- Nova política: INSERT - Permitir inserção via API
+DROP POLICY IF EXISTS "API pode inserir pagamentos" ON historico_pagamentos;
 CREATE POLICY "API pode inserir pagamentos"
 ON historico_pagamentos
 FOR INSERT
 WITH CHECK (true);
 
 -- Nova política: UPDATE - Permitir atualização via API
+DROP POLICY IF EXISTS "API pode atualizar pagamentos" ON historico_pagamentos;
 CREATE POLICY "API pode atualizar pagamentos"
 ON historico_pagamentos
 FOR UPDATE
@@ -28,6 +31,7 @@ USING (true)
 WITH CHECK (true);
 
 -- Nova política: DELETE - Permitir deleção via API (se necessário)
+DROP POLICY IF EXISTS "API pode deletar pagamentos" ON historico_pagamentos;
 CREATE POLICY "API pode deletar pagamentos"
 ON historico_pagamentos
 FOR DELETE

@@ -153,6 +153,8 @@ export default function AnaliseLojasPage() {
       setLoadingVendas(true);
 
       // Buscar vendas do usuário no Supabase
+      console.log("🔍 Carregando vendas do usuário:", operadorSelecionado);
+
       const { data, error } = await supabase
         .from("vendas")
         .select("*")
@@ -160,13 +162,40 @@ export default function AnaliseLojasPage() {
         .order("data_hora", { ascending: false });
 
       if (error) {
-        console.error("Erro ao carregar vendas:", error);
+        console.error("❌ Erro ao carregar vendas (Supabase):", {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
+
+        // Fallback: tentar buscar do localStorage
+        console.warn("⚠️ Tentando fallback localStorage...");
+        const vendasLocal = JSON.parse(localStorage.getItem("vendas") || "[]");
+        const vendasDoUsuario = vendasLocal.filter((v: any) => v.operadorId === operadorSelecionado);
+
+        if (vendasDoUsuario.length > 0) {
+          console.log("✅ Encontradas", vendasDoUsuario.length, "vendas no localStorage");
+          const vendasConcluidas = vendasDoUsuario.filter((v: any) => v.status !== "cancelada");
+          const total = vendasConcluidas.length;
+          const faturamento = vendasConcluidas.reduce((acc: number, v: any) => acc + (v.total || 0), 0);
+          const ticket = total > 0 ? faturamento / total : 0;
+
+          setVendas(vendasDoUsuario);
+          setTotalVendas(total);
+          setFaturamentoTotal(faturamento);
+          setTicketMedio(ticket);
+          return;
+        }
+
         setVendas([]);
         setTotalVendas(0);
         setFaturamentoTotal(0);
         setTicketMedio(0);
         return;
       }
+
+      console.log("✅ Vendas carregadas do Supabase:", data?.length || 0);
 
       // Calcular estatísticas
       const vendasConcluidas = (data || []).filter((v) => v.status !== "cancelada");
