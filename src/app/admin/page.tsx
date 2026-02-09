@@ -1350,7 +1350,22 @@ export default function AdminPage() {
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-5">
+              {/* Alertas de erro/sucesso */}
+              {error && (
+                <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-3 flex items-center space-x-2">
+                  <AlertCircle className="w-5 h-5 text-red-300 flex-shrink-0" />
+                  <p className="text-red-200 text-sm font-medium">{error}</p>
+                </div>
+              )}
+
+              {success && (
+                <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-3 flex items-center space-x-2">
+                  <CheckCircle className="w-5 h-5 text-green-300 flex-shrink-0" />
+                  <p className="text-green-200 text-sm font-medium">{success}</p>
+                </div>
+              )}
+
               <div>
                 <label className="block text-purple-200 text-sm font-semibold mb-2">
                   Email
@@ -1381,80 +1396,114 @@ export default function AdminPage() {
                 />
               </div>
 
-              <div>
+              <div className="border-t border-white/10 pt-4">
                 <label className="block text-purple-200 text-sm font-semibold mb-3">
-                  Forma de Pagamento
+                  📋 Selecione a Forma de Pagamento
                 </label>
                 <div className="space-y-3">
+                  {/* Opção PIX */}
                   <button
+                    type="button"
                     onClick={() =>
                       setNovoUsuario({ ...novoUsuario, formaPagamento: "pix" })
                     }
-                    className={`w-full p-4 rounded-lg border-2 transition-all ${
+                    className={`w-full p-5 rounded-xl border-2 transition-all transform hover:scale-[1.02] ${
                       novoUsuario.formaPagamento === "pix"
-                        ? "border-green-500 bg-green-500/20"
+                        ? "border-green-400 bg-green-500/30 shadow-lg shadow-green-500/20"
                         : "border-white/20 bg-white/5 hover:bg-white/10"
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
-                          <span className="text-green-600 font-bold text-xs">PIX</span>
+                      <div className="flex items-center space-x-4">
+                        <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                          <span className="text-white font-bold text-sm">PIX</span>
                         </div>
                         <div className="text-left">
-                          <p className="text-white font-semibold">PIX</p>
-                          <p className="text-purple-200 text-sm">R$ 59,90 - 60 dias de acesso</p>
+                          <p className="text-white font-bold text-lg">PIX</p>
+                          <p className="text-green-300 font-semibold">R$ 59,90</p>
+                          <p className="text-purple-200 text-xs">60 dias de acesso</p>
                         </div>
                       </div>
-                      {novoUsuario.formaPagamento === "pix" && (
-                        <CheckCircle className="w-6 h-6 text-green-400" />
-                      )}
+                      <div className="flex flex-col items-end">
+                        {novoUsuario.formaPagamento === "pix" && (
+                          <div className="flex items-center space-x-1 text-green-300">
+                            <CheckCircle className="w-6 h-6" />
+                            <span className="text-xs font-semibold">SELECIONADO</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </button>
 
+                  {/* Opção Cartão */}
                   <button
+                    type="button"
                     onClick={() =>
                       setNovoUsuario({ ...novoUsuario, formaPagamento: "cartao" })
                     }
-                    className={`w-full p-4 rounded-lg border-2 transition-all ${
+                    className={`w-full p-5 rounded-xl border-2 transition-all transform hover:scale-[1.02] ${
                       novoUsuario.formaPagamento === "cartao"
-                        ? "border-green-500 bg-green-500/20"
+                        ? "border-blue-400 bg-blue-500/30 shadow-lg shadow-blue-500/20"
                         : "border-white/20 bg-white/5 hover:bg-white/10"
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <CreditCard className="w-6 h-6 text-white" />
+                      <div className="flex items-center space-x-4">
+                        <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                          <CreditCard className="w-6 h-6 text-white" />
+                        </div>
                         <div className="text-left">
-                          <p className="text-white font-semibold">Cartão de Crédito</p>
-                          <p className="text-purple-200 text-sm">R$ 149,70 - 180 dias | Até 3x sem juros</p>
+                          <p className="text-white font-bold text-lg">Cartão de Crédito</p>
+                          <p className="text-blue-300 font-semibold">R$ 149,70</p>
+                          <p className="text-purple-200 text-xs">180 dias | Até 3x sem juros</p>
                         </div>
                       </div>
-                      {novoUsuario.formaPagamento === "cartao" && (
-                        <CheckCircle className="w-6 h-6 text-green-400" />
-                      )}
+                      <div className="flex flex-col items-end">
+                        {novoUsuario.formaPagamento === "cartao" && (
+                          <div className="flex items-center space-x-1 text-blue-300">
+                            <CheckCircle className="w-6 h-6" />
+                            <span className="text-xs font-semibold">SELECIONADO</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </button>
                 </div>
               </div>
 
-              <div className="bg-blue-500/20 border border-blue-500/30 rounded-lg p-4">
-                <div className="flex items-start space-x-2">
-                  <AlertCircle className="w-5 h-5 text-blue-300 flex-shrink-0 mt-0.5" />
-                  <div className="text-sm text-blue-200">
-                    <p className="font-semibold mb-1">Informações de Pagamento</p>
-                    <p className="mb-2">
-                      {novoUsuario.formaPagamento === "pix"
-                        ? "PIX: R$ 59,90 - 60 dias de acesso"
-                        : "Cartão: R$ 149,70 - 180 dias de acesso | Até 3x sem juros"}
-                    </p>
-                    <p className="text-xs">
-                      {novoUsuario.formaPagamento === "pix"
-                        ? "Link de pagamento PIX: https://mpago.la/24Hxr1X"
-                        : "Link de pagamento Cartão: https://mpago.li/12S6mJE"}
-                    </p>
-                    <p className="text-xs mt-1 text-green-200">
-                      Envie o link ao cliente. Após pagamento, volte aqui e confirme para liberar o acesso.
+              {/* Informações de Pagamento */}
+              <div className="bg-gradient-to-br from-blue-500/20 to-purple-500/20 border-2 border-blue-500/40 rounded-xl p-4">
+                <div className="flex items-start space-x-3">
+                  <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                    <AlertCircle className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-bold mb-2 text-blue-100 text-base">📋 Informações de Pagamento</p>
+
+                    <div className="bg-white/10 rounded-lg p-3 mb-3">
+                      <p className="font-bold text-white mb-1">
+                        {novoUsuario.formaPagamento === "pix"
+                          ? "💚 PIX: R$ 59,90"
+                          : "💳 Cartão: R$ 149,70"}
+                      </p>
+                      <p className="text-purple-200 text-sm">
+                        {novoUsuario.formaPagamento === "pix"
+                          ? "60 dias de acesso"
+                          : "180 dias de acesso | Até 3x sem juros"}
+                      </p>
+                    </div>
+
+                    <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-2 mb-2">
+                      <p className="text-xs text-green-200 font-semibold mb-1">🔗 Link de Pagamento:</p>
+                      <p className="text-xs text-white font-mono break-all">
+                        {novoUsuario.formaPagamento === "pix"
+                          ? "https://mpago.la/24Hxr1X"
+                          : "https://mpago.li/12S6mJE"}
+                      </p>
+                    </div>
+
+                    <p className="text-xs text-yellow-200 font-medium">
+                      ⚠️ Envie o link ao cliente. Após pagamento, confirme em "Gerenciar Usuários" para liberar o acesso.
                     </p>
                   </div>
                 </div>
