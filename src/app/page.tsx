@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AuthSupabase } from "@/lib/auth-supabase";
-import { supabaseAdmin } from "@/lib/supabase-admin";
+import { supabase } from "@/lib/supabase";
 import { db } from "@/lib/db";
 import { Operador } from "@/lib/types";
 import { LogIn, Loader2, User, Lock, Shield, UserPlus, CreditCard, CheckCircle, ExternalLink, Calendar, MessageCircle, AlertCircle } from "lucide-react";
@@ -401,8 +401,8 @@ export default function LoginPage() {
         console.log("⚠️ Criando usuário diretamente no banco (bypass Auth)");
 
         // ✅ NÃO gerar ID manualmente - Supabase gera automaticamente com gen_random_uuid()
-        // Criar operador direto no banco sem Auth usando supabaseAdmin (bypassa RLS)
-        const { data: novoOperador, error: insertError } = await supabaseAdmin
+        // Criar operador direto no banco sem Auth (RLS permite inserções públicas)
+        const { data: novoOperador, error: insertError } = await supabase
           .from("operadores")
           .insert({
             // id será gerado automaticamente pelo Supabase
@@ -439,8 +439,8 @@ export default function LoginPage() {
 
         if (!operadorExistente) {
           // ✅ Criar operador manualmente - ID será gerado automaticamente
-          // Usar supabaseAdmin para bypassa RLS
-          const { data: novoOperador } = await supabaseAdmin
+          // RLS permite inserções públicas
+          const { data: novoOperador } = await supabase
             .from("operadores")
             .insert({
               // id será gerado automaticamente pelo Supabase
