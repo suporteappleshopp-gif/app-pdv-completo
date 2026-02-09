@@ -19,6 +19,7 @@ import {
   MessageCircle,
   Send,
   ArrowUpDown,
+  Printer,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -54,6 +55,13 @@ export default function AnaliseLojasPage() {
   const [mensagensNaoLidas, setMensagensNaoLidas] = useState(0);
   const chatRef = useRef<HTMLDivElement>(null);
   const chatPainelRef = useRef<HTMLDivElement>(null);
+
+  // Vendas e estatísticas
+  const [vendas, setVendas] = useState<any[]>([]);
+  const [loadingVendas, setLoadingVendas] = useState(false);
+  const [totalVendas, setTotalVendas] = useState(0);
+  const [faturamentoTotal, setFaturamentoTotal] = useState(0);
+  const [ticketMedio, setTicketMedio] = useState(0);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -100,6 +108,8 @@ export default function AnaliseLojasPage() {
   useEffect(() => {
     if (operadorSelecionado) {
       carregarMensagens();
+      carregarVendasUsuario();
+
       // Verificar novas mensagens do usuário a cada 3 segundos
       const interval = setInterval(() => {
         carregarMensagens();
@@ -124,7 +134,7 @@ export default function AnaliseLojasPage() {
   const carregarDados = async () => {
     try {
       setLoading(true);
-      
+
       // Carregar operadores ativos
       const todosOperadores = await AdminSupabase.getAllOperadores();
       const operadoresUsuarios = todosOperadores.filter((op) => !op.isAdmin);
@@ -133,6 +143,49 @@ export default function AnaliseLojasPage() {
       console.error("Erro ao carregar dados:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const carregarVendasUsuario = async () => {
+    if (!operadorSelecionado) return;
+
+    try {
+      setLoadingVendas(true);
+
+      // Buscar vendas do usuário no Supabase
+      const { data, error } = await supabase
+        .from("vendas")
+        .select("*")
+        .eq("operador_id", operadorSelecionado)
+        .order("data_hora", { ascending: false });
+
+      if (error) {
+        console.error("Erro ao carregar vendas:", error);
+        setVendas([]);
+        setTotalVendas(0);
+        setFaturamentoTotal(0);
+        setTicketMedio(0);
+        return;
+      }
+
+      // Calcular estatísticas
+      const vendasConcluidas = (data || []).filter((v) => v.status !== "cancelada");
+      const total = vendasConcluidas.length;
+      const faturamento = vendasConcluidas.reduce((acc, v) => acc + (v.total || 0), 0);
+      const ticket = total > 0 ? faturamento / total : 0;
+
+      setVendas(data || []);
+      setTotalVendas(total);
+      setFaturamentoTotal(faturamento);
+      setTicketMedio(ticket);
+    } catch (err) {
+      console.error("Erro ao carregar vendas:", err);
+      setVendas([]);
+      setTotalVendas(0);
+      setFaturamentoTotal(0);
+      setTicketMedio(0);
+    } finally {
+      setLoadingVendas(false);
     }
   };
 
@@ -410,7 +463,7 @@ export default function AnaliseLojasPage() {
               <div className="flex items-center justify-between mb-4">
                 <ShoppingCart className="w-12 h-12 text-white/80" />
                 <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full">
-                  <span className="text-white font-bold text-lg">0</span>
+                  <span className="text-white font-bold text-lg">{totalVendas}</span>
                 </div>
               </div>
               <h3 className="text-white text-xl font-bold mb-2">
@@ -423,7 +476,7 @@ export default function AnaliseLojasPage() {
               <div className="flex items-center justify-between mb-4">
                 <DollarSign className="w-12 h-12 text-white/80" />
                 <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full">
-                  <span className="text-white font-bold text-lg">R$ 0,00</span>
+                  <span className="text-white font-bold text-lg">R$ {faturamentoTotal.toFixed(2)}</span>
                 </div>
               </div>
               <h3 className="text-white text-xl font-bold mb-2">Faturamento</h3>
@@ -434,7 +487,7 @@ export default function AnaliseLojasPage() {
               <div className="flex items-center justify-between mb-4">
                 <Calendar className="w-12 h-12 text-white/80" />
                 <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full">
-                  <span className="text-white font-bold text-lg">R$ 0,00</span>
+                  <span className="text-white font-bold text-lg">R$ {ticketMedio.toFixed(2)}</span>
                 </div>
               </div>
               <h3 className="text-white text-xl font-bold mb-2">
@@ -532,6 +585,97 @@ export default function AnaliseLojasPage() {
                   <Send className="w-5 h-5" />
                   <span className="font-semibold">Enviar</span>
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Histórico de Vendas */}
+        {operadorSelecionado && vendas.length > 0 && (
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
+            <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-8 py-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <ShoppingCart className="w-7 h-7 text-white" />
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">Histórico de Vendas</h2>
+                    <p className="text-purple-100 text-sm">{vendas.length} venda(s) registrada(s)</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <div className="space-y-4 max-h-[600px] overflow-y-auto">
+                {vendas.map((venda) => (
+                  <div
+                    key={venda.id}
+                    className="bg-white/5 rounded-xl p-6 border border-white/10 hover:bg-white/10 transition-all"
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h3 className="text-white font-bold text-lg mb-1">Venda #{venda.numero}</h3>
+                        <p className="text-purple-200 text-sm">
+                          {format(new Date(venda.data_hora), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                        </p>
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        venda.status === "concluida" ? "bg-green-500/20 text-green-300" :
+                        venda.status === "cancelada" ? "bg-red-500/20 text-red-300" :
+                        "bg-blue-500/20 text-blue-300"
+                      }`}>
+                        {venda.status || "concluída"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <p className="text-purple-200 text-sm mb-1">Valor Total</p>
+                        <p className="text-white font-bold text-xl">R$ {venda.total.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-purple-200 text-sm mb-1">Forma de Pagamento</p>
+                        <p className="text-white font-semibold">
+                          {venda.tipo_pagamento === "dinheiro" ? "💵 Dinheiro" :
+                           venda.tipo_pagamento === "credito" ? "💳 Crédito" :
+                           venda.tipo_pagamento === "debito" ? "💳 Débito" :
+                           venda.tipo_pagamento === "pix" ? "📱 PIX" :
+                           venda.tipo_pagamento === "outros" ? "🔹 Outros" :
+                           "Não informado"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-3">
+                      <button
+                        onClick={() => window.open(`/imprimir-nota/${venda.id}`, '_blank')}
+                        className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg transition-all font-semibold"
+                        title="Imprimir Cupom Fiscal"
+                      >
+                        <Printer className="w-5 h-5" />
+                        <span>Cupom</span>
+                      </button>
+
+                      <button
+                        onClick={() => window.open(`/imprimir-nota/${venda.id}`, '_blank')}
+                        className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg transition-all font-semibold"
+                        title="Imprimir NFC-e"
+                      >
+                        <Printer className="w-5 h-5" />
+                        <span>NFC-e</span>
+                      </button>
+
+                      <button
+                        onClick={() => window.open(`/imprimir-nota/${venda.id}`, '_blank')}
+                        className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg transition-all font-semibold"
+                        title="Imprimir Nota Completa"
+                      >
+                        <Printer className="w-5 h-5" />
+                        <span>Nota Completa</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
