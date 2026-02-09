@@ -100,6 +100,7 @@ export default function AdminPage() {
   const [showDetalhesUsuarioModal, setShowDetalhesUsuarioModal] = useState(false);
   const [operadorParaDetalhes, setOperadorParaDetalhes] = useState<Operador | null>(null);
   const [historicoPagamentos, setHistoricoPagamentos] = useState<any[]>([]);
+  const [historicoVendas, setHistoricoVendas] = useState<any[]>([]);
   const [loadingHistorico, setLoadingHistorico] = useState(false);
 
   const WHATSAPP_CONTATO = "5565981032239";
@@ -620,14 +621,26 @@ export default function AdminPage() {
     setLoadingHistorico(true);
 
     try {
-      const { data, error } = await supabase
+      // Carregar histórico de renovações/pagamentos
+      const { data: pagamentos, error: errorPagamentos } = await supabase
         .from("historico_pagamentos")
         .select("*")
         .eq("usuario_id", operador.id)
         .order("created_at", { ascending: false });
 
-      if (!error && data) {
-        setHistoricoPagamentos(data);
+      if (!errorPagamentos && pagamentos) {
+        setHistoricoPagamentos(pagamentos);
+      }
+
+      // Carregar histórico de vendas
+      const { data: vendas, error: errorVendas } = await supabase
+        .from("vendas")
+        .select("*")
+        .eq("operador_id", operador.id)
+        .order("data_hora", { ascending: false });
+
+      if (!errorVendas && vendas) {
+        setHistoricoVendas(vendas);
       }
     } catch (err) {
       console.error("Erro ao carregar histórico:", err);
@@ -1730,6 +1743,7 @@ export default function AdminPage() {
                   setShowDetalhesUsuarioModal(false);
                   setOperadorParaDetalhes(null);
                   setHistoricoPagamentos([]);
+                  setHistoricoVendas([]);
                 }}
                 className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
               >
@@ -1887,11 +1901,76 @@ export default function AdminPage() {
                 )}
               </div>
 
+              {/* Histórico de Vendas */}
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
+                <h4 className="text-white font-bold mb-3 flex items-center">
+                  <Store className="w-5 h-5 mr-2" />
+                  Histórico de Vendas
+                </h4>
+                {loadingHistorico ? (
+                  <div className="text-center py-4">
+                    <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                    <p className="text-purple-200 text-sm mt-2">Carregando vendas...</p>
+                  </div>
+                ) : historicoVendas.length === 0 ? (
+                  <p className="text-purple-300 text-sm">Nenhuma venda registrada ainda.</p>
+                ) : (
+                  <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
+                    {historicoVendas.map((venda) => (
+                      <div key={venda.id} className="bg-white/5 rounded-lg p-3 border border-white/10">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <p className="text-white font-semibold text-sm">Venda #{venda.numero}</p>
+                            <p className="text-purple-300 text-xs">
+                              {format(new Date(venda.data_hora), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                            </p>
+                          </div>
+                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                            venda.status === "concluida" ? "bg-green-500/20 text-green-300" :
+                            venda.status === "cancelada" ? "bg-red-500/20 text-red-300" :
+                            "bg-blue-500/20 text-blue-300"
+                          }`}>
+                            {venda.status || "concluída"}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="text-purple-200">
+                            <strong>Valor:</strong> R$ {venda.total.toFixed(2)}
+                          </div>
+                          <div className="text-purple-200">
+                            <strong>Pagamento:</strong>{" "}
+                            {venda.tipo_pagamento === "dinheiro" ? "Dinheiro" :
+                             venda.tipo_pagamento === "credito" ? "Crédito" :
+                             venda.tipo_pagamento === "debito" ? "Débito" :
+                             venda.tipo_pagamento === "pix" ? "PIX" :
+                             venda.tipo_pagamento === "outros" ? "Outros" :
+                             "Não informado"}
+                          </div>
+                        </div>
+                        <div className="mt-2 flex items-center space-x-2">
+                          <button
+                            onClick={() => {
+                              // Abrir nota - vou criar função específica para admin
+                              window.open(`/imprimir-nota/${venda.id}`, '_blank');
+                            }}
+                            className="flex-1 px-3 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded text-xs font-semibold transition-all"
+                            title="Visualizar nota fiscal"
+                          >
+                            Ver Nota
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <button
                 onClick={() => {
                   setShowDetalhesUsuarioModal(false);
                   setOperadorParaDetalhes(null);
                   setHistoricoPagamentos([]);
+                  setHistoricoVendas([]);
                 }}
                 className="w-full px-4 py-3 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors font-semibold"
               >
