@@ -10,6 +10,7 @@
  */
 
 import { supabase } from "./supabase";
+import { supabaseAdmin, isAdminClientConfigured } from "./supabase-admin";
 import { Operador } from "./types";
 
 export interface MensagemChat {
@@ -157,8 +158,8 @@ export class AdminSupabase {
         diasAssinatura: operador.diasAssinatura,
       });
 
+      // ✅ NÃO enviar o campo 'id' - o Supabase gera automaticamente com gen_random_uuid()
       const insertData: any = {
-        id: operador.id,
         nome: operador.nome,
         email: operador.email,
         senha: operador.senha,
@@ -197,7 +198,9 @@ export class AdminSupabase {
         dias_assinatura: insertData.dias_assinatura,
       });
 
-      const { error } = await supabase.from("operadores").insert(insertData);
+      // ✅ Usar supabaseAdmin para bypassa RLS e criar operadores
+      const client = isAdminClientConfigured() ? supabaseAdmin : supabase;
+      const { error } = await client.from("operadores").insert(insertData);
 
       if (error) {
         console.error("❌ Erro ao criar operador:", {

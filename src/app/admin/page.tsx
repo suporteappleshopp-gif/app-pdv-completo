@@ -310,8 +310,9 @@ export default function AdminPage() {
         console.error('   ❌ ERRO: formaPagamento INVÁLIDA:', novoUsuario.formaPagamento);
       }
 
+      // ✅ ID será gerado automaticamente pelo Supabase (UUID)
       const novoOperador: Operador = {
-        id: `user-${Date.now()}`,
+        id: '', // Será gerado pelo Supabase com gen_random_uuid()
         nome: nomeExtraido,
         email: novoUsuario.email.trim(),
         senha: novoUsuario.senha,
