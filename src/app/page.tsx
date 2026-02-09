@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AuthSupabase } from "@/lib/auth-supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { db } from "@/lib/db";
 import { Operador } from "@/lib/types";
 import { LogIn, Loader2, User, Lock, Shield, UserPlus, CreditCard, CheckCircle, ExternalLink, Calendar, MessageCircle, AlertCircle } from "lucide-react";
@@ -399,15 +400,12 @@ export default function LoginPage() {
       if (authError || !authData.user) {
         console.log("⚠️ Criando usuário diretamente no banco (bypass Auth)");
 
-        // Gerar ID único
-        const novoId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        usuarioIdCriado = novoId;
-
-        // Criar operador direto no banco sem Auth
-        const { data: novoOperador, error: insertError } = await supabase
+        // ✅ NÃO gerar ID manualmente - Supabase gera automaticamente com gen_random_uuid()
+        // Criar operador direto no banco sem Auth usando supabaseAdmin (bypassa RLS)
+        const { data: novoOperador, error: insertError } = await supabaseAdmin
           .from("operadores")
           .insert({
-            id: novoId,
+            // id será gerado automaticamente pelo Supabase
             email: emailTrimmed,
             nome: nomeExtraido,
             senha: novoCadastro.senha,
@@ -427,6 +425,7 @@ export default function LoginPage() {
           return;
         }
 
+        usuarioIdCriado = novoOperador.id; // Usar ID gerado pelo Supabase
         console.log("✅ Usuário criado direto no banco:", novoOperador.id);
       } else {
         // Auth funcionou, aguardar trigger ou criar operador
@@ -439,14 +438,12 @@ export default function LoginPage() {
           .maybeSingle();
 
         if (!operadorExistente) {
-          // Criar operador manualmente
-          const novoId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-          usuarioIdCriado = novoId;
-
-          const { data: novoOperador } = await supabase
+          // ✅ Criar operador manualmente - ID será gerado automaticamente
+          // Usar supabaseAdmin para bypassa RLS
+          const { data: novoOperador } = await supabaseAdmin
             .from("operadores")
             .insert({
-              id: novoId,
+              // id será gerado automaticamente pelo Supabase
               auth_user_id: authData.user.id,
               email: emailTrimmed,
               nome: nomeExtraido,
@@ -461,6 +458,8 @@ export default function LoginPage() {
             })
             .select()
             .single();
+
+          usuarioIdCriado = novoOperador?.id || ''; // Usar ID gerado pelo Supabase
         } else {
           // Atualizar operador existente
           usuarioIdCriado = operadorExistente.id;
