@@ -27,6 +27,8 @@ export interface Operador {
   dataProximoVencimento?: Date;
   diasAssinatura?: number;
   dataPagamento?: Date;
+  // Rastreamento de atividade
+  ultimaAtividade?: Date; // Última vez que o usuário usou o sistema
 }
 
 export interface Produto {

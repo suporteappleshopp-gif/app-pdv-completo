@@ -29,7 +29,11 @@ export class GerenciadorAssinatura {
    * Verifica se o usuário pode usar as funcionalidades do app
    * REGRAS CORRIGIDAS:
    * - Usuários SEM mensalidade (criados pelo admin): acesso livre e permanente
-   * - Usuários COM mensalidade: verificar validade e suspender se expirado
+   * - Usuários COM mensalidade:
+   *   - NUNCA suspender antes de consumir TODOS os dias de uso comprados
+   *   - Com 5 dias do vencimento: APENAS AVISAR, NÃO SUSPENDER
+   *   - Suspender SOMENTE quando não houver mais dias de uso (dias_restantes <= 0)
+   *   - Usuários inativos: suspender após último dia de uso
    */
   static async verificarAcesso(userId: string): Promise<{
     podeUsar: boolean;
@@ -78,7 +82,13 @@ export class GerenciadorAssinatura {
         aguardandoPagamento: operador.aguardando_pagamento,
         dataVencimento: operador.data_proximo_vencimento,
         formaPagamento: operador.forma_pagamento,
+        diasRestantes: operador.dias_restantes,
+        totalDiasComprados: operador.total_dias_comprados,
       });
+
+      // 🔥 REGISTRAR ATIVIDADE: Atualizar última atividade sempre que verificar acesso
+      // Isso garante que temos um registro de quando o usuário usou o sistema
+      await this.registrarAtividade(userId);
 
       // 🔒 CORREÇÃO CRÍTICA: Verificar se é usuário sem mensalidade
       // Usuário sem mensalidade tem: forma_pagamento = NULL E ativo = TRUE E suspenso = FALSE
@@ -121,66 +131,74 @@ export class GerenciadorAssinatura {
         };
       }
 
-      // Calcular dias restantes
-      if (operador.data_proximo_vencimento) {
-        const hoje = new Date();
-        const vencimento = new Date(operador.data_proximo_vencimento);
-        const diasRestantes = differenceInDays(vencimento, hoje);
+      // 🔥 REGRA NOVA: PRIORIZAR dias_restantes (banco de dias de uso)
+      // Usuário pode usar enquanto tiver dias no banco (dias_restantes > 0 OU total_dias_comprados > 0)
+      const diasNoSaldo = operador.dias_restantes || operador.total_dias_comprados || 0;
 
-        console.log("📅 Dias restantes:", diasRestantes);
+      console.log("💰 Verificando banco de dias:", {
+        diasRestantes: operador.dias_restantes,
+        totalDiasComprados: operador.total_dias_comprados,
+        diasNoSaldo: diasNoSaldo,
+      });
 
-        // 🔒 CRÍTICO: Se expirou (diasRestantes < 0 OU diasRestantes === 0), suspender IMEDIATAMENTE
-        if (diasRestantes <= 0) {
-          console.warn("⚠️ Assinatura EXPIRADA - suspendendo conta IMEDIATAMENTE");
-          console.warn("⚠️ Data vencimento:", vencimento.toISOString());
-          console.warn("⚠️ Data hoje:", hoje.toISOString());
-          console.warn("⚠️ Dias restantes:", diasRestantes);
+      // Se tiver dias no saldo, PERMITIR ACESSO (independente da data de vencimento)
+      if (diasNoSaldo > 0) {
+        // Verificar data de vencimento apenas para AVISOS
+        if (operador.data_proximo_vencimento) {
+          const hoje = new Date();
+          const vencimento = new Date(operador.data_proximo_vencimento);
+          const diasAteVencimento = differenceInDays(vencimento, hoje);
 
-          // Atualizar diretamente no banco
-          const { error: updateError } = await supabase
-            .from("operadores")
-            .update({
-              ativo: false,
-              suspenso: true,
-              aguardando_pagamento: true,
-            })
-            .eq("id", operador.id);
+          // Com 5 dias ou menos: APENAS AVISAR (não suspender)
+          const mostrarAviso = diasAteVencimento <= 5;
 
-          if (updateError) {
-            console.error("❌ Erro ao suspender usuário vencido:", updateError);
-          } else {
-            console.log("✅ Usuário suspenso com sucesso no banco de dados");
+          if (mostrarAviso) {
+            console.warn("⚠️ Aviso de vencimento próximo:", diasAteVencimento, "dias");
+            return {
+              podeUsar: true, // ✅ AINDA PODE USAR
+              status: "ativo",
+              diasRestantes: diasNoSaldo, // Mostrar dias reais do saldo
+              mensagem: `Atenção: Sua assinatura vence em ${diasAteVencimento} dias. Você tem ${diasNoSaldo} dias de uso no saldo.`,
+              mostrarAviso: true,
+            };
           }
-
-          return {
-            podeUsar: false,
-            status: "suspenso",
-            diasRestantes: 0,
-            mensagem: "Sua assinatura expirou. Acesse o menu Financeiro para renovar.",
-            mostrarAviso: false,
-          };
         }
 
-        // Mostrar aviso se faltar 5 dias ou menos
-        const mostrarAviso = diasRestantes <= 5;
-
-        console.log("✅ Conta ativa -", diasRestantes, "dias restantes");
+        // Tudo certo, usuário tem dias e não há avisos
+        console.log("✅ Conta ativa - tem dias no saldo:", diasNoSaldo);
         return {
           podeUsar: true,
           status: "ativo",
-          diasRestantes: diasRestantes,
-          mensagem: `Assinatura ativa. ${diasRestantes} dias restantes.`,
-          mostrarAviso: mostrarAviso,
+          diasRestantes: diasNoSaldo,
+          mensagem: `Assinatura ativa. ${diasNoSaldo} dias restantes.`,
+          mostrarAviso: false,
         };
       }
 
-      // Usuário ativo sem data de vencimento (caso especial)
-      console.log("✅ Conta ativa - sem vencimento definido");
+      // 🔒 Se NÃO tiver dias no saldo (diasNoSaldo <= 0), SUSPENDER
+      console.warn("⚠️ Usuário SEM dias no saldo - suspendendo");
+
+      // Atualizar diretamente no banco
+      const { error: updateError } = await supabase
+        .from("operadores")
+        .update({
+          ativo: false,
+          suspenso: true,
+          aguardando_pagamento: true,
+        })
+        .eq("id", operador.id);
+
+      if (updateError) {
+        console.error("❌ Erro ao suspender usuário sem dias:", updateError);
+      } else {
+        console.log("✅ Usuário suspenso (sem dias) com sucesso no banco de dados");
+      }
+
       return {
-        podeUsar: true,
-        status: "ativo",
+        podeUsar: false,
+        status: "suspenso",
         diasRestantes: 0,
-        mensagem: "Assinatura ativa.",
+        mensagem: "Seus dias de uso acabaram. Acesse o menu Financeiro para renovar.",
         mostrarAviso: false,
       };
     } catch (error) {
@@ -428,5 +446,133 @@ export class GerenciadorAssinatura {
     tipoPlano: "mensal" | "trimestral"
   ): Promise<boolean> {
     return await this.processarPagamento(assinaturaId, tipoPlano, "cartao_credito");
+  }
+
+  /**
+   * Registrar atividade do usuário (quando ele usa o sistema)
+   * IMPORTANTE: Chamar esta função sempre que o usuário realizar uma ação (venda, consulta, etc)
+   */
+  static async registrarAtividade(userId: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from("operadores")
+        .update({
+          ultima_atividade: new Date().toISOString(),
+        })
+        .eq("id", userId);
+
+      if (error) {
+        console.error("❌ Erro ao registrar atividade:", error);
+        return false;
+      }
+
+      console.log("✅ Atividade registrada para usuário:", userId);
+      return true;
+    } catch (error) {
+      console.error("❌ Erro ao registrar atividade:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Verificar e suspender usuários inativos
+   * REGRA: Usuário inativo é aquele que:
+   * - Não usa o sistema há muito tempo (sem ultima_atividade recente)
+   * - NÃO TEM MAIS dias de uso no saldo (dias_restantes <= 0)
+   * - Passou da data de vencimento (data_proximo_vencimento)
+   *
+   * IMPORTANTE: NÃO suspender usuários que ainda têm dias de uso, mesmo que inativos
+   */
+  static async verificarESuspenderInativos(): Promise<{
+    usuariosSuspensos: string[];
+    erros: string[];
+  }> {
+    try {
+      console.log("🔍 Verificando usuários inativos...");
+
+      // Buscar todos os operadores ativos
+      const { data: operadores, error } = await supabase
+        .from("operadores")
+        .select("*")
+        .eq("ativo", true)
+        .eq("suspenso", false);
+
+      if (error || !operadores) {
+        console.error("❌ Erro ao buscar operadores:", error);
+        return { usuariosSuspensos: [], erros: [error?.message || "Erro desconhecido"] };
+      }
+
+      const usuariosSuspensos: string[] = [];
+      const erros: string[] = [];
+      const hoje = new Date();
+
+      for (const operador of operadores) {
+        // Pular admins e usuários sem mensalidade
+        if (operador.is_admin || (!operador.forma_pagamento && operador.ativo && !operador.suspenso)) {
+          continue;
+        }
+
+        // Verificar dias no saldo
+        const diasNoSaldo = operador.dias_restantes || operador.total_dias_comprados || 0;
+
+        // Se tiver dias no saldo, NÃO SUSPENDER (mesmo que inativo)
+        if (diasNoSaldo > 0) {
+          console.log(`✅ ${operador.nome} tem ${diasNoSaldo} dias no saldo - NÃO suspender`);
+          continue;
+        }
+
+        // Se NÃO tiver dias no saldo, verificar data de vencimento
+        if (operador.data_proximo_vencimento) {
+          const vencimento = new Date(operador.data_proximo_vencimento);
+          const diasAteVencimento = differenceInDays(vencimento, hoje);
+
+          // Se passou do vencimento E não tem dias no saldo, SUSPENDER
+          if (diasAteVencimento < 0) {
+            console.warn(`⚠️ ${operador.nome} - vencido há ${Math.abs(diasAteVencimento)} dias e sem saldo - SUSPENDENDO`);
+
+            const { error: updateError } = await supabase
+              .from("operadores")
+              .update({
+                ativo: false,
+                suspenso: true,
+                aguardando_pagamento: true,
+              })
+              .eq("id", operador.id);
+
+            if (updateError) {
+              console.error(`❌ Erro ao suspender ${operador.nome}:`, updateError);
+              erros.push(`${operador.nome}: ${updateError.message}`);
+            } else {
+              usuariosSuspensos.push(operador.nome);
+            }
+          }
+        } else {
+          // Sem data de vencimento e sem dias no saldo - suspender por segurança
+          console.warn(`⚠️ ${operador.nome} - sem vencimento e sem saldo - SUSPENDENDO`);
+
+          const { error: updateError } = await supabase
+            .from("operadores")
+            .update({
+              ativo: false,
+              suspenso: true,
+              aguardando_pagamento: true,
+            })
+            .eq("id", operador.id);
+
+          if (updateError) {
+            console.error(`❌ Erro ao suspender ${operador.nome}:`, updateError);
+            erros.push(`${operador.nome}: ${updateError.message}`);
+          } else {
+            usuariosSuspensos.push(operador.nome);
+          }
+        }
+      }
+
+      console.log(`✅ Verificação concluída. Suspensos: ${usuariosSuspensos.length}`);
+      return { usuariosSuspensos, erros };
+    } catch (error) {
+      console.error("❌ Erro ao verificar inativos:", error);
+      return { usuariosSuspensos: [], erros: [(error as Error).message] };
+    }
   }
 }

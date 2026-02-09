@@ -873,6 +873,113 @@ export default function AdminPage() {
           </div>
         </div>
 
+        {/* Painel de Usuários Próximos ao Vencimento (5 dias) */}
+        {usuariosProximosVencimento > 0 && (
+          <div className="mb-8 bg-yellow-500/10 backdrop-blur-md rounded-2xl shadow-2xl border border-yellow-500/30 overflow-hidden">
+            <div className="bg-gradient-to-r from-yellow-500 to-amber-600 px-8 py-6 flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-white flex items-center">
+                <AlertTriangle className="w-7 h-7 mr-3" />
+                Próximos Vencimentos (5 dias)
+              </h2>
+              <span className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full text-white font-bold">
+                {usuariosProximosVencimento} usuários
+              </span>
+            </div>
+            <div className="p-6">
+              <div className="space-y-4">
+                {operadores
+                  .filter((op) => {
+                    if (op.isAdmin || !op.dataProximoVencimento) return false;
+                    const diasRestantes = differenceInDays(new Date(op.dataProximoVencimento), new Date());
+                    return diasRestantes <= 5 && diasRestantes >= 0;
+                  })
+                  .sort((a, b) => {
+                    // Ordenar por dias restantes (menor primeiro)
+                    const diasA = differenceInDays(new Date(a.dataProximoVencimento!), new Date());
+                    const diasB = differenceInDays(new Date(b.dataProximoVencimento!), new Date());
+                    return diasA - diasB;
+                  })
+                  .map((operador) => {
+                    const diasRestantes = differenceInDays(new Date(operador.dataProximoVencimento!), new Date());
+                    const diasNoSaldo = operador.diasRestantes || operador.totalDiasComprados || 0;
+
+                    return (
+                      <div
+                        key={operador.id}
+                        className="bg-white/5 backdrop-blur-sm border border-yellow-500/20 rounded-xl p-6 hover:bg-white/10 transition-all"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-4">
+                            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                              diasRestantes === 0 ? 'bg-red-500/20' :
+                              diasRestantes === 1 ? 'bg-orange-500/20' :
+                              'bg-yellow-500/20'
+                            }`}>
+                              <Calendar className={`w-6 h-6 ${
+                                diasRestantes === 0 ? 'text-red-400' :
+                                diasRestantes === 1 ? 'text-orange-400' :
+                                'text-yellow-400'
+                              }`} />
+                            </div>
+                            <div>
+                              <h3 className="text-white font-semibold text-lg">{operador.nome}</h3>
+                              <p className="text-purple-200 text-sm">{operador.email}</p>
+                              <div className="flex items-center space-x-4 mt-2">
+                                <span className={`text-sm font-semibold ${
+                                  diasRestantes === 0 ? 'text-red-400' :
+                                  diasRestantes === 1 ? 'text-orange-400' :
+                                  'text-yellow-400'
+                                }`}>
+                                  {diasRestantes === 0 ? 'Vence HOJE' :
+                                   diasRestantes === 1 ? 'Vence AMANHÃ' :
+                                   `Vence em ${diasRestantes} dias`}
+                                </span>
+                                <span className="text-purple-200 text-sm">
+                                  • Dias no saldo: <span className="font-semibold text-white">{diasNoSaldo}</span>
+                                </span>
+                                <span className="text-purple-200 text-sm">
+                                  • Vencimento: <span className="font-semibold text-white">
+                                    {format(new Date(operador.dataProximoVencimento!), "dd/MM/yyyy", { locale: ptBR })}
+                                  </span>
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            {operador.formaPagamento && (
+                              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                operador.formaPagamento === 'pix'
+                                  ? 'bg-green-500/20 text-green-300'
+                                  : 'bg-blue-500/20 text-blue-300'
+                              }`}>
+                                {operador.formaPagamento === 'pix' ? 'PIX' : 'Cartão'}
+                              </span>
+                            )}
+                            {diasNoSaldo > 0 ? (
+                              <span className="px-3 py-1 bg-green-500/20 text-green-300 rounded-full text-xs font-semibold">
+                                Tem dias no saldo
+                              </span>
+                            ) : (
+                              <span className="px-3 py-1 bg-red-500/20 text-red-300 rounded-full text-xs font-semibold">
+                                Sem dias no saldo
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+              <div className="mt-6 bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
+                <p className="text-yellow-100 text-sm flex items-center">
+                  <AlertTriangle className="w-4 h-4 mr-2" />
+                  <strong>Importante:</strong> Estes usuários estão sendo <strong>apenas notificados</strong>, não serão suspensos enquanto tiverem dias de uso no saldo.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Painel de Solicitações de Renovação */}
         <div className="mb-8">
           <SolicitacoesRenovacao />
