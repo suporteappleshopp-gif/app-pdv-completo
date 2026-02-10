@@ -1,0 +1,99 @@
+-- Habilitar extensão pgcrypto para hash de senhas
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- Recriar função com pgcrypto habilitado
+CREATE OR REPLACE FUNCTION criar_usuario_manual(
+  p_email TEXT,
+  p_senha TEXT,
+  p_nome TEXT
+)
+RETURNS TABLE (
+  user_id UUID,
+  operador_id UUID,
+  mensagem TEXT
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+DECLARE
+  v_user_id UUID;
+  v_operador_id UUID;
+  v_encrypted_password TEXT;
+BEGIN
+  -- Gerar UUID para o usuário
+  v_user_id := gen_random_uuid();
+
+  -- Hash da senha usando bcrypt
+  v_encrypted_password := crypt(p_senha, gen_salt('bf'));
+
+  -- Inserir no auth.users
+  INSERT INTO auth.users (
+    id,
+    instance_id,
+    email,
+    encrypted_password,
+    email_confirmed_at,
+    raw_app_meta_data,
+    raw_user_meta_data,
+    created_at,
+    updated_at,
+    aud,
+    role,
+    confirmation_token,
+    recovery_token,
+    email_change_token_new,
+    email_change
+  ) VALUES (
+    v_user_id,
+    '00000000-0000-0000-0000-000000000000'::UUID,
+    p_email,
+    v_encrypted_password,
+    NOW(),
+    '{"provider":"email","providers":["email"]}'::JSONB,
+    jsonb_build_object('nome', p_nome),
+    NOW(),
+    NOW(),
+    'authenticated',
+    'authenticated',
+    '',
+    '',
+    '',
+    ''
+  );
+
+  -- Inserir operador
+  INSERT INTO operadores (
+    id,
+    auth_user_id,
+    nome,
+    email,
+    is_admin,
+    ativo,
+    suspenso,
+    aguardando_pagamento
+  ) VALUES (
+    gen_random_uuid(),
+    v_user_id,
+    p_nome,
+    p_email,
+    false,
+    false,      -- Inativo até admin aprovar
+    true,       -- Suspenso
+    true        -- Aguardando pagamento
+  )
+  RETURNING id INTO v_operador_id;
+
+  RETURN QUERY SELECT
+    v_user_id,
+    v_operador_id,
+    'Usuário criado com sucesso. Aguardando aprovação do admin.'::TEXT;
+
+EXCEPTION WHEN OTHERS THEN
+  RAISE EXCEPTION 'Erro ao criar usuário: %', SQLERRM;
+END;
+$$;
+
+-- Permitir execução via service_role
+GRANT EXECUTE ON FUNCTION criar_usuario_manual TO service_role;
+GRANT EXECUTE ON FUNCTION criar_usuario_manual TO authenticated;
