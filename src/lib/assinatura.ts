@@ -131,48 +131,54 @@ export class GerenciadorAssinatura {
         };
       }
 
-      // 🔥 REGRA NOVA: PRIORIZAR dias_restantes (banco de dias de uso)
-      // Usuário pode usar enquanto tiver dias no banco (dias_restantes > 0 OU total_dias_comprados > 0)
-      const diasNoSaldo = operador.dias_restantes || operador.total_dias_comprados || 0;
+      // 🔥 CALCULAR DIAS RESTANTES BASEADO NA DATA DE VENCIMENTO
+      // Se tiver data_proximo_vencimento, calcular dias restantes
+      if (operador.data_proximo_vencimento) {
+        const hoje = new Date();
+        const vencimento = new Date(operador.data_proximo_vencimento);
+        const diasAteVencimento = Math.ceil(differenceInDays(vencimento, hoje));
 
-      console.log("💰 Verificando banco de dias:", {
-        diasRestantes: operador.dias_restantes,
-        totalDiasComprados: operador.total_dias_comprados,
-        diasNoSaldo: diasNoSaldo,
-      });
+        console.log("📅 Verificando data de vencimento:", {
+          hoje: hoje.toLocaleDateString('pt-BR'),
+          vencimento: vencimento.toLocaleDateString('pt-BR'),
+          diasAteVencimento: diasAteVencimento,
+        });
 
-      // Se tiver dias no saldo, PERMITIR ACESSO (independente da data de vencimento)
-      if (diasNoSaldo > 0) {
-        // Verificar data de vencimento apenas para AVISOS
-        if (operador.data_proximo_vencimento) {
-          const hoje = new Date();
-          const vencimento = new Date(operador.data_proximo_vencimento);
-          const diasAteVencimento = differenceInDays(vencimento, hoje);
-
+        // Se ainda não venceu (diasAteVencimento >= 0), PERMITIR ACESSO
+        if (diasAteVencimento >= 0) {
           // Com 5 dias ou menos: APENAS AVISAR (não suspender)
-          const mostrarAviso = diasAteVencimento <= 5;
+          const mostrarAviso = diasAteVencimento <= 5 && diasAteVencimento > 0;
 
           if (mostrarAviso) {
             console.warn("⚠️ Aviso de vencimento próximo:", diasAteVencimento, "dias");
-            return {
-              podeUsar: true, // ✅ AINDA PODE USAR
-              status: "ativo",
-              diasRestantes: diasNoSaldo, // Mostrar dias reais do saldo
-              mensagem: `Atenção: Sua assinatura vence em ${diasAteVencimento} dias. Você tem ${diasNoSaldo} dias de uso no saldo.`,
-              mostrarAviso: true,
-            };
           }
+
+          console.log("✅ Conta ativa - dias restantes:", diasAteVencimento);
+          return {
+            podeUsar: true,
+            status: "ativo",
+            diasRestantes: diasAteVencimento,
+            mensagem: mostrarAviso
+              ? `Atenção: Sua assinatura vence em ${diasAteVencimento} dias.`
+              : `Assinatura ativa. ${diasAteVencimento} dias restantes.`,
+            mostrarAviso: mostrarAviso,
+          };
         }
 
-        // Tudo certo, usuário tem dias e não há avisos
-        console.log("✅ Conta ativa - tem dias no saldo:", diasNoSaldo);
-        return {
-          podeUsar: true,
-          status: "ativo",
-          diasRestantes: diasNoSaldo,
-          mensagem: `Assinatura ativa. ${diasNoSaldo} dias restantes.`,
-          mostrarAviso: false,
-        };
+        // Se venceu (diasAteVencimento < 0), SUSPENDER
+        console.warn("⚠️ Usuário VENCIDO - dias:", diasAteVencimento);
+      } else {
+        // Sem data de vencimento, verificar dias_assinatura
+        if (operador.dias_assinatura && operador.dias_assinatura > 0) {
+          console.log("✅ Conta ativa - dias assinatura:", operador.dias_assinatura);
+          return {
+            podeUsar: true,
+            status: "ativo",
+            diasRestantes: operador.dias_assinatura,
+            mensagem: `Assinatura ativa. ${operador.dias_assinatura} dias restantes.`,
+            mostrarAviso: false,
+          };
+        }
       }
 
       // 🔒 Se NÃO tiver dias no saldo (diasNoSaldo <= 0), SUSPENDER
