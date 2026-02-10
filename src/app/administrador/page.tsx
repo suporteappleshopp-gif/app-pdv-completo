@@ -115,14 +115,50 @@ export default function AdministradorPage() {
 
   const carregarUsuarios = async () => {
     try {
-      await db.init();
-      const operadores = await db.getAllOperadores();
-      // Filtrar apenas usuários (não admin)
-      const usuariosNormais = operadores.filter(op => !op.isAdmin);
-      setUsuarios(usuariosNormais);
+      console.log("🔍 Buscando usuários do Supabase...");
+      const { supabase } = await import("@/lib/supabase");
+
+      // Buscar TODOS os operadores do Supabase
+      const { data: operadoresData, error } = await supabase
+        .from("operadores")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("❌ Erro ao buscar operadores:", error);
+        setLoading(false);
+        return;
+      }
+
+      console.log("📊 Operadores encontrados:", operadoresData);
+
+      // Converter para formato Operador e filtrar apenas usuários (não admin)
+      const operadoresFormatados: Operador[] = (operadoresData || [])
+        .filter((op: any) => !op.is_admin) // Filtrar apenas não-admins
+        .map((op: any) => ({
+          id: op.id,
+          authUserId: op.auth_user_id,
+          nome: op.nome,
+          email: op.email,
+          senha: op.senha || "",
+          isAdmin: op.is_admin || false,
+          ativo: op.ativo || false,
+          suspenso: op.suspenso || false,
+          formaPagamento: op.forma_pagamento,
+          valorMensal: op.valor_mensal ? parseFloat(op.valor_mensal) : undefined,
+          diasAssinatura: op.dias_assinatura,
+          dataProximoVencimento: op.data_proximo_vencimento ? new Date(op.data_proximo_vencimento) : undefined,
+          dataPagamento: op.data_pagamento ? new Date(op.data_pagamento) : undefined,
+          createdAt: op.created_at ? new Date(op.created_at) : new Date(),
+          updatedAt: op.updated_at ? new Date(op.updated_at) : new Date(),
+          aguardandoPagamento: op.aguardando_pagamento || false,
+        }));
+
+      console.log(`✅ ${operadoresFormatados.length} usuários carregados`);
+      setUsuarios(operadoresFormatados);
       setLoading(false);
     } catch (error) {
-      console.error("Erro ao carregar usuários:", error);
+      console.error("❌ Erro ao carregar usuários:", error);
       setLoading(false);
     }
   };
@@ -175,7 +211,16 @@ export default function AdministradorPage() {
   const handleExcluirUsuario = async (id: string) => {
     if (confirm("Tem certeza que deseja excluir este usuário?")) {
       try {
-        await db.deleteOperador(id);
+        const { supabase } = await import("@/lib/supabase");
+
+        // Deletar do Supabase
+        const { error } = await supabase
+          .from("operadores")
+          .delete()
+          .eq("id", id);
+
+        if (error) throw error;
+
         await carregarUsuarios();
         alert("Usuário excluído com sucesso!");
       } catch (error) {
@@ -187,16 +232,22 @@ export default function AdministradorPage() {
 
   const handleAlterarStatus = async (id: string, novoStatus: boolean) => {
     try {
-      const operador = usuarios.find(u => u.id === id);
-      if (!operador) return;
+      const { supabase } = await import("@/lib/supabase");
 
-      const operadorAtualizado: Operador = {
-        ...operador,
-        ativo: novoStatus,
-      };
+      // Atualizar no Supabase
+      const { error } = await supabase
+        .from("operadores")
+        .update({
+          ativo: novoStatus,
+          suspenso: !novoStatus, // Se ativar, remove suspensão; se desativar, suspende
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
 
-      await db.updateOperador(operadorAtualizado);
+      if (error) throw error;
+
       await carregarUsuarios();
+      alert(`Usuário ${novoStatus ? "ativado" : "desativado"} com sucesso!`);
     } catch (error) {
       console.error("Erro ao alterar status:", error);
       alert("Erro ao alterar status do usuário");
