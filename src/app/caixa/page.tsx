@@ -1074,10 +1074,11 @@ export default function CaixaPage() {
         numero: venda.numero,
         operador_id: venda.operadorId,
         operador_nome: venda.operadorNome,
+        itens: carrinho, // Campo obrigatório (NOT NULL)
         total: venda.total,
         forma_pagamento: venda.tipoPagamento,
         status: venda.status,
-        created_at: venda.dataHora.toISOString(),
+        data_hora: venda.dataHora.toISOString(),
       };
 
       console.log("📤 Enviando para Supabase:", dadosVenda);
