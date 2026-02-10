@@ -593,7 +593,7 @@ export class AdminSupabase {
       });
 
       const { error } = await supabase.from("ganhos_admin").insert({
-        id: ganho.id,
+        // id será gerado automaticamente pelo Supabase (gen_random_uuid())
         tipo: ganho.tipo,
         usuario_id: ganho.usuario_id,
         usuario_nome: ganho.usuario_nome,
