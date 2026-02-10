@@ -113,9 +113,20 @@ CREATE POLICY "allow_all_vendas" ON vendas
   USING (true)
   WITH CHECK (true);
 
--- MENSAGENS: Tabela não existe, pular
+-- HISTÓRICO PAGAMENTOS: Criar se não existir e configurar
+CREATE TABLE IF NOT EXISTS historico_pagamentos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  usuario_id UUID REFERENCES operadores(id) ON DELETE CASCADE,
+  tipo TEXT NOT NULL,
+  valor NUMERIC(10,2) NOT NULL,
+  forma_pagamento TEXT NOT NULL,
+  dias_assinatura INTEGER,
+  data_pagamento TIMESTAMP DEFAULT NOW(),
+  created_at TIMESTAMP DEFAULT NOW()
+);
 
--- HISTÓRICO PAGAMENTOS: Permitir tudo
+ALTER TABLE historico_pagamentos ENABLE ROW LEVEL SECURITY;
+
 DROP POLICY IF EXISTS "Usuários podem ver seu histórico" ON historico_pagamentos CASCADE;
 DROP POLICY IF EXISTS "Admins podem ver todo histórico" ON historico_pagamentos CASCADE;
 DROP POLICY IF EXISTS "Admins podem inserir histórico" ON historico_pagamentos CASCADE;
@@ -125,7 +136,19 @@ CREATE POLICY "allow_all_historico" ON historico_pagamentos
   USING (true)
   WITH CHECK (true);
 
--- SOLICITAÇÕES RENOVAÇÃO: Permitir tudo
+-- SOLICITAÇÕES RENOVAÇÃO: Criar se não existir e configurar
+CREATE TABLE IF NOT EXISTS solicitacoes_renovacao (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  operador_id UUID REFERENCES operadores(id) ON DELETE CASCADE,
+  mensagem TEXT NOT NULL,
+  status TEXT DEFAULT 'pendente',
+  resposta_admin TEXT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+ALTER TABLE solicitacoes_renovacao ENABLE ROW LEVEL SECURITY;
+
 DROP POLICY IF EXISTS "Usuários podem ver suas solicitações" ON solicitacoes_renovacao CASCADE;
 DROP POLICY IF EXISTS "Usuários podem criar solicitações" ON solicitacoes_renovacao CASCADE;
 DROP POLICY IF EXISTS "Admins podem ver todas solicitações" ON solicitacoes_renovacao CASCADE;
@@ -136,7 +159,20 @@ CREATE POLICY "allow_all_solicitacoes" ON solicitacoes_renovacao
   USING (true)
   WITH CHECK (true);
 
--- GANHOS ADMIN: Permitir tudo
+-- GANHOS ADMIN: Criar se não existir e configurar
+CREATE TABLE IF NOT EXISTS ganhos_admin (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tipo TEXT NOT NULL,
+  usuario_id UUID REFERENCES operadores(id) ON DELETE SET NULL,
+  usuario_nome TEXT NOT NULL,
+  valor NUMERIC(10,2) NOT NULL,
+  forma_pagamento TEXT NOT NULL,
+  dias_assinatura INTEGER,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+ALTER TABLE ganhos_admin ENABLE ROW LEVEL SECURITY;
+
 DROP POLICY IF EXISTS "Admins podem ver ganhos" ON ganhos_admin CASCADE;
 DROP POLICY IF EXISTS "Admins podem inserir ganhos" ON ganhos_admin CASCADE;
 
