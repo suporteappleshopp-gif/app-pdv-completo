@@ -182,7 +182,7 @@ export class SupabaseSync {
       }
 
       const vendasParaInserir = vendasNovas.map((v) => ({
-        id: v.id,
+        // NÃO passar id - deixar Supabase gerar UUID
         numero: v.numero,
         operador_id: v.operadorId,
         operador_nome: v.operadorNome,
@@ -192,7 +192,11 @@ export class SupabaseSync {
         created_at: v.dataHora instanceof Date ? v.dataHora.toISOString() : new Date(v.dataHora).toISOString(),
       }));
 
-      const { error } = await supabase.from("vendas").insert(vendasParaInserir);
+      // Inserir e retornar os IDs gerados pelo Supabase
+      const { data: vendasInseridas, error } = await supabase
+        .from("vendas")
+        .insert(vendasParaInserir)
+        .select('id, numero');
 
       if (error) {
         console.error("Erro ao sincronizar vendas:", error.message || error.code || "Erro desconhecido");
@@ -201,11 +205,20 @@ export class SupabaseSync {
       }
 
       // Inserir itens das vendas na tabela itens_venda
-      for (const venda of vendasNovas) {
+      // Mapear vendas inseridas pelos números para pegar os IDs corretos
+      for (let i = 0; i < vendasNovas.length; i++) {
+        const venda = vendasNovas[i];
+        const vendaInserida = vendasInseridas?.find(v => v.numero === venda.numero);
+
+        if (!vendaInserida) {
+          console.error("Venda inserida não encontrada:", venda.numero);
+          continue;
+        }
+
         if (venda.itens && venda.itens.length > 0) {
           const itensParaInserir = venda.itens.map((item) => ({
-            id: `item-${Date.now()}-${Math.random()}`,
-            venda_id: venda.id,
+            // NÃO passar id - deixar Supabase gerar UUID
+            venda_id: vendaInserida.id, // Usar ID gerado pelo Supabase
             produto_id: item.produtoId,
             nome: item.nome,
             quantidade: item.quantidade,
@@ -287,8 +300,8 @@ export class SupabaseSync {
    */
   static async addVenda(venda: Venda): Promise<boolean> {
     try {
+      // NÃO passar id - deixar Supabase gerar UUID automaticamente
       const { error } = await supabase.from("vendas").insert({
-        id: venda.id,
         numero: venda.numero,
         operador_id: venda.operadorId,
         operador_nome: venda.operadorNome,
