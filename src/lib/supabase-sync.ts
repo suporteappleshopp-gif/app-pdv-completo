@@ -388,16 +388,15 @@ export class SupabaseSync {
   }): Promise<boolean> {
     try {
       const { error } = await supabase.from("avarias").insert({
-        id: avaria.id,
         user_id: avaria.userId,
-        venda_id: avaria.vendaId,
-        produto_id: avaria.produtoId,
+        venda_id: avaria.vendaId || null,
+        produto_id: avaria.produtoId || null,
         produto_nome: avaria.produtoNome,
         quantidade: avaria.quantidade,
         valor_unitario: avaria.valorUnitario,
         valor_total: avaria.valorTotal,
         motivo: avaria.motivo,
-        observacoes: avaria.observacoes,
+        observacoes: avaria.observacoes || null,
       });
 
       if (error) {

@@ -213,9 +213,10 @@ export default function FinanceiroPage() {
             table: "avarias",
             filter: `user_id=eq.${operadorId}`,
           },
-          (payload) => {
+          async (payload) => {
             console.log("🔔 Nova avaria detectada!", payload);
-            carregarAvarias();
+            await carregarAvarias();
+            await calcularGanhos(); // Recalcular ganhos após nova avaria
           }
         )
         .subscribe((status, err) => {
@@ -318,18 +319,6 @@ export default function FinanceiroPage() {
       // 🔥 CARREGAR PAGAMENTOS DO SUPABASE + SOLICITAÇÕES DE RENOVAÇÃO
       const { supabase } = await import("@/lib/supabase");
 
-      // Carregar histórico de pagamentos (pagos e pendentes)
-      const { data: pagamentosSupabase, error: errorPagamentos } = await supabase
-        .from("historico_pagamentos")
-        .select("*")
-        .eq("usuario_id", operador.id)
-        .in("status", ["pago", "pendente"])
-        .order("created_at", { ascending: false });
-
-      if (errorPagamentos) {
-        console.error("⚠️ Erro ao carregar histórico de pagamentos:", errorPagamentos);
-      }
-
       // ✅ CARREGAR SOLICITAÇÕES DE RENOVAÇÃO (para mostrar no extrato)
       const { data: solicitacoesRenovacao, error: errorSolicitacoes } = await supabase
         .from("solicitacoes_renovacao")
@@ -341,35 +330,9 @@ export default function FinanceiroPage() {
         console.error("⚠️ Erro ao carregar solicitações de renovação:", errorSolicitacoes);
       }
 
-      // Converter pagamentos do Supabase para o formato local
-      const pagamentosSupabaseFormatados: Pagamento[] = (pagamentosSupabase || []).map((pag) => ({
-        id: pag.id,
-        usuarioId: pag.usuario_id,
-        mesReferencia: pag.mes_referencia,
-        valor: parseFloat(pag.valor.toString()),
-        dataVencimento: pag.data_vencimento ? new Date(pag.data_vencimento) : new Date(),
-        dataPagamento: pag.data_pagamento ? new Date(pag.data_pagamento) : null,
-        status: pag.status as "pendente" | "pago" | "vencido" | "cancelado",
-        formaPagamento: pag.forma_pagamento as "pix" | "cartao",
-        diasComprados: pag.dias_comprados,
-        tipoCompra: pag.tipo_compra,
-        observacao_admin: pag.observacao_admin,
-        aprovado_por: pag.aprovado_por,
-        data_aprovacao: pag.data_aprovacao ? new Date(pag.data_aprovacao) : undefined,
-      }));
-
       // ✅ CONVERTER SOLICITAÇÕES DE RENOVAÇÃO PARA FORMATO DE PAGAMENTO
-      // ⚠️ IMPORTANTE: Apenas incluir solicitações PENDENTES ou RECUSADAS
-      // Solicitações aprovadas já viram registros no historico_pagamentos
+      // Incluir TODAS as solicitações (pendentes, aprovadas, recusadas)
       const solicitacoesFormatadas: Pagamento[] = (solicitacoesRenovacao || [])
-        .filter((sol) => {
-          // NÃO incluir solicitações aprovadas (elas já estão no historico_pagamentos)
-          if (sol.status === "aprovado") {
-            console.log(`⏭️ Pulando solicitação aprovada ${sol.id} (já está no histórico)`);
-            return false;
-          }
-          return true;
-        })
         .map((sol) => {
           // Converter status: "recusado" → "cancelado", "pendente" → "pendente"
           let statusConvertido: "pendente" | "pago" | "vencido" | "cancelado" = "pendente";
@@ -394,14 +357,9 @@ export default function FinanceiroPage() {
       // Carregar pagamentos do IndexedDB
       const pagamentosIndexedDB = await db.getPagamentosByUsuario(operador.id);
 
-      // Mesclar: usar Set para evitar duplicatas
-      const idsSupabase = new Set(pagamentosSupabaseFormatados.map((p) => p.id));
-      const pagamentosUnicos = pagamentosIndexedDB.filter((p) => !idsSupabase.has(p.id));
-
-      // ✅ MESCLAR TUDO: Pagamentos do Supabase + IndexedDB + Solicitações de Renovação
+      // ✅ MESCLAR TUDO: Pagamentos do IndexedDB + Solicitações de Renovação
       const todosPagamentos = [
-        ...pagamentosSupabaseFormatados,
-        ...pagamentosUnicos,
+        ...pagamentosIndexedDB,
         ...solicitacoesFormatadas, // ✅ Incluir solicitações no extrato
       ];
 
@@ -421,8 +379,7 @@ export default function FinanceiroPage() {
       const totalPendentes = todosPagamentos.filter(p => p.status === "pendente").length;
 
       console.log(`📊 Total de pagamentos carregados: ${todosPagamentos.length}`);
-      console.log(`   - ${pagamentosSupabaseFormatados.length} do histórico (Supabase)`);
-      console.log(`   - ${pagamentosUnicos.length} do IndexedDB`);
+      console.log(`   - ${pagamentosIndexedDB.length} do IndexedDB`);
       console.log(`   - ${solicitacoesFormatadas.length} solicitações de renovação`);
       console.log(`   - ${totalPendentes} PENDENTES no topo`);
 
