@@ -306,7 +306,12 @@ export class AuthSupabase {
         }
       }
 
-      // PRIMEIRO: Tentar buscar do localStorage (login direto - mais rápido)
+      // 🔥 SEMPRE BUSCAR DO SUPABASE - NUNCA USAR LOCALSTORAGE
+      // Isso garante que os dados estejam sempre atualizados em tempo real
+      // quando o admin aprovar pagamentos ou alterar status do operador
+
+      // Verificar se há email salvo no localStorage (apenas para pegar o ID)
+      let emailParaBuscar: string | null = null;
       if (typeof window !== 'undefined') {
         const sessionStr = localStorage.getItem('operador_session');
         if (sessionStr) {
@@ -314,16 +319,11 @@ export class AuthSupabase {
             const operador = JSON.parse(sessionStr);
             // 🔒 CRÍTICO: Se operador no localStorage é admin, NÃO usar
             if (operador.isAdmin === true) {
-              console.warn("⚠️ Admin encontrado no localStorage - IGNORANDO e buscando do Supabase");
+              console.warn("⚠️ Admin encontrado no localStorage - IGNORANDO");
               localStorage.removeItem('operador_session');
             } else {
-              console.log("✅ Operador encontrado no localStorage:", operador.email);
-              return {
-                ...operador,
-                createdAt: new Date(operador.createdAt),
-                dataProximoVencimento: operador.dataProximoVencimento ? new Date(operador.dataProximoVencimento) : undefined,
-                dataPagamento: operador.dataPagamento ? new Date(operador.dataPagamento) : undefined,
-              };
+              emailParaBuscar = operador.email;
+              console.log("📧 Email do localStorage:", emailParaBuscar, "- buscando dados atualizados do Supabase");
             }
           } catch (e) {
             console.warn("⚠️ Erro ao parsear sessão do localStorage:", e);
@@ -331,7 +331,7 @@ export class AuthSupabase {
         }
       }
 
-      // SEGUNDO: Tentar buscar do Supabase Auth
+      // PRIMEIRO: Tentar buscar do Supabase Auth
       const { data: { user } } = await supabase.auth.getUser();
 
       if (user) {
@@ -388,33 +388,59 @@ export class AuthSupabase {
           console.log("⚠️ Campos extras não disponíveis");
         }
 
+        // 🔄 Atualizar localStorage com dados mais recentes do Supabase
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('operador_session', JSON.stringify(operador));
+          console.log("💾 localStorage atualizado com dados do Supabase");
+        }
+
         return operador;
       }
 
-      console.warn("⚠️ Nenhum usuário Auth encontrado");
-      return null;
-    } catch (error) {
-      console.error("❌ Erro ao buscar operador:", error);
+      // Auth não encontrado - tentar buscar por email do localStorage
+      if (emailParaBuscar) {
+        console.log("🔍 Tentando buscar operador por email:", emailParaBuscar);
 
-      // Fallback final: tentar localStorage novamente
-      if (typeof window !== 'undefined') {
-        const sessionStr = localStorage.getItem('operador_session');
-        if (sessionStr) {
-          try {
-            const operador = JSON.parse(sessionStr);
-            console.log("✅ Usando sessão do localStorage como fallback:", operador.email);
-            return {
-              ...operador,
-              createdAt: new Date(operador.createdAt),
-              dataProximoVencimento: operador.dataProximoVencimento ? new Date(operador.dataProximoVencimento) : undefined,
-              dataPagamento: operador.dataPagamento ? new Date(operador.dataPagamento) : undefined,
-            };
-          } catch (e) {
-            console.error("❌ Erro ao usar fallback do localStorage:", e);
+        const { data: operadorData, error } = await supabase
+          .from("operadores")
+          .select("*")
+          .eq("email", emailParaBuscar)
+          .single();
+
+        if (!error && operadorData) {
+          console.log("✅ Operador encontrado por email:", operadorData.email);
+
+          const operador: Operador = {
+            id: operadorData.id,
+            nome: operadorData.nome,
+            email: operadorData.email,
+            senha: "",
+            isAdmin: operadorData.is_admin || false,
+            ativo: operadorData.ativo || false,
+            suspenso: operadorData.suspenso || false,
+            aguardandoPagamento: operadorData.aguardando_pagamento || false,
+            createdAt: new Date(operadorData.created_at),
+            formaPagamento: operadorData.forma_pagamento || undefined,
+            valorMensal: operadorData.valor_mensal || undefined,
+            dataProximoVencimento: operadorData.data_proximo_vencimento ? new Date(operadorData.data_proximo_vencimento) : undefined,
+            diasAssinatura: operadorData.dias_assinatura || undefined,
+            dataPagamento: operadorData.data_pagamento ? new Date(operadorData.data_pagamento) : undefined,
+          };
+
+          // 🔄 Atualizar localStorage com dados mais recentes do Supabase
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('operador_session', JSON.stringify(operador));
+            console.log("💾 localStorage atualizado com dados do Supabase");
           }
+
+          return operador;
         }
       }
 
+      console.warn("⚠️ Nenhum usuário encontrado");
+      return null;
+    } catch (error) {
+      console.error("❌ Erro ao buscar operador:", error);
       return null;
     }
   }
