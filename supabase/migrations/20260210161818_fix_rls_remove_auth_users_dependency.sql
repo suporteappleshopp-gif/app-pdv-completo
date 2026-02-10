@@ -113,10 +113,10 @@ CREATE POLICY "allow_all_vendas" ON vendas
   USING (true)
   WITH CHECK (true);
 
--- HISTÓRICO PAGAMENTOS: Criar se não existir e configurar
+-- HISTÓRICO PAGAMENTOS: Criar se não existir (SEM foreign key para evitar conflito de tipo)
 CREATE TABLE IF NOT EXISTS historico_pagamentos (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  usuario_id UUID REFERENCES operadores(id) ON DELETE CASCADE,
+  usuario_id TEXT NOT NULL,
   tipo TEXT NOT NULL,
   valor NUMERIC(10,2) NOT NULL,
   forma_pagamento TEXT NOT NULL,
@@ -136,10 +136,10 @@ CREATE POLICY "allow_all_historico" ON historico_pagamentos
   USING (true)
   WITH CHECK (true);
 
--- SOLICITAÇÕES RENOVAÇÃO: Criar se não existir e configurar
+-- SOLICITAÇÕES RENOVAÇÃO: Criar se não existir (SEM foreign key)
 CREATE TABLE IF NOT EXISTS solicitacoes_renovacao (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  operador_id UUID REFERENCES operadores(id) ON DELETE CASCADE,
+  operador_id TEXT NOT NULL,
   mensagem TEXT NOT NULL,
   status TEXT DEFAULT 'pendente',
   resposta_admin TEXT,
@@ -159,11 +159,11 @@ CREATE POLICY "allow_all_solicitacoes" ON solicitacoes_renovacao
   USING (true)
   WITH CHECK (true);
 
--- GANHOS ADMIN: Criar se não existir e configurar
+-- GANHOS ADMIN: Criar se não existir (SEM foreign key)
 CREATE TABLE IF NOT EXISTS ganhos_admin (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tipo TEXT NOT NULL,
-  usuario_id UUID REFERENCES operadores(id) ON DELETE SET NULL,
+  usuario_id TEXT,
   usuario_nome TEXT NOT NULL,
   valor NUMERIC(10,2) NOT NULL,
   forma_pagamento TEXT NOT NULL,
