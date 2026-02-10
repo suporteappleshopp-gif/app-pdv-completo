@@ -197,7 +197,7 @@ export default function ExtratoPagamentosPage() {
       case "pendente":
         return "Aguardando Aprovação";
       case "aprovado":
-        return "Aprovado";
+        return "Pago";
       case "recusado":
         return "Recusado";
       default:
@@ -269,6 +269,22 @@ export default function ExtratoPagamentosPage() {
             <CreditCard className="w-5 h-5" />
             <span>Solicitar Renovação</span>
           </button>
+        </div>
+
+        {/* Total de Dias Comprados */}
+        <div className="bg-white rounded-2xl shadow-2xl p-6 mb-6">
+          <div className="text-center">
+            <div className="bg-gradient-to-r from-green-500 to-emerald-600 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Calendar className="w-10 h-10 text-white" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-700 mb-2">Total de Dias Comprados</h2>
+            <p className="text-5xl font-bold text-green-600 mb-2">
+              {solicitacoes
+                .filter((s) => s.status === "aprovado")
+                .reduce((acc, s) => acc + s.dias_solicitados, 0)}
+            </p>
+            <p className="text-gray-600 text-sm">dias de acesso aprovados</p>
+          </div>
         </div>
 
         {/* Solicitações Pendentes em Destaque */}
