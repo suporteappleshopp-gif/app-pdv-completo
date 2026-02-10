@@ -1,10 +1,16 @@
--- =====================================================
--- 🚀 CORREÇÃO FINAL - COPIE TODO ESTE CÓDIGO
--- =====================================================
--- Acesse: https://supabase.com/dashboard/project/yzjrkcampafzfjwtatfa/sql
--- Cole TODO este código e clique em "RUN"
--- =====================================================
+import { Client } from 'pg';
 
+async function executarSQL() {
+  const client = new Client({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+  });
+
+  try {
+    await client.connect();
+    console.log('✅ Conectado ao PostgreSQL!\n');
+
+    const sql = `
 -- 1. REMOVER TRIGGER QUE CAUSA ERRO
 DROP TRIGGER IF EXISTS trigger_criar_operador ON auth.users;
 DROP FUNCTION IF EXISTS criar_operador_automatico() CASCADE;
@@ -59,5 +65,34 @@ GRANT ALL ON vendas TO anon, authenticated;
 GRANT ALL ON solicitacoes_renovacao TO anon, authenticated;
 GRANT ALL ON ganhos_admin TO anon, authenticated;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
+`;
 
--- ✅ PRONTO!
+    console.log('🚀 Executando SQL de correção...\n');
+    await client.query(sql);
+    console.log('✅ SQL executado com sucesso!\n');
+
+    // Testar cadastro
+    console.log('🧪 Testando cadastro de usuário...\n');
+    const emailTeste = `teste${Date.now()}@exemplo.com`;
+
+    const result = await client.query(`
+      INSERT INTO operadores (email, nome, senha, is_admin, ativo, suspenso, aguardando_pagamento, forma_pagamento, valor_mensal, dias_assinatura)
+      VALUES ($1, $2, $3, false, false, true, true, 'pix', 59.90, 60)
+      RETURNING id, email, nome, suspenso, aguardando_pagamento;
+    `, [emailTeste, 'Teste', 'senha123']);
+
+    console.log('✅ CADASTRO FUNCIONOU!');
+    console.log('Operador criado:', result.rows[0]);
+    console.log('\n🎉 O sistema está pronto para receber cadastros!');
+
+  } catch (error: any) {
+    console.error('❌ Erro:', error.message);
+    if (error.code) {
+      console.error('Código:', error.code);
+    }
+  } finally {
+    await client.end();
+  }
+}
+
+executarSQL();
