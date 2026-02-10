@@ -31,13 +31,71 @@ export default function ExtratoPagamentosPage() {
 
   useEffect(() => {
     const init = async () => {
+      // 🔥 FORÇAR BUSCA ATUALIZADA DO SUPABASE
+      // Limpar cache do localStorage para garantir dados atualizados
+      console.log("🔄 [Extrato] Forçando atualização dos dados do Supabase...");
+
       const { AuthSupabase } = await import("@/lib/auth-supabase");
-      const operador = await AuthSupabase.getCurrentOperador();
+      const { supabase } = await import("@/lib/supabase");
+
+      // Buscar operador atual diretamente do Supabase (ignora localStorage)
+      const { data: { user } } = await supabase.auth.getUser();
+
+      let operador = null;
+
+      if (user) {
+        // Buscar por auth_user_id
+        console.log("🔍 [Extrato] Usuário Auth encontrado:", user.id);
+        const { data: opData } = await supabase
+          .from("operadores")
+          .select("*")
+          .eq("auth_user_id", user.id)
+          .single();
+
+        if (opData) {
+          operador = {
+            id: opData.id,
+            nome: opData.nome,
+            email: opData.email,
+            isAdmin: opData.is_admin || false,
+          };
+        }
+      } else {
+        // Fallback: tentar pegar email do localStorage e buscar no banco
+        const sessionStr = localStorage.getItem('operador_session');
+        if (sessionStr) {
+          const session = JSON.parse(sessionStr);
+          console.log("🔍 [Extrato] Buscando por email:", session.email);
+          const { data: opData } = await supabase
+            .from("operadores")
+            .select("*")
+            .eq("email", session.email)
+            .single();
+
+          if (opData) {
+            operador = {
+              id: opData.id,
+              nome: opData.nome,
+              email: opData.email,
+              isAdmin: opData.is_admin || false,
+            };
+          }
+        }
+      }
+
+      console.log("🔍 [Extrato] Operador carregado:", operador);
 
       if (!operador || operador.isAdmin) {
+        console.warn("⚠️ [Extrato] Operador não encontrado ou é admin - redirecionando");
         router.push("/");
         return;
       }
+
+      console.log("✅ [Extrato] Operador válido:", {
+        id: operador.id,
+        nome: operador.nome,
+        email: operador.email,
+      });
 
       setOperadorId(operador.id);
       setOperadorNome(operador.nome);
@@ -50,6 +108,7 @@ export default function ExtratoPagamentosPage() {
   const carregarSolicitacoes = async (opId: string) => {
     try {
       setLoading(true);
+      console.log("📥 [Extrato] Carregando solicitações para operador ID:", opId);
       const { supabase } = await import("@/lib/supabase");
 
       const { data, error } = await supabase
@@ -59,9 +118,13 @@ export default function ExtratoPagamentosPage() {
         .order("data_solicitacao", { ascending: false });
 
       if (error) {
-        console.error("Erro ao carregar solicitações:", error);
+        console.error("❌ [Extrato] Erro ao carregar solicitações:", error);
+        console.error("   Código:", error.code);
+        console.error("   Mensagem:", error.message);
         return;
       }
+
+      console.log("📊 [Extrato] Query retornou:", data?.length || 0, "solicitações");
 
       // ✅ SEMPRE MANTER PENDENTES NO TOPO (até aprovação/recusa do admin)
       const ordenadas = (data || []).sort((a, b) => {
