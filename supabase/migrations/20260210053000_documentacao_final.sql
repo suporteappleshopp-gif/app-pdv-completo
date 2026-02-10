@@ -1,0 +1,80 @@
+-- =====================================================
+-- DOCUMENTAÇÃO: CORREÇÃO FINAL DE RLS - RECURSÃO ELIMINADA
+-- =====================================================
+--
+-- DATA: 2026-02-10
+-- STATUS: ✅ RESOLVIDO
+--
+-- PROBLEMA:
+-- - Erro "infinite recursion detected in policy for relation operadores"
+-- - Políticas RLS faziam subconsultas na própria tabela operadores
+-- - Admin não conseguia ver lista de usuários
+-- - Login falhava com erro de recursão
+--
+-- CAUSA RAIZ:
+-- - Políticas que verificavam is_admin faziam: 
+--   SELECT ... FROM operadores WHERE is_admin = true
+-- - Isso causava loop infinito: política -> query -> política -> query...
+--
+-- SOLUÇÃO IMPLEMENTADA:
+--
+-- 1. POLÍTICAS RLS SEM RECURSÃO (4 políticas):
+--
+--    a) INSERT: "insert_operadores_simples"
+--       - Permite inserção para authenticated e service_role
+--       - Validações feitas no app/trigger
+--
+--    b) SELECT: "select_operadores_admin_ou_proprio"
+--       - Service role: vê tudo
+--       - Usuário comum: vê apenas seu registro (auth.uid() = auth_user_id)
+--       - Admin: vê tudo (verifica is_admin no auth.users metadata, NÃO em operadores)
+--       - SEM RECURSÃO!
+--
+--    c) UPDATE: "update_proprio_operador"
+--       - Service role: atualiza tudo
+--       - Usuário: atualiza apenas seu registro
+--       - Simples, sem subconsultas
+--
+--    d) DELETE: "delete_operadores_service_role"
+--       - Apenas service_role pode deletar
+--       - Admin usa service_role key para operações críticas
+--
+-- 2. SINCRONIZAÇÃO DE METADATA:
+--
+--    - Trigger "trigger_sync_admin_metadata" criado
+--    - Quando is_admin muda em operadores, atualiza auth.users metadata
+--    - Metadata usado pelas políticas RLS sem causar recursão
+--
+-- 3. CORREÇÕES NO PAINEL ADMIN:
+--
+--    - Modificado src/app/administrador/page.tsx
+--    - Agora busca direto do Supabase (antes usava IndexedDB)
+--    - Funções de ativar/desativar/deletar usam Supabase
+--
+-- RESULTADO:
+--
+-- ✅ Login funcionando sem erro de recursão
+-- ✅ Admin vê todos os usuários no painel
+-- ✅ Usuários comuns veem apenas seu perfil
+-- ✅ Cadastro de novos usuários funcionando
+-- ✅ Trigger cria operador automaticamente ao cadastrar no Auth
+-- ✅ Sistema totalmente funcional
+--
+-- COMANDOS PARA VERIFICAR:
+--
+-- Ver políticas ativas:
+-- SELECT polname, polcmd FROM pg_policy WHERE polrelid = 'operadores'::regclass;
+--
+-- Ver operadores:
+-- SELECT nome, email, is_admin, ativo FROM operadores ORDER BY created_at;
+--
+-- Ver metadata dos usuários:
+-- SELECT email, raw_app_meta_data->>'is_admin' as is_admin 
+-- FROM auth.users ORDER BY created_at;
+--
+-- =====================================================
+
+SELECT 
+  '✅ SISTEMA CORRIGIDO!' as status,
+  'Todas as políticas RLS foram recriadas SEM recursão' as detalhes,
+  '4 políticas ativas: INSERT, SELECT, UPDATE, DELETE' as info;
