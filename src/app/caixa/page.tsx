@@ -1069,8 +1069,8 @@ export default function CaixaPage() {
 
       const { supabase } = await import("@/lib/supabase");
 
+      // NÃO passar id - deixar Supabase gerar UUID automaticamente
       const dadosVenda = {
-        id: venda.id,
         numero: venda.numero,
         operador_id: venda.operadorId,
         operador_nome: venda.operadorNome,
@@ -1085,7 +1085,8 @@ export default function CaixaPage() {
       const { data: vendaInserida, error: errorVenda } = await supabase
         .from("vendas")
         .insert(dadosVenda)
-        .select();
+        .select()
+        .single(); // Retornar a venda inserida com o ID gerado
 
       if (errorVenda) {
         console.error("❌ ERRO ao salvar venda no Supabase:");
@@ -1100,30 +1101,37 @@ export default function CaixaPage() {
 
       // 🔥 SALVAR ITENS DA VENDA NO SUPABASE
       console.log("☁️ Salvando itens da venda no Supabase...");
-      const itensParaInserir = carrinho.map((item) => ({
-        id: `item-${Date.now()}-${Math.random()}`,
-        venda_id: venda.id,
-        produto_id: item.produtoId,
-        nome: item.nome,
-        quantidade: item.quantidade,
-        preco_unitario: item.precoUnitario,
-        subtotal: item.subtotal,
-      }));
 
-      console.log(`   Inserindo ${itensParaInserir.length} itens...`);
-
-      const { data: itensInseridos, error: errorItens } = await supabase
-        .from("itens_venda")
-        .insert(itensParaInserir)
-        .select();
-
-      if (errorItens) {
-        console.error("❌ ERRO ao salvar itens da venda:");
-        console.error("   Mensagem:", errorItens.message);
-        console.error("   Código:", errorItens.code);
+      if (!vendaInserida || !vendaInserida.id) {
+        console.error("❌ Venda não foi inserida corretamente - não há ID para vincular itens");
       } else {
-        console.log("✅ Itens da venda salvos no Supabase!");
-        console.log("   Total inserido:", itensInseridos?.length || 0);
+        // NÃO passar id - deixar Supabase gerar UUID automaticamente
+        // Usar o ID da venda gerado pelo Supabase
+        const itensParaInserir = carrinho.map((item) => ({
+          venda_id: vendaInserida.id, // Usar ID gerado pelo Supabase
+          produto_id: item.produtoId,
+          nome: item.nome,
+          quantidade: item.quantidade,
+          preco_unitario: item.precoUnitario,
+          subtotal: item.subtotal,
+        }));
+
+        console.log(`   Inserindo ${itensParaInserir.length} itens...`);
+        console.log(`   Venda ID (Supabase): ${vendaInserida.id}`);
+
+        const { data: itensInseridos, error: errorItens } = await supabase
+          .from("itens_venda")
+          .insert(itensParaInserir)
+          .select();
+
+        if (errorItens) {
+          console.error("❌ ERRO ao salvar itens da venda:");
+          console.error("   Mensagem:", errorItens.message);
+          console.error("   Código:", errorItens.code);
+        } else {
+          console.log("✅ Itens da venda salvos no Supabase!");
+          console.log("   Total inserido:", itensInseridos?.length || 0);
+        }
       }
 
       // Atualizar estoque - produtos saem automaticamente
