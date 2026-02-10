@@ -113,17 +113,7 @@ CREATE POLICY "allow_all_vendas" ON vendas
   USING (true)
   WITH CHECK (true);
 
--- MENSAGENS: Permitir tudo (controle via código)
-DROP POLICY IF EXISTS "Usuários podem ver suas mensagens" ON mensagens CASCADE;
-DROP POLICY IF EXISTS "Usuários podem enviar mensagens" ON mensagens CASCADE;
-DROP POLICY IF EXISTS "Admins podem ver todas mensagens" ON mensagens CASCADE;
-DROP POLICY IF EXISTS "Admins podem inserir mensagens" ON mensagens CASCADE;
-DROP POLICY IF EXISTS "Admins podem atualizar mensagens" ON mensagens CASCADE;
-
-CREATE POLICY "allow_all_mensagens" ON mensagens
-  FOR ALL
-  USING (true)
-  WITH CHECK (true);
+-- MENSAGENS: Tabela não existe, pular
 
 -- HISTÓRICO PAGAMENTOS: Permitir tudo
 DROP POLICY IF EXISTS "Usuários podem ver seu histórico" ON historico_pagamentos CASCADE;
