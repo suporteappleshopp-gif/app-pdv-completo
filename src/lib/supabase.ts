@@ -1,32 +1,30 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // 🔥 CRÍTICO: Buscar variáveis em RUNTIME para funcionar em produção
-// Next.js injeta essas variáveis no bundle quando começam com NEXT_PUBLIC_
+// Vite expõe variáveis com prefixo VITE_ via import.meta.env
 const getSupabaseUrl = () => {
-  // Tentar process.env primeiro (build time)
-  if (typeof process !== 'undefined') {
-    const fromEnv = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-    if (fromEnv) return fromEnv;
+  // Vite: usar import.meta.env (SEMPRE disponível no navegador)
+  if (typeof window !== 'undefined' && import.meta.env.VITE_SUPABASE_URL) {
+    return import.meta.env.VITE_SUPABASE_URL as string;
   }
 
-  // Fallback: tentar window.__env__ (runtime injection)
-  if (typeof window !== 'undefined' && (window as any).__env__?.SUPABASE_URL) {
-    return (window as any).__env__.SUPABASE_URL;
+  // Fallback: tentar process.env para scripts Node.js
+  if (typeof process !== 'undefined' && process.env.VITE_SUPABASE_URL) {
+    return process.env.VITE_SUPABASE_URL;
   }
 
   return '';
 };
 
 const getSupabaseKey = () => {
-  // Tentar process.env primeiro (build time)
-  if (typeof process !== 'undefined') {
-    const fromEnv = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-    if (fromEnv) return fromEnv;
+  // Vite: usar import.meta.env (SEMPRE disponível no navegador)
+  if (typeof window !== 'undefined' && import.meta.env.VITE_SUPABASE_ANON_KEY) {
+    return import.meta.env.VITE_SUPABASE_ANON_KEY as string;
   }
 
-  // Fallback: tentar window.__env__ (runtime injection)
-  if (typeof window !== 'undefined' && (window as any).__env__?.SUPABASE_KEY) {
-    return (window as any).__env__.SUPABASE_KEY;
+  // Fallback: tentar process.env para scripts Node.js
+  if (typeof process !== 'undefined' && process.env.VITE_SUPABASE_ANON_KEY) {
+    return process.env.VITE_SUPABASE_ANON_KEY;
   }
 
   return '';
