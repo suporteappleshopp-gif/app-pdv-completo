@@ -30,6 +30,7 @@ export default function LoginPage() {
   });
   const [mostrarPagamento, setMostrarPagamento] = useState(false);
   const [cadastroSucesso, setCadastroSucesso] = useState(false);
+  const [loadingCadastro, setLoadingCadastro] = useState(false);
 
   const ADMIN_EMAIL = "diegomarqueshm@icloud.com";
   const ADMIN_PASSWORD = "Sedexdez@1";
@@ -326,10 +327,12 @@ export default function LoginPage() {
 
   const handleCadastrar = async () => {
     setError("");
+    setLoadingCadastro(true);
 
     // Validações
     if (!novoCadastro.email.trim()) {
       setError("Digite seu email");
+      setLoadingCadastro(false);
       return;
     }
 
@@ -337,16 +340,19 @@ export default function LoginPage() {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(novoCadastro.email.trim())) {
       setError("Digite um email válido");
+      setLoadingCadastro(false);
       return;
     }
 
     if (novoCadastro.senha.length < 6) {
       setError("A senha deve ter no mínimo 6 caracteres");
+      setLoadingCadastro(false);
       return;
     }
 
     if (novoCadastro.senha !== novoCadastro.confirmarSenha) {
       setError("As senhas não coincidem");
+      setLoadingCadastro(false);
       return;
     }
 
@@ -375,6 +381,7 @@ export default function LoginPage() {
 
       if (emailExistente) {
         setError("Este email já está cadastrado. Tente fazer login.");
+        setLoadingCadastro(false);
         return;
       }
 
@@ -422,6 +429,7 @@ export default function LoginPage() {
 
         if (insertError) {
           setError("Erro ao criar cadastro: " + insertError.message);
+          setLoadingCadastro(false);
           return;
         }
 
@@ -502,9 +510,11 @@ export default function LoginPage() {
       // Mostrar tela de pagamento
       setMostrarPagamento(true);
       setCadastroSucesso(true);
+      setLoadingCadastro(false);
     } catch (err) {
       console.error("Erro ao cadastrar:", err);
       setError("Erro ao criar cadastro. Tente novamente.");
+      setLoadingCadastro(false);
     }
   };
 
@@ -766,10 +776,20 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white py-3 rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
+              disabled={loadingCadastro}
+              className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white py-3 rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <UserPlus className="w-5 h-5" />
-              <span>Criar Conta</span>
+              {loadingCadastro ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Criando conta...</span>
+                </>
+              ) : (
+                <>
+                  <UserPlus className="w-5 h-5" />
+                  <span>Criar Conta</span>
+                </>
+              )}
             </button>
           </form>
 
