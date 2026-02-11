@@ -55,14 +55,16 @@ CREATE POLICY "public_delete_itens_venda" ON public.itens_venda
 GRANT ALL ON public.itens_venda TO anon, authenticated;
   `;
 
-  const { error } = await supabase.rpc('exec_sql', { sql }).catch(async () => {
+  try {
+    const { error } = await supabase.rpc('exec_sql', { sql });
+
+    if (error) {
+      console.error('❌ Erro:', error.message);
+      return;
+    }
+  } catch (err) {
     // Fallback: executar queries separadamente
     console.log('⚠️ RPC não disponível, executando queries diretas...');
-    return { error: null };
-  });
-
-  if (error) {
-    console.error('❌ Erro:', error.message);
     return;
   }
 

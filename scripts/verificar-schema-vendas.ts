@@ -26,7 +26,7 @@ async function verificarSchema() {
     `);
 
     console.log('\n📋 COLUNAS DA TABELA vendas:\n');
-    result.rows.forEach((col, i) => {
+    result.rows.forEach((col: any, i: number) => {
       const nullable = col.is_nullable === 'YES' ? '✅ NULLABLE' : '❌ NOT NULL';
       console.log(`   [${i + 1}] ${col.column_name}`);
       console.log(`       Tipo: ${col.data_type}`);

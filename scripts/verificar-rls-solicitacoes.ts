@@ -24,29 +24,36 @@ async function verificarRLS() {
   console.log('   Existe:', tables && tables.length > 0 ? 'Sim' : 'Não');
 
   // Buscar políticas RLS
-  const { data: policies, error: policiesError } = await supabase.rpc('exec_sql', {
-    sql: `
-      SELECT
-        schemaname,
-        tablename,
-        policyname,
-        permissive,
-        roles,
-        cmd,
-        qual,
-        with_check
-      FROM pg_policies
-      WHERE tablename = 'solicitacoes_renovacao'
-      ORDER BY policyname;
-    `
-  }).catch(async () => {
+  let policies = null;
+  let policiesError = null;
+
+  try {
+    const result = await supabase.rpc('exec_sql', {
+      sql: `
+        SELECT
+          schemaname,
+          tablename,
+          policyname,
+          permissive,
+          roles,
+          cmd,
+          qual,
+          with_check
+        FROM pg_policies
+        WHERE tablename = 'solicitacoes_renovacao'
+        ORDER BY policyname;
+      `
+    });
+    policies = result.data;
+    policiesError = result.error;
+  } catch (err) {
     // Alternativa se rpc não funcionar
     const { data, error } = await supabase
       .from('information_schema.table_privileges')
       .select('*');
-
-    return { data, error };
-  });
+    policies = data;
+    policiesError = error;
+  }
 
   console.log('\n🔐 POLÍTICAS RLS:');
   if (policies) {
