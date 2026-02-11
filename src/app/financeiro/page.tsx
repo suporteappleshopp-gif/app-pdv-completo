@@ -134,16 +134,22 @@ export default function FinanceiroPage() {
   // ✅ Hook separado para sincronização em tempo real de vendas (análise de ganhos)
   useEffect(() => {
     let channelVendasGanhos: any = null;
+    let intervaloFallback: NodeJS.Timeout | null = null;
 
     const setupRealtimeGanhos = async () => {
-      if (!operadorId) return;
+      if (!operadorId) {
+        console.log("⚠️ operadorId não definido ainda, aguardando...");
+        return;
+      }
 
       const { supabase } = await import("@/lib/supabase");
 
       // Canal específico para atualizar ganhos em tempo real
       const channelName = `vendas_ganhos_${operadorId}_${Date.now()}`;
-      console.log("🔧 Configurando realtime para ganhos. Canal:", channelName);
-      console.log("🔧 Filtro:", `operador_id=eq.${operadorId}`);
+      console.log("🔧 Configurando realtime para ganhos:");
+      console.log(`   - Canal: ${channelName}`);
+      console.log(`   - Operador ID: ${operadorId}`);
+      console.log(`   - Filtro: operador_id=eq.${operadorId}`);
 
       channelVendasGanhos = supabase
         .channel(channelName)
@@ -155,16 +161,20 @@ export default function FinanceiroPage() {
             table: "vendas",
             filter: `operador_id=eq.${operadorId}`,
           },
-          (payload) => {
-            console.log("🔔 Nova venda detectada! Atualizando ganhos...", payload);
-            calcularGanhos(); // Recalcular ganhos automaticamente
+          (payload: any) => {
+            console.log("🔔 EVENTO DETECTADO NA TABELA VENDAS!");
+            console.log(`   - Tipo: ${payload.eventType}`);
+            console.log(`   - Venda ID: ${payload.new?.id || payload.old?.id}`);
+            console.log("   - Recalculando ganhos...");
+            calcularGanhos();
           }
         )
         .subscribe((status, err) => {
           if (status === "SUBSCRIBED") {
             console.log("✅ Realtime CONECTADO para análise de ganhos");
+            console.log(`   - Escutando mudanças em vendas do operador ${operadorId}`);
           } else if (status === "CLOSED") {
-            console.warn("⚠️ Realtime FECHADO");
+            console.warn("⚠️ Realtime FECHADO - tentando reconectar...");
           } else if (status === "CHANNEL_ERROR") {
             console.error("❌ Erro no canal realtime:", err);
           }
@@ -173,15 +183,19 @@ export default function FinanceiroPage() {
 
     setupRealtimeGanhos();
 
-    // ✅ FALLBACK: Atualizar a cada 15 segundos caso realtime não funcione
-    const intervaloFallback = setInterval(() => {
-      console.log("🔄 Atualizando ganhos (polling)...");
-      calcularGanhos();
-    }, 15000);
+    // ✅ FALLBACK: Atualizar a cada 10 segundos caso realtime não funcione
+    intervaloFallback = setInterval(() => {
+      if (operadorId) {
+        console.log("🔄 Atualizando ganhos (polling a cada 10s)...");
+        calcularGanhos();
+      }
+    }, 10000);
 
     // Cleanup
     return () => {
-      clearInterval(intervaloFallback);
+      if (intervaloFallback) {
+        clearInterval(intervaloFallback);
+      }
       if (channelVendasGanhos) {
         channelVendasGanhos.unsubscribe();
         console.log("🔌 Realtime de ganhos desconectado");
@@ -192,16 +206,23 @@ export default function FinanceiroPage() {
   // ✅ Hook para avarias em tempo real
   useEffect(() => {
     let channelAvarias: any = null;
+    let intervaloFallback: NodeJS.Timeout | null = null;
 
     const setupRealtimeAvarias = async () => {
-      if (!operadorId) return;
+      if (!operadorId) {
+        console.log("⚠️ operadorId não definido para avarias, aguardando...");
+        return;
+      }
 
       await carregarAvarias();
 
       const { supabase } = await import("@/lib/supabase");
 
       const channelName = `avarias_${operadorId}_${Date.now()}`;
-      console.log("🔧 Configurando realtime para avarias. Canal:", channelName);
+      console.log("🔧 Configurando realtime para avarias:");
+      console.log(`   - Canal: ${channelName}`);
+      console.log(`   - Operador ID: ${operadorId}`);
+      console.log(`   - Filtro: user_id=eq.${operadorId}`);
 
       channelAvarias = supabase
         .channel(channelName)
@@ -213,8 +234,11 @@ export default function FinanceiroPage() {
             table: "avarias",
             filter: `user_id=eq.${operadorId}`,
           },
-          async (payload) => {
-            console.log("🔔 Nova avaria detectada!", payload);
+          async (payload: any) => {
+            console.log("🔔 EVENTO DETECTADO NA TABELA AVARIAS!");
+            console.log(`   - Tipo: ${payload.eventType}`);
+            console.log(`   - Avaria ID: ${payload.new?.id || payload.old?.id}`);
+            console.log("   - Recarregando avarias e recalculando ganhos...");
             await carregarAvarias();
             await calcularGanhos(); // Recalcular ganhos após nova avaria
           }
@@ -222,6 +246,7 @@ export default function FinanceiroPage() {
         .subscribe((status, err) => {
           if (status === "SUBSCRIBED") {
             console.log("✅ Realtime CONECTADO para avarias");
+            console.log(`   - Escutando mudanças em avarias do operador ${operadorId}`);
           } else if (status === "CHANNEL_ERROR") {
             console.error("❌ Erro no canal realtime de avarias:", err);
           }
@@ -230,13 +255,17 @@ export default function FinanceiroPage() {
 
     setupRealtimeAvarias();
 
-    const intervaloFallback = setInterval(() => {
-      console.log("🔄 Atualizando avarias (polling)...");
-      carregarAvarias();
-    }, 30000);
+    intervaloFallback = setInterval(() => {
+      if (operadorId) {
+        console.log("🔄 Atualizando avarias (polling a cada 15s)...");
+        carregarAvarias();
+      }
+    }, 15000);
 
     return () => {
-      clearInterval(intervaloFallback);
+      if (intervaloFallback) {
+        clearInterval(intervaloFallback);
+      }
       if (channelAvarias) {
         channelAvarias.unsubscribe();
         console.log("🔌 Realtime de avarias desconectado");
@@ -552,6 +581,8 @@ export default function FinanceiroPage() {
         return;
       }
 
+      console.log(`📊 Calculando ganhos para operador: ${operadorId}`);
+
       // SEMPRE buscar vendas do Supabase (dados atualizados)
       const { supabase } = await import("@/lib/supabase");
 
@@ -569,12 +600,13 @@ export default function FinanceiroPage() {
       }
 
       if (!vendas || vendas.length === 0) {
-        console.log("⚠️ Nenhuma venda encontrada no Supabase");
+        console.log("⚠️ Nenhuma venda encontrada no Supabase para este operador");
+        console.log(`   - Operador ID buscado: ${operadorId}`);
         setGanhos(0);
         return;
       }
 
-      console.log(`✅ ${vendas.length} vendas encontradas no Supabase`);
+      console.log(`✅ ${vendas.length} vendas encontradas no Supabase para ${operadorNome}`);
 
       const agora = new Date();
       let inicio: Date;

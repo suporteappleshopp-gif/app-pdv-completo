@@ -286,8 +286,9 @@ export default function HistoricoPage() {
         }
       } else {
         // Registrar como avaria (NÃO volta ao estoque)
+        console.log("🔄 Registrando avaria no Supabase...");
         const avaria = {
-          id: `avaria-${Date.now()}`,
+          id: `avaria-${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
           userId: operador.id,
           vendaId: vendaSelecionada.id,
           produtoId: itemParaDevolver.produtoId,
@@ -299,8 +300,20 @@ export default function HistoricoPage() {
           observacoes: observacoesAvaria,
         };
 
-        await SupabaseSync.addAvaria(avaria);
-        console.log("✅ Avaria registrada no Supabase");
+        const avariaRegistrada = await SupabaseSync.addAvaria(avaria);
+
+        if (!avariaRegistrada) {
+          console.error("❌ Falha ao registrar avaria no Supabase");
+          setErro("Erro ao registrar avaria. Tente novamente.");
+          setTimeout(() => setErro(""), 3000);
+          return;
+        }
+
+        console.log("✅ Avaria registrada no Supabase:", avaria.id);
+        console.log(`   - Produto: ${avaria.produtoNome}`);
+        console.log(`   - Quantidade: ${avaria.quantidade}`);
+        console.log(`   - Valor total: R$ ${avaria.valorTotal.toFixed(2)}`);
+        console.log(`   - Motivo: ${avaria.motivo}`);
       }
 
       // Atualizar venda
