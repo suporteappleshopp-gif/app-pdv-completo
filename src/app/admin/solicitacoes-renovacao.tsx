@@ -142,45 +142,55 @@ export default function SolicitacoesRenovacao() {
 
       console.log("🔄 Aprovando solicitação:", solicitacaoSelecionada.id);
 
-      // Buscar admin logado (com múltiplos métodos de fallback)
-      let adminOperador = await AuthSupabase.getCurrentOperador();
+      // 🔥 MÉTODO ROBUSTO: Buscar admin com múltiplos fallbacks
+      let adminOperador: any = null;
 
-      // Fallback 1: Buscar do localStorage direto
+      // Método 1: Buscar do getCurrentOperador (padrão)
+      try {
+        adminOperador = await AuthSupabase.getCurrentOperador();
+        if (adminOperador) {
+          console.log("✅ Admin encontrado via getCurrentOperador:", adminOperador.nome);
+        }
+      } catch (e) {
+        console.warn("⚠️ getCurrentOperador falhou:", e);
+      }
+
+      // Método 2: Buscar direto do banco pelo email do localStorage
       if (!adminOperador && typeof window !== 'undefined') {
         const sessionStr = localStorage.getItem('operador_session');
         if (sessionStr) {
           try {
-            adminOperador = JSON.parse(sessionStr);
-            console.log("✅ Admin encontrado no localStorage:", adminOperador?.email);
+            const session = JSON.parse(sessionStr);
+            const { data: adminData, error: adminError } = await supabase
+              .from("operadores")
+              .select("*")
+              .eq("email", session.email)
+              .eq("is_admin", true)
+              .single();
+
+            if (adminData && !adminError) {
+              adminOperador = {
+                id: adminData.id,
+                nome: adminData.nome,
+                email: adminData.email,
+                isAdmin: true,
+              };
+              console.log("✅ Admin encontrado pelo email do localStorage:", adminOperador.nome);
+            }
           } catch (e) {
-            console.error("Erro ao parsear sessão:", e);
+            console.warn("⚠️ Erro ao buscar por email:", e);
           }
         }
       }
 
-      // Fallback 2: Buscar do localStorage com chave alternativa
-      if (!adminOperador && typeof window !== 'undefined') {
-        const adminId = localStorage.getItem('operadorId');
-        const adminNome = localStorage.getItem('operadorNome');
-        const adminEmail = localStorage.getItem('operadorEmail');
-
-        if (adminId && adminNome) {
-          adminOperador = {
-            id: adminId,
-            nome: adminNome,
-            email: adminEmail || 'admin@sistema.com',
-            isAdmin: true,
-          } as any;
-          console.log("✅ Admin construído do localStorage:", adminOperador?.nome);
-        }
-      }
-
-      // Fallback 3: Buscar direto do Supabase por is_admin=true
+      // Método 3: Buscar qualquer admin ativo no banco
       if (!adminOperador) {
+        console.log("⚠️ Tentando buscar qualquer admin ativo...");
         const { data: adminData, error: adminError } = await supabase
           .from("operadores")
           .select("*")
           .eq("is_admin", true)
+          .eq("ativo", true)
           .limit(1)
           .single();
 
@@ -190,14 +200,15 @@ export default function SolicitacoesRenovacao() {
             nome: adminData.nome,
             email: adminData.email,
             isAdmin: true,
-          } as any;
-          console.log("✅ Admin encontrado no Supabase:", adminOperador?.nome);
+          };
+          console.log("✅ Admin ativo encontrado no banco:", adminOperador.nome);
         }
       }
 
-      if (!adminOperador) {
-        console.error("❌ Não foi possível identificar o admin");
-        alert("Erro: admin não identificado. Faça login novamente.");
+      // Verificação final
+      if (!adminOperador || !adminOperador.id) {
+        console.error("❌ ERRO CRÍTICO: Nenhum admin encontrado no sistema!");
+        alert("Erro: admin não identificado. Entre em contato com o suporte.");
         return;
       }
 

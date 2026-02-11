@@ -296,35 +296,19 @@ export class AuthSupabase {
     try {
       console.log("🔍 Buscando operador atual...");
 
-      // 🔒 CRÍTICO: Verificar se existe flag de admin contaminada
-      if (typeof window !== 'undefined') {
-        const adminFlag = localStorage.getItem('admin_master_session');
-        if (adminFlag === 'true') {
-          console.warn("⚠️ Flag admin detectada - limpando localStorage contaminado");
-          localStorage.removeItem('admin_master_session');
-          localStorage.removeItem('operador_session');
-        }
-      }
-
       // 🔥 SEMPRE BUSCAR DO SUPABASE - NUNCA USAR LOCALSTORAGE
       // Isso garante que os dados estejam sempre atualizados em tempo real
       // quando o admin aprovar pagamentos ou alterar status do operador
 
-      // Verificar se há email salvo no localStorage (apenas para pegar o ID)
+      // Verificar se há email salvo no localStorage (para identificar usuário)
       let emailParaBuscar: string | null = null;
       if (typeof window !== 'undefined') {
         const sessionStr = localStorage.getItem('operador_session');
         if (sessionStr) {
           try {
             const operador = JSON.parse(sessionStr);
-            // 🔒 CRÍTICO: Se operador no localStorage é admin, NÃO usar
-            if (operador.isAdmin === true) {
-              console.warn("⚠️ Admin encontrado no localStorage - IGNORANDO");
-              localStorage.removeItem('operador_session');
-            } else {
-              emailParaBuscar = operador.email;
-              console.log("📧 Email do localStorage:", emailParaBuscar, "- buscando dados atualizados do Supabase");
-            }
+            emailParaBuscar = operador.email;
+            console.log("📧 Email do localStorage:", emailParaBuscar, "- buscando dados atualizados do Supabase");
           } catch (e) {
             console.warn("⚠️ Erro ao parsear sessão do localStorage:", e);
           }
