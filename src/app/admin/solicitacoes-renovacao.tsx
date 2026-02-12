@@ -259,14 +259,12 @@ export default function SolicitacoesRenovacao() {
       const { data: pagamentosAtualizados, error: updateAllError } = await supabase
         .from("historico_pagamentos")
         .update({
-          status: "pago",
-          data_pagamento: new Date().toISOString(),
+          status: "aprovado",
           dias_comprados: diasAprovacao,
-          observacao_admin: mensagemAdmin || "Aprovado pelo administrador",
           aprovado_por: adminOperador.id,
           data_aprovacao: new Date().toISOString(),
         })
-        .eq("usuario_id", solicitacaoSelecionada.operador_id)
+        .eq("operador_id", solicitacaoSelecionada.operador_id)
         .eq("status", "pendente")
         .select();
 
@@ -285,74 +283,38 @@ export default function SolicitacoesRenovacao() {
         // CRIAR novo registro no histórico (caso não tenha pendente)
         console.log("➕ Nenhum pagamento pendente encontrado. Criando novo registro...");
 
-        const historicoId = `hist_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-
-        const { error: historicoError } = await supabase
-          .from("historico_pagamentos")
-          .insert({
-            id: historicoId,
-            usuario_id: solicitacaoSelecionada.operador_id,
-            mes_referencia: `Renovação ${diasAprovacao} dias - ${solicitacaoSelecionada.forma_pagamento.toUpperCase()}`,
-            valor: solicitacaoSelecionada.valor,
-            data_vencimento: new Date().toISOString(),
-            data_pagamento: new Date().toISOString(),
-            status: "pago",
-            forma_pagamento: solicitacaoSelecionada.forma_pagamento,
-            dias_comprados: diasAprovacao,
-            tipo_compra: `renovacao-${diasAprovacao}`,
-            observacao_admin: mensagemAdmin || "Aprovado pelo administrador",
-            aprovado_por: adminOperador.id,
-            data_aprovacao: new Date().toISOString(),
-          });
-
-        if (historicoError) {
-          console.error("❌ Erro ao criar histórico:", historicoError);
-          console.error("📋 Detalhes do erro:", JSON.stringify(historicoError, null, 2));
-          alert(`Erro ao registrar pagamento no histórico.\nDetalhes: ${historicoError.message || 'Erro desconhecido'}`);
-          return;
-        }
-
-        console.log("✅ Histórico de pagamento criado com ID:", historicoId);
+        console.log("➕ Nenhum pagamento pendente encontrado no histórico.");
       }
 
-      // 2. Atualizar operador com nova data de vencimento e status ativo
-      const { error: updateOpError } = await supabase
-        .from("operadores")
-        .update({
-          data_proximo_vencimento: novaDataVencimento.toISOString(),
-          ativo: true,
-          suspenso: false,
-          aguardando_pagamento: false,
-        })
-        .eq("id", solicitacaoSelecionada.operador_id);
+      // Usar a função SQL aprovar_renovacao para fazer tudo automaticamente
+      console.log("🔄 Chamando função aprovar_renovacao...");
 
-      if (updateOpError) {
-        console.error("❌ Erro ao atualizar operador:", updateOpError);
-        alert("Erro ao atualizar dias do operador.");
+      const { data: resultadoAprovacao, error: aprovarError } = await supabase.rpc("aprovar_renovacao", {
+        p_solicitacao_id: solicitacaoSelecionada.id,
+        p_admin_id: adminOperador.id,
+      });
+
+      if (aprovarError) {
+        console.error("❌ Erro ao aprovar renovação:", aprovarError);
+        alert(`Erro ao aprovar renovação.\nDetalhes: ${aprovarError.message || 'Erro desconhecido'}`);
         return;
       }
 
-      console.log("✅ Operador atualizado com sucesso");
-
-      // 3. Atualizar status da solicitação para "aprovado"
-      const { error: updateSolError } = await supabase
-        .from("solicitacoes_renovacao")
-        .update({
-          status: "aprovado",
-          mensagem_admin: mensagemAdmin || "Solicitação aprovada pelo administrador!",
-          data_resposta: new Date().toISOString(),
-          admin_responsavel_id: adminOperador.id,
-        })
-        .eq("id", solicitacaoSelecionada.id);
-
-      if (updateSolError) {
-        console.error("⚠️ Erro ao atualizar solicitação:", updateSolError);
-        // Não bloquear - o importante já foi feito
+      if (!resultadoAprovacao || !resultadoAprovacao.success) {
+        console.error("❌ Função retornou erro:", resultadoAprovacao);
+        alert(`Erro: ${resultadoAprovacao?.message || 'Falha ao aprovar renovação'}`);
+        return;
       }
 
-      console.log("✅ Solicitação aprovada com sucesso!");
+      console.log("✅ Renovação aprovada com sucesso via função SQL!");
+      console.log("📊 Resultado:", resultadoAprovacao);
 
-      // 4. Registrar ganho na carteira do admin
+      // Pegar nova data de vencimento do resultado
+      const novaDataVencimentoFinal = resultadoAprovacao.nova_data_vencimento
+        ? new Date(resultadoAprovacao.nova_data_vencimento)
+        : novaDataVencimento;
+
+      // Registrar ganho na carteira do admin
       const ganhoId = `ganho_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
       const { error: ganhoError } = await supabase
         .from("ganhos_admin")
@@ -378,11 +340,11 @@ export default function SolicitacoesRenovacao() {
 
       console.log(`📊 Resumo:
         - Usuário: ${operadorData.nome}
-        - Dias adicionados: ${diasAprovacao}
-        - Nova data de vencimento: ${novaDataVencimento.toLocaleDateString('pt-BR')}
+        - Dias totais: ${resultadoAprovacao.novos_dias || diasAprovacao}
+        - Nova data de vencimento: ${novaDataVencimentoFinal.toLocaleDateString('pt-BR')}
         - Valor: R$ ${solicitacaoSelecionada.valor.toFixed(2)}`);
 
-      alert(`✅ Solicitação aprovada!\n\n${diasAprovacao} dias adicionados para ${operadorData.nome}.\nNova data de vencimento: ${novaDataVencimento.toLocaleDateString('pt-BR')}`);
+      alert(`✅ Solicitação aprovada!\n\n${resultadoAprovacao.novos_dias || diasAprovacao} dias disponíveis para ${operadorData.nome}.\nNova data de vencimento: ${novaDataVencimentoFinal.toLocaleDateString('pt-BR')}`);
       setModalAberto(false);
       setSolicitacaoSelecionada(null);
       setMensagemAdmin("");
