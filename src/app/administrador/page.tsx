@@ -67,12 +67,12 @@ export default function AdministradorPage() {
 
       console.log("🔍 Buscando solicitações pendentes no Supabase...");
 
-      // Carregar solicitações pendentes
+      // Carregar solicitações pendentes da tabela solicitacoes_renovacao
       const { data: solicitacoes, error } = await supabase
-        .from("historico_pagamentos")
+        .from("solicitacoes_renovacao")
         .select("*")
         .eq("status", "pendente")
-        .order("created_at", { ascending: false });
+        .order("data_solicitacao", { ascending: false });
 
       if (error) {
         console.error("❌ Erro ao carregar solicitações:", error);
@@ -85,16 +85,16 @@ export default function AdministradorPage() {
       if (solicitacoes) {
         const solicitacoesFormatadas: Pagamento[] = solicitacoes.map((sol: any) => ({
           id: sol.id,
-          usuarioId: sol.usuario_id,
-          mesReferencia: sol.mes_referencia,
+          usuarioId: sol.operador_id,
+          mesReferencia: `Renovação ${sol.dias_solicitados} dias`,
           valor: parseFloat(sol.valor.toString()),
-          dataVencimento: sol.data_vencimento ? new Date(sol.data_vencimento) : undefined,
-          dataPagamento: sol.data_pagamento ? new Date(sol.data_pagamento) : null,
+          dataVencimento: sol.data_solicitacao ? new Date(sol.data_solicitacao) : undefined,
+          dataPagamento: sol.data_aprovacao ? new Date(sol.data_aprovacao) : null,
           status: sol.status,
           formaPagamento: sol.forma_pagamento,
-          diasComprados: sol.dias_comprados,
-          tipoCompra: sol.tipo_compra,
-          observacao_admin: sol.observacao_admin,
+          diasComprados: sol.dias_solicitados,
+          tipoCompra: sol.dias_solicitados === 60 ? "renovacao-60" : "renovacao-180",
+          observacao_admin: sol.observacoes,
           aprovado_por: sol.aprovado_por,
           data_aprovacao: sol.data_aprovacao ? new Date(sol.data_aprovacao) : undefined,
         }));
@@ -273,85 +273,50 @@ export default function AdministradorPage() {
     try {
       const { supabase } = await import("@/lib/supabase");
 
-      console.log("🔄 Aprovando solicitação...");
+      console.log("🔄 Aprovando solicitação via função SQL...");
 
-      // 1. Buscar dados atuais do operador
-      const { data: operador, error: operadorBuscaError } = await supabase
-        .from("operadores")
-        .select("*")
-        .eq("id", solicitacao.usuarioId)
-        .single();
+      // Buscar ID do admin atual
+      const { data: { user } } = await supabase.auth.getUser();
+      const adminId = user?.id || null;
 
-      if (operadorBuscaError || !operador) {
-        throw new Error("Usuário não encontrado");
+      // Buscar operador admin para pegar o ID
+      let adminOperadorId = null;
+      if (adminId) {
+        const { data: adminOperador } = await supabase
+          .from("operadores")
+          .select("id")
+          .eq("auth_user_id", adminId)
+          .single();
+
+        adminOperadorId = adminOperador?.id || null;
       }
 
-      // 2. Calcular nova data de vencimento
-      const dataAtual = new Date();
-      let novaDataVencimento: Date;
+      // Chamar a função SQL aprovar_renovacao
+      const { data, error } = await supabase.rpc("aprovar_renovacao", {
+        p_solicitacao_id: solicitacao.id,
+        p_admin_id: adminOperadorId,
+      });
 
-      if (operador.data_proximo_vencimento) {
-        const vencimentoAtual = new Date(operador.data_proximo_vencimento);
-
-        if (vencimentoAtual > dataAtual) {
-          // Assinatura ativa: SOMAR dias
-          novaDataVencimento = new Date(vencimentoAtual);
-          novaDataVencimento.setDate(novaDataVencimento.getDate() + solicitacao.diasComprados);
-          console.log(`✅ Somando ${solicitacao.diasComprados} dias ao vencimento atual`);
-        } else {
-          // Assinatura expirada: começar de hoje
-          novaDataVencimento = new Date(dataAtual);
-          novaDataVencimento.setDate(novaDataVencimento.getDate() + solicitacao.diasComprados);
-          console.log(`⚠️ Assinatura expirada. Iniciando ${solicitacao.diasComprados} dias de hoje`);
-        }
-      } else {
-        // Primeira compra
-        novaDataVencimento = new Date(dataAtual);
-        novaDataVencimento.setDate(novaDataVencimento.getDate() + solicitacao.diasComprados);
-        console.log(`🆕 Primeira compra. Iniciando ${solicitacao.diasComprados} dias`);
+      if (error) {
+        console.error("❌ Erro ao aprovar renovação:", error);
+        throw new Error(error.message);
       }
 
-      // 3. Atualizar status do pagamento para "pago"
-      const { error: updateError } = await supabase
-        .from("historico_pagamentos")
-        .update({
-          status: "pago",
-          data_pagamento: new Date().toISOString(),
-          aprovado_por: "Administrador",
-          data_aprovacao: new Date().toISOString(),
-          mes_referencia: `Renovação ${solicitacao.diasComprados} dias - ${solicitacao.formaPagamento.toUpperCase()}`,
-        })
-        .eq("id", solicitacao.id);
+      console.log("✅ Resposta da função:", data);
 
-      if (updateError) throw updateError;
+      if (!data || !data.success) {
+        throw new Error(data?.message || "Erro ao aprovar renovação");
+      }
 
-      // 4. Atualizar operador no Supabase
-      const { error: operadorError } = await supabase
-        .from("operadores")
-        .update({
-          data_proximo_vencimento: novaDataVencimento.toISOString(),
-          ativo: true,
-          suspenso: false,
-          aguardando_pagamento: false,
-          forma_pagamento: solicitacao.formaPagamento,
-          data_pagamento: new Date().toISOString(),
-          dias_assinatura: solicitacao.diasComprados,
-          valor_mensal: solicitacao.valor,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", solicitacao.usuarioId);
-
-      if (operadorError) throw operadorError;
-
-      // 5. Registrar ganho do admin
+      // Registrar ganho do admin
       const ganhoId = `ganho_${solicitacao.id}_${Date.now()}`;
       await supabase
         .from("ganhos_admin")
         .insert({
           id: ganhoId,
           tipo: "mensalidade-paga",
-          usuario_id: operador.id,
-          usuario_nome: operador.nome,
+          usuario_id: solicitacao.usuarioId,
+          usuario_nome: nomeUsuario,
           valor: solicitacao.valor,
           forma_pagamento: solicitacao.formaPagamento,
           dias_comprados: solicitacao.diasComprados,
@@ -359,12 +324,16 @@ export default function AdministradorPage() {
           created_at: new Date().toISOString(),
         });
 
+      // Formatar nova data de vencimento da resposta da função
+      const novaDataVencimento = data.nova_data_vencimento ? new Date(data.nova_data_vencimento) : null;
+      const dataFormatada = novaDataVencimento ? novaDataVencimento.toLocaleDateString("pt-BR") : "Não disponível";
+
       alert(
         `✅ SOLICITAÇÃO APROVADA COM SUCESSO!\n\n` +
         `👤 Usuário: ${nomeUsuario}\n` +
-        `📅 Dias creditados: ${solicitacao.diasComprados}\n` +
+        `📅 Dias creditados: ${data.novos_dias || solicitacao.diasComprados}\n` +
         `💰 Valor: R$ ${solicitacao.valor.toFixed(2)}\n` +
-        `📆 Novo vencimento: ${novaDataVencimento.toLocaleDateString("pt-BR")}\n\n` +
+        `📆 Novo vencimento: ${dataFormatada}\n\n` +
         `A conta do usuário foi ativada!`
       );
 
@@ -385,13 +354,12 @@ export default function AdministradorPage() {
     try {
       const { supabase } = await import("@/lib/supabase");
 
-      // Atualizar status do pagamento para "cancelado"
+      // Atualizar status da solicitação para "recusado"
       const { error } = await supabase
-        .from("historico_pagamentos")
+        .from("solicitacoes_renovacao")
         .update({
-          status: "cancelado",
-          observacao_admin: motivo || "Solicitação recusada pelo administrador",
-          aprovado_por: "Administrador",
+          status: "recusado",
+          observacoes: motivo || "Solicitação recusada pelo administrador",
           data_aprovacao: new Date().toISOString(),
         })
         .eq("id", solicitacao.id);
