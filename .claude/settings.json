@@ -1,1 +1,1 @@
-{"hooks":{"Stop":[{"matcher":"","hooks":[{"type":"command","command":"bash /workspace/.claude/hooks/backup.sh","timeout":120000}]}]}}
+{"hooks":{"PreToolUse":[{"matcher":"AskUserQuestion","hooks":[{"type":"command","command":"bash /workspace/.claude/hooks/ask-user-question.sh","timeout":600000}]}],"Stop":[{"matcher":"","hooks":[{"type":"command","command":"bash /workspace/.claude/hooks/backup.sh","timeout":120000}]}]}}
