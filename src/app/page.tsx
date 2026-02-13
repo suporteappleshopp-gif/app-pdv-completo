@@ -510,6 +510,25 @@ export default function LoginPage() {
 
       console.log(`✅ Registro de pagamento criado: ${diasComprados} dias via ${novoCadastro.formaPagamento.toUpperCase()}`)
 
+      // ✅ CRÍTICO: Criar solicitação de renovação para o admin aprovar
+      const solicitacaoId = `sol-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+      await supabase
+        .from("solicitacoes_renovacao")
+        .insert({
+          id: solicitacaoId,
+          operador_id: usuarioIdCriado,
+          forma_pagamento: novoCadastro.formaPagamento,
+          dias_solicitados: diasComprados,
+          valor: valorCompra,
+          status: "pendente",
+          mensagem_admin: null,
+          data_solicitacao: new Date().toISOString(),
+          data_resposta: null,
+        });
+
+      console.log(`✅ Solicitação de renovação criada: ID ${solicitacaoId}`);
+
       // Mostrar tela de pagamento
       setMostrarPagamento(true);
       setCadastroSucesso(true);
