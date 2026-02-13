@@ -9,7 +9,11 @@ export default function AplicarFixEstrutura() {
   const [loading, setLoading] = useState(false);
   const [resultado, setResultado] = useState<any>(null);
 
-  const sqlMigracao = `-- FIX: Adicionar colunas na tabela operadores
+  const sqlMigracao = `-- FIX URGENTE: Adicionar coluna status em solicitacoes_renovacao
+ALTER TABLE solicitacoes_renovacao
+  ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'aprovado', 'recusado'));
+
+-- Adicionar colunas na tabela operadores
 ALTER TABLE operadores
   ADD COLUMN IF NOT EXISTS forma_pagamento TEXT,
   ADD COLUMN IF NOT EXISTS valor_mensal NUMERIC(10,2),
@@ -34,6 +38,7 @@ CREATE INDEX IF NOT EXISTS idx_operadores_aguardando ON operadores(aguardando_pa
 
       // Executar cada ALTER separadamente
       const alterStatements = [
+        "ALTER TABLE solicitacoes_renovacao ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pendente'",
         "ALTER TABLE operadores ADD COLUMN IF NOT EXISTS forma_pagamento TEXT",
         "ALTER TABLE operadores ADD COLUMN IF NOT EXISTS valor_mensal NUMERIC(10,2)",
         "ALTER TABLE operadores ADD COLUMN IF NOT EXISTS data_proximo_vencimento TIMESTAMP",
