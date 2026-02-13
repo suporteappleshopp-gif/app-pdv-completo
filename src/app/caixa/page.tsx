@@ -411,6 +411,21 @@ export default function CaixaPage() {
           const produtosNuvem = await SupabaseSync.loadProdutos(operador.id);
           setProdutos(produtosNuvem);
           console.log("✅ Produtos carregados da nuvem para usuário:", operador.id);
+
+          // 🔄 SINCRONIZAÇÃO EM TEMPO REAL - Atualiza produtos automaticamente
+          console.log("🔄 Habilitando sincronização em tempo real de produtos...");
+          const channel = SupabaseSync.watchProdutos(operador.id, (produtosAtualizados) => {
+            console.log("✅ Produtos atualizados em tempo real:", produtosAtualizados.length);
+            setProdutos(produtosAtualizados);
+          });
+
+          // Cleanup será feito quando componente desmontar
+          return () => {
+            if (channel) {
+              channel.unsubscribe();
+              console.log("🔌 Desconectado da sincronização em tempo real");
+            }
+          };
         } catch (error) {
           console.error("❌ Erro ao carregar produtos da nuvem:", error);
           alert("Erro ao carregar dados. Verifique sua conexão com a internet.");

@@ -57,8 +57,30 @@ export default function EstoquePage() {
   const [scannerAtivo, setScannerAtivo] = useState(false);
 
   useEffect(() => {
-    carregarProdutos();
-  }, []);
+    const init = async () => {
+      await carregarProdutos();
+
+      // 🔄 SINCRONIZAÇÃO EM TEMPO REAL - Atualiza produtos automaticamente
+      if (operadorId) {
+        console.log("🔄 Habilitando sincronização em tempo real de produtos...");
+        const { SupabaseSync } = await import("@/lib/supabase-sync");
+        const channel = SupabaseSync.watchProdutos(operadorId, (produtosAtualizados) => {
+          console.log("✅ Produtos atualizados em tempo real:", produtosAtualizados.length);
+          setProdutos(produtosAtualizados);
+        });
+
+        // Cleanup: desinscrever quando componente desmontar
+        return () => {
+          if (channel) {
+            channel.unsubscribe();
+            console.log("🔌 Desconectado da sincronização em tempo real");
+          }
+        };
+      }
+    };
+
+    init();
+  }, [operadorId]);
 
   const carregarProdutos = async () => {
     try {

@@ -76,6 +76,21 @@ export default function ProdutosPage() {
           setUsuarioSemMensalidade(true);
           setPodeUsarApp(true);
         }
+
+        // 🔄 SINCRONIZAÇÃO EM TEMPO REAL - Atualiza produtos automaticamente
+        console.log("🔄 Habilitando sincronização em tempo real de produtos...");
+        const channel = SupabaseSync.watchProdutos(operador.id, (produtosAtualizados) => {
+          console.log("✅ Produtos atualizados em tempo real:", produtosAtualizados.length);
+          setProdutos(produtosAtualizados);
+        });
+
+        // Cleanup: desinscrever quando componente desmontar
+        return () => {
+          if (channel) {
+            channel.unsubscribe();
+            console.log("🔌 Desconectado da sincronização em tempo real");
+          }
+        };
       } catch (error) {
         console.error("❌ Erro ao inicializar:", error);
         router.push("/");
