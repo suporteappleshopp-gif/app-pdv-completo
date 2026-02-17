@@ -420,9 +420,9 @@ export default function LoginPage() {
             nome: nomeExtraido,
             senha: novoCadastro.senha,
             is_admin: false,
-            ativo: false,
-            suspenso: true,
-            aguardando_pagamento: true,
+            ativo: true, // ✅ ATIVO mas em modo SUSPENSO
+            suspenso: true, // ✅ SUSPENSO até admin aprovar
+            aguardando_pagamento: true, // ✅ AGUARDANDO pagamento
             forma_pagamento: novoCadastro.formaPagamento,
             valor_mensal: valorCompra,
             dias_assinatura: diasComprados,
@@ -460,9 +460,9 @@ export default function LoginPage() {
               nome: nomeExtraido,
               senha: novoCadastro.senha,
               is_admin: false,
-              ativo: false,
-              suspenso: true,
-              aguardando_pagamento: true,
+              ativo: true, // ✅ ATIVO mas em modo SUSPENSO
+              suspenso: true, // ✅ SUSPENSO até admin aprovar
+              aguardando_pagamento: true, // ✅ AGUARDANDO pagamento
               forma_pagamento: novoCadastro.formaPagamento,
               valor_mensal: valorCompra,
               dias_assinatura: diasComprados,
@@ -478,9 +478,9 @@ export default function LoginPage() {
           await supabase
             .from("operadores")
             .update({
-              ativo: false,
-              suspenso: true,
-              aguardando_pagamento: true,
+              ativo: true, // ✅ ATIVO mas em modo SUSPENSO
+              suspenso: true, // ✅ SUSPENSO até admin aprovar
+              aguardando_pagamento: true, // ✅ AGUARDANDO pagamento
               forma_pagamento: novoCadastro.formaPagamento,
               valor_mensal: valorCompra,
               dias_assinatura: diasComprados,

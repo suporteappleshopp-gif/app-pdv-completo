@@ -308,6 +308,18 @@ export default function AdministradorPage() {
         throw new Error(data?.message || "Erro ao aprovar renovação");
       }
 
+      // ✅ ATUALIZAR operador: REMOVER SUSPENSÃO e AGUARDANDO_PAGAMENTO
+      await supabase
+        .from("operadores")
+        .update({
+          ativo: true,
+          suspenso: false,
+          aguardando_pagamento: false,
+        })
+        .eq("id", solicitacao.usuarioId);
+
+      console.log("✅ Status do operador atualizado: ATIVO, NÃO SUSPENSO, NÃO AGUARDANDO");
+
       // Registrar ganho do admin
       const ganhoId = `ganho_${solicitacao.id}_${Date.now()}`;
       await supabase
@@ -590,20 +602,28 @@ export default function AdministradorPage() {
                   </div>
                   <div className="flex items-center space-x-3">
                     <div className="text-right mr-3">
-                      <span
-                        className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
-                          usuario.ativo
-                            ? "bg-green-100 text-green-700"
-                            : "bg-red-100 text-red-700"
-                        }`}
-                      >
-                        {usuario.ativo ? "ATIVO" : "INATIVO"}
-                      </span>
+                      <div className="flex flex-col space-y-1">
+                        <span
+                          className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                            usuario.ativo
+                              ? "bg-green-100 text-green-700"
+                              : "bg-red-100 text-red-700"
+                          }`}
+                        >
+                          {usuario.ativo ? "ATIVO" : "INATIVO"}
+                        </span>
+                        {/* Mostrar badge "AGUARDANDO PAGAMENTO" se aplicável */}
+                        {usuario.aguardandoPagamento && (
+                          <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">
+                            AGUARDANDO PAGAMENTO
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-gray-500 mt-1">
                         Criado: {new Date(usuario.createdAt).toLocaleDateString()}
                       </p>
                     </div>
-                    
+
                     {/* Botões de Ação */}
                     <button
                       onClick={() => handleAlterarStatus(usuario.id, !usuario.ativo)}
@@ -616,7 +636,7 @@ export default function AdministradorPage() {
                     >
                       <Ban className="w-5 h-5" />
                     </button>
-                    
+
                     <button
                       onClick={() => handleExcluirUsuario(usuario.id)}
                       className="p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-lg transition-colors"
