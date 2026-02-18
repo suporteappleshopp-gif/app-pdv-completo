@@ -363,10 +363,19 @@ export default function FinanceiroPage() {
       // Incluir TODAS as solicitações (pendentes, aprovadas, recusadas)
       const solicitacoesFormatadas: Pagamento[] = (solicitacoesRenovacao || [])
         .map((sol) => {
-          // Converter status: "recusado" → "cancelado", "pendente" → "pendente"
+          // Converter status corretamente:
+          // - "aprovado" → "pago" ✅
+          // - "recusado" → "cancelado"
+          // - "pendente" → "pendente"
           let statusConvertido: "pendente" | "pago" | "vencido" | "cancelado" = "pendente";
-          if (sol.status === "recusado") statusConvertido = "cancelado";
-          else if (sol.status === "pendente") statusConvertido = "pendente";
+
+          if (sol.status === "aprovado") {
+            statusConvertido = "pago"; // ✅ APROVADO = PAGO
+          } else if (sol.status === "recusado") {
+            statusConvertido = "cancelado";
+          } else if (sol.status === "pendente") {
+            statusConvertido = "pendente";
+          }
 
           return {
             id: `sol_${sol.id}`,
@@ -540,10 +549,30 @@ export default function FinanceiroPage() {
         )
         .subscribe();
 
+      // ✅ CONFIGURAR REALTIME: Atualizar quando dados do operador mudarem (dias restantes)
+      const channelOperador = supabase
+        .channel(`operadores_${operador.id}_${Date.now()}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "operadores",
+            filter: `id=eq.${operador.id}`,
+          },
+          (payload) => {
+            console.log("🔄 Atualização em tempo real (operador):", payload);
+            console.log("📅 Dados do operador atualizados! Recarregando...");
+            carregarDados(); // Recarregar dados para atualizar dias restantes
+          }
+        )
+        .subscribe();
+
       // Retornar função de cleanup para remover listeners
       return () => {
         supabase.removeChannel(channelSolicitacoes);
         supabase.removeChannel(channelPagamentos);
+        supabase.removeChannel(channelOperador);
       };
 
     } catch (err) {
