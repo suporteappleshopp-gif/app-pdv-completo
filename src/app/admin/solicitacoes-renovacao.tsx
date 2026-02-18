@@ -314,19 +314,17 @@ export default function SolicitacoesRenovacao() {
         ? new Date(resultadoAprovacao.nova_data_vencimento)
         : novaDataVencimento;
 
-      // Registrar ganho na carteira do admin
-      const ganhoId = `ganho_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      // Registrar ganho na carteira do admin - ESTRUTURA CORRIGIDA
+      console.log("💰 Registrando ganho na carteira do admin...");
       const { error: ganhoError } = await supabase
         .from("ganhos_admin")
         .insert({
-          id: ganhoId,
           tipo: "mensalidade-paga",
           usuario_id: solicitacaoSelecionada.operador_id,
           usuario_nome: operadorData.nome,
           valor: solicitacaoSelecionada.valor,
           forma_pagamento: solicitacaoSelecionada.forma_pagamento,
-          descricao: `Renovação de ${diasAprovacao} dias - ${operadorData.nome} (${solicitacaoSelecionada.forma_pagamento.toUpperCase()})`,
-          dias_comprados: diasAprovacao,
+          dias_assinatura: diasAprovacao,
           created_at: new Date().toISOString(),
         });
 
@@ -335,7 +333,10 @@ export default function SolicitacoesRenovacao() {
         console.error("📋 Detalhes do erro ganho:", JSON.stringify(ganhoError, null, 2));
         // Não bloquear - o importante (liberação do usuário) já foi feito
       } else {
-        console.log("✅ Ganho registrado na carteira do admin:", ganhoId);
+        console.log("✅ Ganho registrado na carteira do admin!");
+        console.log(`   💵 Valor: R$ ${solicitacaoSelecionada.valor.toFixed(2)}`);
+        console.log(`   📅 Dias: ${diasAprovacao}`);
+        console.log(`   💳 Forma: ${solicitacaoSelecionada.forma_pagamento.toUpperCase()}`);
       }
 
       console.log(`📊 Resumo:

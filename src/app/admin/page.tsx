@@ -218,14 +218,12 @@ export default function AdminPage() {
 
       // Salvar no Supabase primeiro
       const sucessoSupabase = await AdminSupabase.addGanhoAdmin({
-        id: ganhoId,
         tipo,
         usuario_id: usuarioId,
         usuario_nome: usuarioNome,
         valor: valorCorreto, // ✅ USAR VALOR CORRETO
         forma_pagamento: formaPagamento,
-        descricao,
-        dias_comprados: diasCorretos, // ✅ ADICIONAR DIAS
+        dias_assinatura: diasCorretos, // ✅ USAR dias_assinatura (não dias_comprados)
       });
 
       if (sucessoSupabase) {

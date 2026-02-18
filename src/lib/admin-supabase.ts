@@ -575,21 +575,19 @@ export class AdminSupabase {
    * Adicionar ganho do admin ao Supabase
    */
   static async addGanhoAdmin(ganho: {
-    id: string;
     tipo: "conta-criada" | "mensalidade-paga";
     usuario_id: string;
     usuario_nome: string;
     valor: number;
     forma_pagamento: "pix" | "cartao";
-    descricao: string;
-    dias_comprados?: number;
+    dias_assinatura?: number;
   }): Promise<boolean> {
     try {
       console.log("💰 Tentando registrar ganho:", {
         usuario: ganho.usuario_nome,
         valor: ganho.valor,
         tipo: ganho.tipo,
-        dias: ganho.dias_comprados,
+        dias: ganho.dias_assinatura,
       });
 
       const { error } = await supabase.from("ganhos_admin").insert({
@@ -599,8 +597,7 @@ export class AdminSupabase {
         usuario_nome: ganho.usuario_nome,
         valor: ganho.valor,
         forma_pagamento: ganho.forma_pagamento,
-        descricao: ganho.descricao,
-        dias_comprados: ganho.dias_comprados || null,
+        dias_assinatura: ganho.dias_assinatura || null,
         created_at: new Date().toISOString(),
       });
 
@@ -645,16 +642,23 @@ export class AdminSupabase {
         return [];
       }
 
-      return (data || []).map((g) => ({
-        id: g.id,
-        tipo: g.tipo as "conta-criada" | "mensalidade-paga",
-        usuarioId: g.usuario_id,
-        usuarioNome: g.usuario_nome,
-        valor: parseFloat(g.valor),
-        formaPagamento: g.forma_pagamento as "pix" | "cartao",
-        descricao: g.descricao,
-        dataHora: new Date(g.created_at),
-      }));
+      return (data || []).map((g) => {
+        // Gerar descrição com base no tipo e dias
+        const descricao = g.tipo === "conta-criada"
+          ? `Novo cadastro - ${g.usuario_nome}`
+          : `Renovação de ${g.dias_assinatura || 0} dias - ${g.usuario_nome} (${g.forma_pagamento.toUpperCase()})`;
+
+        return {
+          id: g.id,
+          tipo: g.tipo as "conta-criada" | "mensalidade-paga",
+          usuarioId: g.usuario_id,
+          usuarioNome: g.usuario_nome,
+          valor: parseFloat(g.valor),
+          formaPagamento: g.forma_pagamento as "pix" | "cartao",
+          descricao: descricao,
+          dataHora: new Date(g.created_at),
+        };
+      });
     } catch (error) {
       console.error("Erro ao buscar ganhos:", error);
       return [];
