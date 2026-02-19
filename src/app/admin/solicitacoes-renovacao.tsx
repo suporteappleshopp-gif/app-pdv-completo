@@ -217,7 +217,7 @@ export default function SolicitacoesRenovacao() {
       // Buscar dados atuais do operador
       const { data: operadorData, error: fetchError } = await supabase
         .from("operadores")
-        .select("id, nome, email, data_proximo_vencimento, ativo, suspenso")
+        .select("id, nome, email, data_proximo_vencimento, ativo, suspenso, dias_assinatura, dias_restantes")
         .eq("id", solicitacaoSelecionada.operador_id)
         .single();
 
@@ -416,11 +416,18 @@ export default function SolicitacoesRenovacao() {
         - Nova data de vencimento: ${novaDataVencimentoFinal.toLocaleDateString('pt-BR')}
         - Valor: R$ ${solicitacaoSelecionada.valor.toFixed(2)}`);
 
-      alert(`✅ Solicitação aprovada!\n\n${resultadoAprovacao.novos_dias || diasAprovacao} dias disponíveis para ${operadorData.nome}.\nNova data de vencimento: ${novaDataVencimentoFinal.toLocaleDateString('pt-BR')}`);
+      console.log("✅ Renovação concluída com sucesso! Fechando modal...");
+
+      // Fechar modal e limpar estados
       setModalAberto(false);
       setSolicitacaoSelecionada(null);
       setMensagemAdmin("");
+
+      // Recarregar lista de solicitações
       await carregarSolicitacoes();
+
+      // Mostrar mensagem de sucesso DEPOIS de fechar o modal
+      alert(`✅ Solicitação aprovada com sucesso!\n\n📅 ${resultadoAprovacao.novos_dias || diasAprovacao} dias disponíveis para ${operadorData.nome}\n\n🗓️ Nova data de vencimento: ${novaDataVencimentoFinal.toLocaleDateString('pt-BR')}\n\n💰 Valor: R$ ${solicitacaoSelecionada.valor.toFixed(2)}`);
     } catch (err) {
       console.error("Erro ao aprovar:", err);
       alert("Erro ao processar aprovação.");

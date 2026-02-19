@@ -442,10 +442,47 @@ export default function FinanceiroPage() {
       await calcularGanhos();
       await calcularTotalDiasDisponiveis();
 
-      // Calcular dias restantes com base nos pagamentos
+      // 🔥 CORREÇÃO: BUSCAR DIAS DIRETAMENTE DO SUPABASE (FONTE ÚNICA DE VERDADE)
+      // O admin atualiza os dias no Supabase, então devemos ler de lá em tempo real
+      console.log("📅 Buscando dias restantes do Supabase...");
+
+      const { data: operadorAtualizado, error: errorOperador } = await supabase
+        .from("operadores")
+        .select("data_proximo_vencimento, dias_restantes, dias_assinatura")
+        .eq("id", operador.id)
+        .single();
+
+      if (errorOperador && errorOperador.message) {
+        console.error("❌ Erro ao buscar dias do Supabase:", errorOperador.message);
+      }
+
+      if (operadorAtualizado) {
+        // Se tiver data de vencimento no Supabase, calcular dias restantes baseado nela
+        if (operadorAtualizado.data_proximo_vencimento) {
+          const hoje = new Date();
+          const vencimento = new Date(operadorAtualizado.data_proximo_vencimento);
+          const diasAteVencimento = Math.ceil(differenceInDays(vencimento, hoje));
+
+          console.log(`✅ Dias calculados do Supabase: ${diasAteVencimento}`);
+          console.log(`   Data de vencimento: ${vencimento.toLocaleDateString('pt-BR')}`);
+
+          setDiasRestantes(Math.max(0, diasAteVencimento));
+          setDataProximoVencimento(vencimento);
+        } else if (operadorAtualizado.dias_restantes || operadorAtualizado.dias_assinatura) {
+          // Fallback: usar dias_restantes ou dias_assinatura
+          const diasSaldo = operadorAtualizado.dias_restantes || operadorAtualizado.dias_assinatura || 0;
+          console.log(`✅ Dias do saldo no Supabase: ${diasSaldo}`);
+          setDiasRestantes(Math.max(0, diasSaldo));
+        }
+      }
+
+      // Calcular dias restantes com base nos pagamentos LOCAIS (apenas como backup/fallback)
       const pagamentosPagos = todosPagamentos.filter(p => p.status === "pago");
 
-      if (pagamentosPagos.length > 0) {
+      if (pagamentosPagos.length > 0 && !operadorAtualizado?.data_proximo_vencimento) {
+        // FALLBACK: Se não houver data no Supabase, calcular localmente
+        console.warn("⚠️ Usando cálculo local como fallback (Supabase sem data_proximo_vencimento)");
+
         // Somar todos os dias comprados
         const totalDiasComprados = pagamentosPagos.reduce((total, p) => {
           return total + (p.diasComprados || 0);
