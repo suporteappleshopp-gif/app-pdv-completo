@@ -558,3 +558,274 @@ npx supabase link --project-ref $SUPABASE_PROJECT_REF
 - **Invalid credentials**: Check email/password
 - **Email not confirmed**: Enable in Supabase Dashboard
 - **OAuth not working**: Configure provider in Dashboard
+
+---
+
+## Edge Functions
+
+Edge Functions are server-side TypeScript functions that run on Deno. Use them for:
+- Proxying requests to external APIs (hiding credentials from the client)
+- Webhooks
+- Scheduled/cron jobs
+- Any server-side logic that cannot run in the browser
+
+### CRITICAL RULES FOR EDGE FUNCTIONS
+
+1. **ALWAYS deploy after creating** - never leave functions in "pending" state
+2. **NEVER ask the user to run CLI commands** - you have terminal access, do it yourself
+3. **NEVER ask the user to access the Supabase Dashboard** - use CLI for everything (deploy, secrets, logs)
+4. **ALWAYS use `npx supabase functions deploy` from the sandbox terminal**
+5. **Use `npx supabase secrets set` for API keys** - never hardcode credentials
+
+### Create a Function
+
+```bash
+# Create function scaffold
+npx supabase functions new my-function
+```
+
+This creates: `supabase/functions/my-function/index.ts`
+
+### Function Template (with CORS)
+
+```typescript
+// supabase/functions/my-function/index.ts
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+};
+
+Deno.serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    const { name } = await req.json();
+
+    const data = { message: `Hello ${name}!` };
+
+    return new Response(JSON.stringify(data), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200,
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500,
+    });
+  }
+});
+```
+
+### Deploy Functions
+
+```bash
+# Deploy a single function
+npx supabase functions deploy my-function --no-verify-jwt
+
+# Deploy ALL functions at once
+npx supabase functions deploy --no-verify-jwt
+```
+
+Note: `--no-verify-jwt` allows public access. Remove it if the function should only be called by authenticated users.
+
+### Manage Secrets (API Keys for External Services)
+
+```bash
+# Set secrets (available as Deno.env.get("KEY") inside functions)
+npx supabase secrets set API_KEY=my-secret-key
+npx supabase secrets set APP_LOGIN=myapp APP_PASSWORD=mypassword
+
+# List all secrets
+npx supabase secrets list
+
+# Remove a secret
+npx supabase secrets unset API_KEY
+```
+
+### Call from Frontend
+
+```typescript
+// Using Supabase client SDK
+const { data, error } = await supabase.functions.invoke("my-function", {
+  body: { name: "World" },
+});
+
+if (error) {
+  console.error("Edge Function error:", error.message);
+} else {
+  console.log("Response:", data);
+}
+```
+
+### View Logs (Debugging)
+
+```bash
+# View recent logs for a function
+npx supabase functions logs my-function
+
+# Follow logs in real-time (tail)
+npx supabase functions logs my-function --tail
+```
+
+---
+
+## Edge Functions: Proxy Pattern for External APIs
+
+This is the most common use case: the user wants to call an external API that requires server-side credentials (API keys, Basic Auth, etc).
+
+### Step-by-Step
+
+1. **Create the proxy function**:
+```bash
+npx supabase functions new api-proxy
+```
+
+2. **Set secrets for the external API credentials**:
+```bash
+npx supabase secrets set EXTERNAL_API_KEY=secret123
+npx supabase secrets set EXTERNAL_API_URL=https://api.example.com
+```
+
+3. **Write the proxy function**:
+```typescript
+// supabase/functions/api-proxy/index.ts
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    const body = await req.json();
+
+    // Read secrets (set via npx supabase secrets set)
+    const apiKey = Deno.env.get("EXTERNAL_API_KEY");
+    const apiUrl = Deno.env.get("EXTERNAL_API_URL");
+
+    // Forward request to external API
+    const response = await fetch(`${apiUrl}/endpoint`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    const data = await response.text();
+
+    // Check if external API blocked the request (WAF/Cloudflare)
+    if (data.includes("blocked") || data.includes("<!DOCTYPE html>")) {
+      return new Response(
+        JSON.stringify({
+          error: "BLOCKED_BY_WAF",
+          message: "The external API blocked this request (datacenter IP). "
+            + "Ask the API provider to whitelist Supabase Edge Function IPs, "
+            + "or call the API directly from the browser if it supports CORS.",
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 403 },
+      );
+    }
+
+    return new Response(data, {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: response.status,
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500,
+    });
+  }
+});
+```
+
+4. **Deploy**:
+```bash
+npx supabase functions deploy api-proxy --no-verify-jwt
+```
+
+5. **Call from frontend**:
+```typescript
+const { data, error } = await supabase.functions.invoke("api-proxy", {
+  body: { endpoint: "/login", username: "user", password: "pass" },
+});
+```
+
+### Basic Auth Proxy (like HomeBroker API)
+
+For APIs that use HTTP Basic Auth for app-level authentication:
+
+```bash
+# Set the app credentials as secrets
+npx supabase secrets set APP_LOGIN=myapp APP_PASSWORD=secret123
+```
+
+```typescript
+// Inside the Edge Function:
+const appLogin = Deno.env.get("APP_LOGIN");
+const appPassword = Deno.env.get("APP_PASSWORD");
+const basicAuth = btoa(`${appLogin}:${appPassword}`);
+
+const response = await fetch("https://api.example.com/v3/login", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": `Basic ${basicAuth}`,
+  },
+  body: JSON.stringify({ username, password, role: "user" }),
+});
+```
+
+---
+
+## Edge Functions: Limitations and Warnings
+
+### WAF / IP Blocking
+External APIs protected by Cloudflare or similar WAFs may BLOCK requests from Edge Functions because they come from datacenter IPs (not residential IPs). Symptoms:
+- HTTP 403 with HTML response saying "blocked" or "access denied"
+- Cloudflare challenge page in response body
+
+**Solutions (in order of preference):**
+1. Ask the API provider to whitelist Supabase Edge Function IPs
+2. If the API supports CORS, call it directly from the browser (no proxy needed)
+3. Use a residential proxy service (advanced)
+
+### Timeouts
+- Free plan: 60 second execution limit
+- Pro plan: 150 second execution limit
+- Design functions to be fast; use streaming for long operations
+
+### Region
+Edge Functions run in the same region as the Supabase project. Latency to external APIs depends on geographic distance.
+
+### No npm packages by default
+Edge Functions use Deno, not Node.js. Use:
+- `jsr:` imports for Supabase packages
+- `npm:` prefix for npm packages (e.g., `import axios from "npm:axios"`)
+- Deno standard library for utilities
+
+---
+
+## Updated Best Practices (including Edge Functions)
+
+11. **NEVER ask the user to run terminal commands** - execute them yourself in the sandbox
+12. **NEVER ask the user to access the Supabase Dashboard** - use CLI for deploy, secrets, logs
+13. **NEVER create Edge Functions without deploying them** - if you create it, deploy it in the same session
+14. **If deploy fails, diagnose and fix** - do not leave functions in "pending" state
+15. **Use secrets for all external API credentials** - never hardcode keys in function code
+16. **Always include CORS headers** in Edge Functions that are called from the browser
+17. **Detect WAF blocks** and provide clear guidance to the user about alternatives

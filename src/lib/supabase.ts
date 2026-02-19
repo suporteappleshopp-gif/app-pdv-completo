@@ -1,29 +1,8 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// 🔥 CRÍTICO: Buscar variáveis em RUNTIME para funcionar em produção
-// Next.js expõe variáveis com prefixo NEXT_PUBLIC_ via process.env
-const getSupabaseUrl = () => {
-  // Next.js: usar process.env.NEXT_PUBLIC_* (disponível no cliente e servidor)
-  // Também suportar VITE_* para compatibilidade com scripts Node.js
-  if (typeof process !== 'undefined') {
-    return process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-  }
-
-  return '';
-};
-
-const getSupabaseKey = () => {
-  // Next.js: usar process.env.NEXT_PUBLIC_* (disponível no cliente e servidor)
-  // Também suportar VITE_* para compatibilidade com scripts Node.js
-  if (typeof process !== 'undefined') {
-    return process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
-  }
-
-  return '';
-};
-
-const supabaseUrl = getSupabaseUrl();
-const supabaseAnonKey = getSupabaseKey();
+// Vite: Variáveis de ambiente com prefixo VITE_ disponíveis via import.meta.env
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 // Log para debug (SEMPRE mostrar em produção para debug)
 if (typeof window !== 'undefined') {
