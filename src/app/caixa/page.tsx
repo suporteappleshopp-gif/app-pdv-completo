@@ -103,6 +103,7 @@ export default function CaixaPage() {
   // Modal de finalização com tipo de pagamento
   const [mostrarModalFinalizacao, setMostrarModalFinalizacao] = useState(false);
   const [tipoPagamento, setTipoPagamento] = useState<TipoPagamento>("dinheiro");
+  const [valorRecebido, setValorRecebido] = useState<string>("");
   const [mostrarModalImpressao, setMostrarModalImpressao] = useState(false);
   const [vendaFinalizada, setVendaFinalizada] = useState<Venda | null>(null);
 
@@ -1035,6 +1036,8 @@ export default function CaixaPage() {
       alert("Carrinho vazio!");
       return;
     }
+    setValorRecebido("");
+    setTipoPagamento("dinheiro");
     setMostrarModalFinalizacao(true);
   };
 
@@ -1864,6 +1867,36 @@ export default function CaixaPage() {
               </button>
             </div>
 
+            {/* Campo de Valor Recebido - Apenas para Dinheiro */}
+            {tipoPagamento === "dinheiro" && (
+              <div className="mb-6 p-4 bg-green-50 rounded-lg border-2 border-green-200">
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Valor Recebido (R$)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={valorRecebido}
+                  onChange={(e) => setValorRecebido(e.target.value)}
+                  placeholder="Digite o valor recebido"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-lg"
+                />
+                {valorRecebido && parseFloat(valorRecebido) >= total && (
+                  <div className="mt-3 p-3 bg-white rounded-lg border border-green-300">
+                    <p className="text-gray-600 text-sm mb-1">Troco:</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      R$ {(parseFloat(valorRecebido) - total).toFixed(2)}
+                    </p>
+                  </div>
+                )}
+                {valorRecebido && parseFloat(valorRecebido) < total && (
+                  <p className="mt-2 text-red-600 text-sm font-semibold">
+                    ⚠️ Valor recebido é menor que o total da venda
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="flex space-x-3">
               <button
                 onClick={finalizarVenda}
@@ -1873,7 +1906,10 @@ export default function CaixaPage() {
                 <span>Confirmar (Enter)</span>
               </button>
               <button
-                onClick={() => setMostrarModalFinalizacao(false)}
+                onClick={() => {
+                  setMostrarModalFinalizacao(false);
+                  setValorRecebido("");
+                }}
                 className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-lg font-semibold transition-all"
               >
                 Cancelar (X)

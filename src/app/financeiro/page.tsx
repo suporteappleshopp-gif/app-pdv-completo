@@ -1515,11 +1515,14 @@ export default function FinanceiroPage() {
 
                       console.log("✅ Link gerado com sucesso:", data.init_point);
 
+                      // Abrir link de pagamento ANTES de atualizar os dados
+                      window.open(data.init_point, "_blank");
+
+                      // Aguardar um pouco para garantir que o link abriu
+                      await new Promise(resolve => setTimeout(resolve, 500));
+
                       // Atualizar lista para mostrar solicitação pendente
                       await carregarDados();
-
-                      // Abrir link de pagamento
-                      window.open(data.init_point, "_blank");
 
                       alert(`✅ Link de pagamento gerado!\n\n⏳ Sua solicitação foi criada e aparecerá como PENDENTE no seu extrato.\n\n💳 Após efetuar o pagamento, aguarde a aprovação do administrador para que os dias sejam creditados.`);
                     } catch (error: any) {
@@ -1604,11 +1607,14 @@ export default function FinanceiroPage() {
                         return;
                       }
 
+                      // Abrir link de pagamento ANTES de atualizar os dados
+                      window.open(data.init_point, "_blank");
+
+                      // Aguardar um pouco para garantir que o link abriu
+                      await new Promise(resolve => setTimeout(resolve, 500));
+
                       // Atualizar lista para mostrar solicitação pendente
                       await carregarDados();
-
-                      // Abrir link de pagamento
-                      window.open(data.init_point, "_blank");
 
                       alert(`✅ Link de pagamento gerado!\n\n⏳ Sua solicitação foi criada e aparecerá como PENDENTE no seu extrato.\n\n💳 Após efetuar o pagamento, aguarde a aprovação do administrador para que os dias sejam creditados.`);
                     } catch (error) {
