@@ -7,6 +7,8 @@ const nextConfig: NextConfig = {
   env: {
     MERCADOPAGO_ACCESS_TOKEN: process.env.MERCADOPAGO_ACCESS_TOKEN || '',
     NEXT_PUBLIC_URL: process.env.NEXT_PUBLIC_URL || '',
+    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
   },
 
   // Ignorar erros durante build (compatibilidade Vercel)
