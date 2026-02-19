@@ -217,7 +217,7 @@ export default function SolicitacoesRenovacao() {
       // Buscar dados atuais do operador
       const { data: operadorData, error: fetchError } = await supabase
         .from("operadores")
-        .select("id, nome, email, data_proximo_vencimento, ativo, suspenso, dias_assinatura, dias_restantes")
+        .select("id, nome, email, data_proximo_vencimento, ativo, suspenso, dias_assinatura")
         .eq("id", solicitacaoSelecionada.operador_id)
         .single();
 
@@ -328,7 +328,6 @@ export default function SolicitacoesRenovacao() {
         .update({
           data_proximo_vencimento: novaDataVencimentoCalc.toISOString(),
           dias_assinatura: diasAtuais + diasAprovacao, // ✅ SOMA os dias
-          dias_restantes: diasRestantes,
           ativo: true,
           suspenso: false,
           aguardando_pagamento: false,

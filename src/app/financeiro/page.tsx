@@ -448,7 +448,7 @@ export default function FinanceiroPage() {
 
       const { data: operadorAtualizado, error: errorOperador } = await supabase
         .from("operadores")
-        .select("data_proximo_vencimento, dias_restantes, dias_assinatura")
+        .select("data_proximo_vencimento, dias_assinatura")
         .eq("id", operador.id)
         .single();
 
@@ -468,9 +468,9 @@ export default function FinanceiroPage() {
 
           setDiasRestantes(Math.max(0, diasAteVencimento));
           setDataProximoVencimento(vencimento);
-        } else if (operadorAtualizado.dias_restantes || operadorAtualizado.dias_assinatura) {
-          // Fallback: usar dias_restantes ou dias_assinatura
-          const diasSaldo = operadorAtualizado.dias_restantes || operadorAtualizado.dias_assinatura || 0;
+        } else if (operadorAtualizado.dias_assinatura) {
+          // Fallback: usar dias_assinatura
+          const diasSaldo = operadorAtualizado.dias_assinatura || 0;
           console.log(`✅ Dias do saldo no Supabase: ${diasSaldo}`);
           setDiasRestantes(Math.max(0, diasSaldo));
         }
