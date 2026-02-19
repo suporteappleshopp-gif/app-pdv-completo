@@ -286,25 +286,96 @@ export default function SolicitacoesRenovacao() {
         console.log("➕ Nenhum pagamento pendente encontrado no histórico.");
       }
 
-      // Usar a função SQL aprovar_renovacao para fazer tudo automaticamente
-      console.log("🔄 Chamando função aprovar_renovacao...");
+      // 🔥 MÉTODO DIRETO: Aprovar renovação sem função SQL (mais confiável)
+      console.log("🔄 Aprovando renovação diretamente...");
 
-      const { data: resultadoAprovacao, error: aprovarError } = await supabase.rpc("aprovar_renovacao", {
-        p_solicitacao_id: solicitacaoSelecionada.id,
-        p_admin_id: adminOperador.id,
-      });
+      // 1. Atualizar status da solicitação para aprovado
+      const { error: updateSolicitacaoError } = await supabase
+        .from("solicitacoes_renovacao")
+        .update({
+          status: "aprovado",
+          data_resposta: new Date().toISOString(),
+          admin_responsavel_id: adminOperador.id,
+          mensagem_admin: mensagemAdmin || null,
+        })
+        .eq("id", solicitacaoSelecionada.id);
 
-      if (aprovarError) {
-        console.error("❌ Erro ao aprovar renovação:", aprovarError);
-        alert(`Erro ao aprovar renovação.\nDetalhes: ${aprovarError.message || 'Erro desconhecido'}`);
+      if (updateSolicitacaoError) {
+        console.error("❌ Erro ao atualizar solicitação:", updateSolicitacaoError);
+        alert(`Erro ao aprovar renovação.\nDetalhes: ${updateSolicitacaoError.message}`);
         return;
       }
 
-      if (!resultadoAprovacao || !resultadoAprovacao.success) {
-        console.error("❌ Função retornou erro:", resultadoAprovacao);
-        alert(`Erro: ${resultadoAprovacao?.message || 'Falha ao aprovar renovação'}`);
+      console.log("✅ Solicitação marcada como aprovada");
+
+      // 2. Calcular nova data de vencimento (SOMAR dias)
+      const dataAtualVencimento = operadorData.data_proximo_vencimento
+        ? new Date(operadorData.data_proximo_vencimento)
+        : new Date();
+
+      // Se a data de vencimento é no passado, usar hoje como base
+      const dataBase = dataAtualVencimento > new Date() ? dataAtualVencimento : new Date();
+      const novaDataVencimentoCalc = new Date(dataBase);
+      novaDataVencimentoCalc.setDate(novaDataVencimentoCalc.getDate() + diasAprovacao);
+
+      // Calcular dias restantes
+      const diasRestantes = Math.ceil((novaDataVencimentoCalc.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+
+      // 3. Atualizar operador com novos dias (SOMAR ao invés de substituir)
+      const diasAtuais = operadorData.dias_assinatura || 0;
+      const { error: updateOperadorError } = await supabase
+        .from("operadores")
+        .update({
+          data_proximo_vencimento: novaDataVencimentoCalc.toISOString(),
+          dias_assinatura: diasAtuais + diasAprovacao, // ✅ SOMA os dias
+          dias_restantes: diasRestantes,
+          ativo: true,
+          suspenso: false,
+          aguardando_pagamento: false,
+          data_pagamento: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", solicitacaoSelecionada.operador_id);
+
+      if (updateOperadorError) {
+        console.error("❌ Erro ao atualizar operador:", updateOperadorError);
+        alert(`Erro ao atualizar dados do operador.\nDetalhes: ${updateOperadorError.message}`);
         return;
       }
+
+      console.log("✅ Operador atualizado com sucesso!");
+      console.log(`   📅 Nova data de vencimento: ${novaDataVencimentoCalc.toLocaleDateString('pt-BR')}`);
+      console.log(`   ⏱️ Dias totais comprados: ${diasAtuais + diasAprovacao}`);
+      console.log(`   ⏳ Dias restantes: ${diasRestantes}`);
+
+      // 4. Criar registro no histórico
+      const { error: historicoError } = await supabase
+        .from("historico_pagamentos")
+        .insert({
+          operador_id: solicitacaoSelecionada.operador_id,
+          tipo_pagamento: diasAprovacao === 60 ? "renovacao-60" : diasAprovacao === 180 ? "renovacao-180" : "renovacao",
+          forma_pagamento: solicitacaoSelecionada.forma_pagamento,
+          valor: solicitacaoSelecionada.valor,
+          dias_comprados: diasAprovacao,
+          status: "aprovado",
+          data_solicitacao: solicitacaoSelecionada.data_solicitacao,
+          data_aprovacao: new Date().toISOString(),
+          aprovado_por: adminOperador.id,
+        });
+
+      if (historicoError) {
+        console.warn("⚠️ Erro ao criar registro no histórico:", historicoError);
+        // Não bloquear - o importante (liberação do usuário) já foi feito
+      } else {
+        console.log("✅ Registro criado no histórico de pagamentos");
+      }
+
+      // Resultado para usar nas mensagens
+      const resultadoAprovacao = {
+        success: true,
+        novos_dias: diasRestantes,
+        nova_data_vencimento: novaDataVencimentoCalc.toISOString(),
+      };
 
       console.log("✅ Renovação aprovada com sucesso via função SQL!");
       console.log("📊 Resultado:", resultadoAprovacao);
