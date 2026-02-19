@@ -160,10 +160,17 @@ export default function ExtratoPagamentosPage() {
       });
 
       setSolicitacoes(ordenadas);
+
+      // 🎯 CALCULAR E EXIBIR TOTAL DE DIAS
+      const totalDiasAprovados = ordenadas
+        .filter(s => s.status === "aprovado")
+        .reduce((acc, s) => acc + s.dias_solicitados, 0);
+
       console.log(`✅ ${ordenadas.length} solicitações carregadas`);
       console.log(`   - ${ordenadas.filter(s => s.status === "pendente").length} PENDENTES (sempre visíveis no topo)`);
       console.log(`   - ${ordenadas.filter(s => s.status === "aprovado").length} aprovadas`);
       console.log(`   - ${ordenadas.filter(s => s.status === "recusado").length} recusadas`);
+      console.log(`   🎯 TOTAL DE DIAS APROVADOS: ${totalDiasAprovados}`);
 
       // ✅ Configurar atualização em tempo real (recarregar automaticamente quando admin aprovar/recusar)
       const channel = supabase

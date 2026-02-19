@@ -586,16 +586,33 @@ export default function FinanceiroPage() {
     try {
       // Buscar todos os pagamentos pagos do usuário
       const { AuthSupabase } = await import("@/lib/auth-supabase");
+      const { supabase } = await import("@/lib/supabase");
       const operador = await AuthSupabase.getCurrentOperador();
       if (!operador) return;
 
-      const todosPagamentos = await db.getPagamentosByUsuario(operador.id);
-      const pagamentosPagos = todosPagamentos.filter(p => p.status === "pago");
+      // Buscar pagamentos do IndexedDB
+      const pagamentosIndexedDB = await db.getPagamentosByUsuario(operador.id);
+      const pagamentosPagos = pagamentosIndexedDB.filter(p => p.status === "pago");
 
-      // Somar todos os dias comprados
-      const totalDias = pagamentosPagos.reduce((total, p) => {
+      // Buscar solicitações aprovadas do Supabase
+      const { data: solicitacoesAprovadas } = await supabase
+        .from("solicitacoes_renovacao")
+        .select("*")
+        .eq("operador_id", operador.id)
+        .eq("status", "aprovado");
+
+      // Somar dias do IndexedDB
+      const diasIndexedDB = pagamentosPagos.reduce((total, p) => {
         return total + (p.diasComprados || 0);
       }, 0);
+
+      // Somar dias das solicitações aprovadas
+      const diasSolicitacoes = (solicitacoesAprovadas || []).reduce((total, sol) => {
+        return total + (sol.dias_solicitados || 0);
+      }, 0);
+
+      // Total de dias = IndexedDB + Solicitações aprovadas
+      const totalDias = diasIndexedDB + diasSolicitacoes;
 
       setTotalDiasDisponiveis(totalDias);
     } catch (error) {
