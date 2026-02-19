@@ -1,8 +1,8 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Vite: Variáveis de ambiente com prefixo VITE_ disponíveis via import.meta.env
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+// Next.js: Variáveis de ambiente com prefixo NEXT_PUBLIC_ disponíveis via process.env
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 // Log para debug (SEMPRE mostrar em produção para debug)
 if (typeof window !== 'undefined') {

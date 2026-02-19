@@ -12,7 +12,7 @@ import { createClient } from '@supabase/supabase-js';
 // Verificar se estamos no servidor (Node.js)
 const isServer = typeof window === 'undefined';
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 // No cliente, não criar o admin client
@@ -21,7 +21,7 @@ if (!isServer) {
 }
 
 // Fallback seguro: usar ANON_KEY se SERVICE_ROLE_KEY não estiver disponível
-const clientKey = serviceRoleKey || process.env.VITE_SUPABASE_ANON_KEY || '';
+const clientKey = serviceRoleKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 export const supabaseAdmin = createClient(supabaseUrl, clientKey, {
   auth: {
