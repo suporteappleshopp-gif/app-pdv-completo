@@ -271,50 +271,40 @@ export default function HistoricoPage() {
       }
 
       // ☁️ SINCRONIZAR COM SUPABASE EM TEMPO REAL
-      const { SupabaseSync } = await import("@/lib/supabase-sync");
+      const { supabase } = await import("@/lib/supabase");
 
-      if (tipoDestino === "estoque") {
-        // Devolver produto ao estoque
-        const { SupabaseSync: SupabaseSyncProdutos } = await import("@/lib/supabase-sync");
-        const produtosAtuais = await SupabaseSyncProdutos.loadProdutos(operador.id);
-        const produto = produtosAtuais.find(p => p.id === itemParaDevolver.produtoId);
+      // ✅ NOVO SISTEMA: Registrar devolução com tipo_destino
+      // O trigger do banco vai atualizar o estoque automaticamente se tipo_destino = 'estoque'
+      console.log(`🔄 Registrando devolução no Supabase (destino: ${tipoDestino})...`);
 
-        if (produto) {
-          produto.estoque += quantidadeDevolver;
-          await SupabaseSyncProdutos.syncProdutos(operador.id, produtosAtuais);
-          console.log("✅ Produto devolvido ao estoque no Supabase");
-        }
-      } else {
-        // Registrar como avaria (NÃO volta ao estoque)
-        console.log("🔄 Registrando avaria no Supabase...");
-        const avaria = {
-          id: `avaria-${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-          userId: operador.id,
-          vendaId: vendaSelecionada.id,
-          produtoId: itemParaDevolver.produtoId,
-          produtoNome: itemParaDevolver.nome,
+      const { data: avariaDevolucao, error: errorAvaria } = await supabase
+        .from("avarias")
+        .insert({
+          operador_id: operador.id,
+          produto_nome: itemParaDevolver.nome,
           quantidade: quantidadeDevolver,
-          valorUnitario: itemParaDevolver.precoUnitario,
-          valorTotal: itemParaDevolver.precoUnitario * quantidadeDevolver,
+          valor_unitario: itemParaDevolver.precoUnitario,
+          valor_total: itemParaDevolver.precoUnitario * quantidadeDevolver,
           motivo: motivoDevolucao,
-          observacoes: observacoesAvaria,
-        };
+          observacoes: tipoDestino === "avaria" ? observacoesAvaria : `Devolvido ao estoque`,
+          tipo_destino: tipoDestino, // ✅ CRÍTICO: Define se volta ao estoque ou não
+        })
+        .select()
+        .single();
 
-        const avariaRegistrada = await SupabaseSync.addAvaria(avaria);
-
-        if (!avariaRegistrada) {
-          console.error("❌ Falha ao registrar avaria no Supabase");
-          setErro("Erro ao registrar avaria. Tente novamente.");
-          setTimeout(() => setErro(""), 3000);
-          return;
-        }
-
-        console.log("✅ Avaria registrada no Supabase:", avaria.id);
-        console.log(`   - Produto: ${avaria.produtoNome}`);
-        console.log(`   - Quantidade: ${avaria.quantidade}`);
-        console.log(`   - Valor total: R$ ${avaria.valorTotal.toFixed(2)}`);
-        console.log(`   - Motivo: ${avaria.motivo}`);
+      if (errorAvaria) {
+        console.error("❌ Erro ao registrar devolução:", errorAvaria);
+        setErro("Erro ao processar devolução. Tente novamente.");
+        setTimeout(() => setErro(""), 3000);
+        return;
       }
+
+      console.log(`✅ Devolução registrada no Supabase (ID: ${avariaDevolucao.id})`);
+      console.log(`   - Produto: ${itemParaDevolver.nome}`);
+      console.log(`   - Quantidade: ${quantidadeDevolver}`);
+      console.log(`   - Valor total: R$ ${(itemParaDevolver.precoUnitario * quantidadeDevolver).toFixed(2)}`);
+      console.log(`   - Destino: ${tipoDestino === "estoque" ? "ESTOQUE (volta automaticamente)" : "AVARIA (não volta ao estoque)"}`);
+      console.log(`   - Motivo: ${motivoDevolucao}`);
 
       // Atualizar venda
       const vendaAtualizada = { ...vendaSelecionada };

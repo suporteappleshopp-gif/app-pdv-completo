@@ -18,8 +18,6 @@ import {
   BarChart3,
   AlertCircle,
   Save,
-  Package,
-  AlertTriangle,
 } from "lucide-react";
 import { format, startOfDay, startOfWeek, startOfMonth, endOfDay, endOfWeek, endOfMonth, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -42,11 +40,6 @@ export default function FinanceiroPage() {
   const [showModalMeta, setShowModalMeta] = useState(false);
   const [novaMeta, setNovaMeta] = useState("");
 
-  // Estados para avarias
-  const [avarias, setAvarias] = useState<any[]>([]);
-  const [totalAvarias, setTotalAvarias] = useState(0);
-  const [valorTotalAvarias, setValorTotalAvarias] = useState(0);
-  
   // Modal de pagamento
   const [showModalPagamento, setShowModalPagamento] = useState(false);
   const [pagamentoSelecionado, setPagamentoSelecionado] = useState<Pagamento | null>(null);
@@ -202,93 +195,6 @@ export default function FinanceiroPage() {
       }
     };
   }, [operadorId]);
-
-  // ✅ Hook para avarias em tempo real
-  useEffect(() => {
-    let channelAvarias: any = null;
-    let intervaloFallback: NodeJS.Timeout | null = null;
-
-    const setupRealtimeAvarias = async () => {
-      if (!operadorId) {
-        console.log("⚠️ operadorId não definido para avarias, aguardando...");
-        return;
-      }
-
-      await carregarAvarias();
-
-      const { supabase } = await import("@/lib/supabase");
-
-      const channelName = `avarias_${operadorId}_${Date.now()}`;
-      console.log("🔧 Configurando realtime para avarias:");
-      console.log(`   - Canal: ${channelName}`);
-      console.log(`   - Operador ID: ${operadorId}`);
-      console.log(`   - Filtro: user_id=eq.${operadorId}`);
-
-      channelAvarias = supabase
-        .channel(channelName)
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "avarias",
-            filter: `user_id=eq.${operadorId}`,
-          },
-          async (payload: any) => {
-            console.log("🔔 EVENTO DETECTADO NA TABELA AVARIAS!");
-            console.log(`   - Tipo: ${payload.eventType}`);
-            console.log(`   - Avaria ID: ${payload.new?.id || payload.old?.id}`);
-            console.log("   - Recarregando avarias e recalculando ganhos...");
-            await carregarAvarias();
-            await calcularGanhos(); // Recalcular ganhos após nova avaria
-          }
-        )
-        .subscribe((status, err) => {
-          if (status === "SUBSCRIBED") {
-            console.log("✅ Realtime CONECTADO para avarias");
-            console.log(`   - Escutando mudanças em avarias do operador ${operadorId}`);
-          } else if (status === "CHANNEL_ERROR") {
-            console.error("❌ Erro no canal realtime de avarias:", err);
-          }
-        });
-    };
-
-    setupRealtimeAvarias();
-
-    intervaloFallback = setInterval(() => {
-      if (operadorId) {
-        console.log("🔄 Atualizando avarias (polling a cada 15s)...");
-        carregarAvarias();
-      }
-    }, 15000);
-
-    return () => {
-      if (intervaloFallback) {
-        clearInterval(intervaloFallback);
-      }
-      if (channelAvarias) {
-        channelAvarias.unsubscribe();
-        console.log("🔌 Realtime de avarias desconectado");
-      }
-    };
-  }, [operadorId]);
-
-  const carregarAvarias = async () => {
-    if (!operadorId) return;
-
-    try {
-      const { SupabaseSync } = await import("@/lib/supabase-sync");
-      const avariasData = await SupabaseSync.loadAvarias(operadorId);
-
-      setAvarias(avariasData);
-      setTotalAvarias(avariasData.reduce((acc: number, av: any) => acc + av.quantidade, 0));
-      setValorTotalAvarias(avariasData.reduce((acc: number, av: any) => acc + av.valor_total, 0));
-
-      console.log(`📊 Avarias carregadas: ${avariasData.length} registros`);
-    } catch (err) {
-      console.error("❌ Erro ao carregar avarias:", err);
-    }
-  };
 
   const carregarDados = async () => {
     try {
@@ -716,35 +622,16 @@ export default function FinanceiroPage() {
         return dataVenda >= inicio && dataVenda <= fim && venda.status !== "cancelada";
       });
 
+      // ✅ GANHOS = APENAS VENDAS REALIZADAS (sem descontar avarias)
       const totalVendas = vendasPeriodo.reduce((acc, venda) => {
         return acc + parseFloat(venda.total.toString());
       }, 0);
 
-      // ☁️ BUSCAR AVARIAS DO PERÍODO NO SUPABASE
-      const { data: avariasData } = await supabase
-        .from("avarias")
-        .select("*")
-        .eq("user_id", operadorId);
-
-      const avariasNoPeriodo = (avariasData || []).filter((avaria: any) => {
-        const dataAvaria = new Date(avaria.created_at);
-        return dataAvaria >= inicio && dataAvaria <= fim;
-      });
-
-      const totalAvarias = avariasNoPeriodo.reduce((acc: number, avaria: any) => {
-        return acc + parseFloat(avaria.valor_total.toString());
-      }, 0);
-
-      // GANHOS REAIS = Total de Vendas - Total de Avarias
-      const ganhosReais = totalVendas - totalAvarias;
-
-      setGanhos(ganhosReais);
+      setGanhos(totalVendas);
       console.log(`📊 Ganhos calculados (${filtroTempo}):`);
       console.log(`   - Total de vendas: R$ ${totalVendas.toFixed(2)}`);
-      console.log(`   - Total de avarias: R$ ${totalAvarias.toFixed(2)}`);
-      console.log(`   - Ganhos reais: R$ ${ganhosReais.toFixed(2)}`);
       console.log(`   - Vendas no período: ${vendasPeriodo.length}`);
-      console.log(`   - Avarias no período: ${avariasNoPeriodo.length}`);
+      console.log(`   - ✅ Calculando apenas vendas (avarias não afetam o painel de ganhos)`);
     } catch (err) {
       console.error("❌ Erro ao calcular ganhos:", err);
       setGanhos(0);
@@ -1117,141 +1004,12 @@ export default function FinanceiroPage() {
           <div className="mt-6 space-y-3">
             <div className="bg-blue-500/20 border border-blue-500/30 rounded-lg p-4">
               <p className="text-blue-200 text-sm">
-                ✅ <strong>Integrado automaticamente:</strong> Os ganhos são calculados em tempo real com base nas vendas realizadas no caixa, incluindo devoluções e cancelamentos.
+                ✅ <strong>Integrado automaticamente:</strong> Os ganhos são calculados em tempo real com base nas vendas realizadas no caixa.
               </p>
             </div>
             <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-4">
               <p className="text-green-200 text-sm">
-                💰 <strong>Cálculo preciso:</strong> O valor exibido já desconta automaticamente todas as avarias registradas (produtos danificados, vencidos, etc).
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Painel de Avarias */}
-        <div className="bg-gradient-to-br from-red-500 via-orange-600 to-red-600 rounded-2xl shadow-2xl p-8 border border-white/20">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center space-x-3">
-              <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl">
-                <AlertTriangle className="w-8 h-8 text-white" />
-              </div>
-              <div>
-                <h2 className="text-white text-2xl font-bold">Controle de Avarias</h2>
-                <p className="text-orange-100 text-sm">Produtos com dano que não retornam ao estoque</p>
-              </div>
-            </div>
-            <button
-              onClick={() => carregarAvarias()}
-              className="flex items-center space-x-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-all backdrop-blur-sm"
-              title="Atualizar avarias"
-            >
-              <Package className="w-5 h-5" />
-              <span>Atualizar</span>
-            </button>
-          </div>
-
-          {/* Cards de estatísticas */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-orange-100 text-sm font-semibold">Total de Avarias</p>
-                <AlertTriangle className="w-5 h-5 text-white" />
-              </div>
-              <p className="text-white text-3xl font-bold">{avarias.length}</p>
-              <p className="text-orange-200 text-xs mt-1">Registros de avarias</p>
-            </div>
-
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-orange-100 text-sm font-semibold">Quantidade Total</p>
-                <Package className="w-5 h-5 text-white" />
-              </div>
-              <p className="text-white text-3xl font-bold">{totalAvarias}</p>
-              <p className="text-orange-200 text-xs mt-1">Produtos danificados</p>
-            </div>
-
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-orange-100 text-sm font-semibold">Valor Total</p>
-                <DollarSign className="w-5 h-5 text-white" />
-              </div>
-              <p className="text-white text-3xl font-bold">
-                R$ {valorTotalAvarias.toFixed(2)}
-              </p>
-              <p className="text-orange-200 text-xs mt-1">Prejuízo em avarias</p>
-            </div>
-          </div>
-
-          {/* Lista de avarias */}
-          {avarias.length > 0 ? (
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 overflow-hidden">
-              <div className="max-h-[300px] overflow-y-auto">
-                <table className="w-full">
-                  <thead className="bg-white/10 sticky top-0">
-                    <tr>
-                      <th className="text-left text-orange-100 font-semibold py-3 px-4 text-sm">Data</th>
-                      <th className="text-left text-orange-100 font-semibold py-3 px-4 text-sm">Produto</th>
-                      <th className="text-center text-orange-100 font-semibold py-3 px-4 text-sm">Qtd</th>
-                      <th className="text-left text-orange-100 font-semibold py-3 px-4 text-sm">Motivo</th>
-                      <th className="text-right text-orange-100 font-semibold py-3 px-4 text-sm">Valor</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {avarias.map((avaria, idx) => (
-                      <tr key={idx} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                        <td className="py-3 px-4">
-                          <p className="text-white text-sm">
-                            {new Date(avaria.created_at).toLocaleDateString('pt-BR')}
-                          </p>
-                          <p className="text-orange-200 text-xs">
-                            {new Date(avaria.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                        </td>
-                        <td className="py-3 px-4">
-                          <p className="text-white font-semibold text-sm">{avaria.produto_nome}</p>
-                          {avaria.observacoes && (
-                            <p className="text-orange-200 text-xs mt-1">{avaria.observacoes}</p>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <span className="px-3 py-1 bg-red-500/20 text-red-300 rounded-full text-sm font-semibold">
-                            {avaria.quantidade}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <p className="text-orange-200 text-sm">{avaria.motivo}</p>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <p className="text-white font-bold">
-                            R$ {avaria.valor_total.toFixed(2)}
-                          </p>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 p-8 text-center">
-              <AlertTriangle className="w-12 h-12 text-white/50 mx-auto mb-3" />
-              <p className="text-white font-semibold mb-1">Nenhuma avaria registrada</p>
-              <p className="text-orange-200 text-sm">
-                As avarias são registradas quando produtos são devolvidos com dano no histórico
-              </p>
-            </div>
-          )}
-
-          {/* Informações */}
-          <div className="mt-6 space-y-3">
-            <div className="bg-blue-500/20 border border-blue-500/30 rounded-lg p-4">
-              <p className="text-blue-200 text-sm">
-                💰 <strong>Impacto nos Ganhos:</strong> O valor total das avarias é automaticamente descontado do cálculo de ganhos na Análise de Ganhos acima.
-              </p>
-            </div>
-            <div className="bg-orange-500/20 border border-orange-500/30 rounded-lg p-4">
-              <p className="text-orange-200 text-sm">
-                ⚠️ <strong>Atenção:</strong> Produtos registrados como avaria NÃO retornam ao estoque. Use esta opção apenas para produtos danificados, vencidos ou com defeito.
+                💰 <strong>Cálculo preciso:</strong> O valor exibido reflete o total de vendas realizadas no período selecionado.
               </p>
             </div>
           </div>
