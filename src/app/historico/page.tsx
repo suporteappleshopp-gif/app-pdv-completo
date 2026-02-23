@@ -280,7 +280,7 @@ export default function HistoricoPage() {
       const { data: avariaDevolucao, error: errorAvaria } = await supabase
         .from("avarias")
         .insert({
-          operador_id: operador.id,
+          user_id: operador.id,
           produto_nome: itemParaDevolver.nome,
           quantidade: quantidadeDevolver,
           valor_unitario: itemParaDevolver.precoUnitario,
