@@ -1029,8 +1029,8 @@ export default function HistoricoPage() {
 
       {/* Modal de Exclusão */}
       {showModalExclusao && vendaParaExcluir && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl max-w-md w-full border border-white/10">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl max-w-md w-full border border-white/10 my-8 max-h-[90vh] flex flex-col">
             <div className="bg-gradient-to-r from-red-600 to-orange-600 px-6 py-4 flex items-center justify-between rounded-t-2xl">
               <h3 className="text-xl font-bold text-white flex items-center">
                 <Trash2 className="w-6 h-6 mr-2" />
@@ -1044,7 +1044,7 @@ export default function HistoricoPage() {
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
               <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
                 <div className="flex items-start space-x-3">
                   <AlertCircle className="w-6 h-6 text-red-300 mt-1 flex-shrink-0" />
@@ -1129,7 +1129,10 @@ export default function HistoricoPage() {
                 </div>
               )}
 
-              <div className="flex space-x-3 pt-4">
+            </div>
+
+            <div className="px-6 pb-6 pt-2 bg-gradient-to-br from-slate-800 to-slate-900 rounded-b-2xl flex-shrink-0">
+              <div className="flex space-x-3">
                 <button
                   onClick={() => setShowModalExclusao(false)}
                   className="flex-1 px-4 py-3 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors font-semibold"

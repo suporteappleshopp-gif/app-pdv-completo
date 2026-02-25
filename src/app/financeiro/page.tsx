@@ -716,7 +716,6 @@ export default function FinanceiroPage() {
         numero: Math.floor(Math.random() * 1000000),
         operador_id: operador.id,
         operador_nome: operador.nome,
-        user_id: operador.id,
         total: Math.abs(diferencaGanho),
         forma_pagamento: "ajuste_manual",
         status: diferencaGanho > 0 ? "concluida" : "cancelada",
