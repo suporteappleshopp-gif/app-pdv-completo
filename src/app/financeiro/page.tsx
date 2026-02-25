@@ -972,7 +972,18 @@ export default function FinanceiroPage() {
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-green-100 text-sm font-semibold">Ganhos</p>
-                <DollarSign className="w-5 h-5 text-white" />
+                <div className="flex items-center space-x-2">
+                  {(filtroTempo === "diario" || filtroTempo === "semanal") && (
+                    <button
+                      onClick={() => abrirEdicaoMeta(filtroTempo)}
+                      className="p-1.5 bg-white/20 hover:bg-white/30 rounded-lg transition-all"
+                      title="Editar ganho manualmente"
+                    >
+                      <Edit className="w-4 h-4 text-white" />
+                    </button>
+                  )}
+                  <DollarSign className="w-5 h-5 text-white" />
+                </div>
               </div>
               <p className="text-white text-3xl font-bold">
                 R$ {ganhos.toFixed(2)}

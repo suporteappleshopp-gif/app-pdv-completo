@@ -465,6 +465,19 @@ class PDVDatabase {
     });
   }
 
+  async deleteVenda(id: string): Promise<void> {
+    await this.ensureInit();
+    return new Promise((resolve, reject) => {
+      const tx = this.db!.transaction("vendas", "readwrite");
+      const request = tx.objectStore("vendas").delete(id);
+      request.onsuccess = () => {
+        console.log("Venda excluída:", id);
+        resolve();
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
   async getVenda(id: string): Promise<Venda | undefined> {
     await this.ensureInit();
     return new Promise((resolve, reject) => {

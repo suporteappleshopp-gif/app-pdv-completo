@@ -19,6 +19,7 @@ import {
   CheckCircle,
   X,
   Filter,
+  Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -45,6 +46,12 @@ export default function HistoricoPage() {
   const [motivoDevolucao, setMotivoDevolucao] = useState("");
   const [tipoDestino, setTipoDestino] = useState<"estoque" | "avaria">("estoque");
   const [observacoesAvaria, setObservacoesAvaria] = useState("");
+
+  // Modal de exclusão
+  const [showModalExclusao, setShowModalExclusao] = useState(false);
+  const [tipoExclusao, setTipoExclusao] = useState<"venda" | "item">("item");
+  const [vendaParaExcluir, setVendaParaExcluir] = useState<Venda | null>(null);
+  const [itemParaExcluir, setItemParaExcluir] = useState<ItemVenda | null>(null);
 
   useEffect(() => {
     let channel: any = null;
@@ -362,6 +369,105 @@ export default function HistoricoPage() {
     }
   };
 
+  const abrirModalExclusaoItem = (venda: Venda, item: ItemVenda) => {
+    setVendaParaExcluir(venda);
+    setItemParaExcluir(item);
+    setTipoExclusao("item");
+    setShowModalExclusao(true);
+  };
+
+  const abrirModalExclusaoVenda = (venda: Venda) => {
+    setVendaParaExcluir(venda);
+    setItemParaExcluir(null);
+    setTipoExclusao("venda");
+    setShowModalExclusao(true);
+  };
+
+  const processarExclusao = async () => {
+    if (!vendaParaExcluir) return;
+
+    try {
+      const { AuthSupabase } = await import("@/lib/auth-supabase");
+      const operador = await AuthSupabase.getCurrentOperador();
+
+      if (!operador) {
+        setErro("Erro: Operador não encontrado");
+        setTimeout(() => setErro(""), 3000);
+        return;
+      }
+
+      const { supabase } = await import("@/lib/supabase");
+
+      if (tipoExclusao === "item" && itemParaExcluir) {
+        // Excluir apenas um item da venda
+        const vendaAtualizada = { ...vendaParaExcluir };
+        const itemIndex = vendaAtualizada.itens.findIndex(
+          (i) => i.produtoId === itemParaExcluir.produtoId
+        );
+
+        if (itemIndex !== -1) {
+          // Remover item
+          vendaAtualizada.itens.splice(itemIndex, 1);
+
+          // Recalcular total
+          vendaAtualizada.total = vendaAtualizada.itens.reduce(
+            (acc, item) => acc + item.subtotal,
+            0
+          );
+
+          if (vendaAtualizada.itens.length === 0) {
+            // Se não sobrou nenhum item, excluir a venda completa
+            await db.deleteVenda(vendaAtualizada.id);
+
+            // Excluir do Supabase
+            await supabase
+              .from("vendas")
+              .delete()
+              .eq("id", vendaAtualizada.id)
+              .eq("user_id", operador.id);
+
+            setSucesso("Item excluído! Venda removida (sem itens restantes). Atualize o painel de ganhos.");
+          } else {
+            // Atualizar venda
+            await db.updateVenda(vendaAtualizada);
+
+            // Atualizar no Supabase
+            await supabase
+              .from("vendas")
+              .update({
+                itens: vendaAtualizada.itens,
+                total: vendaAtualizada.total,
+              })
+              .eq("id", vendaAtualizada.id)
+              .eq("user_id", operador.id);
+
+            setSucesso(`Item ${itemParaExcluir.nome} excluído! Atualize o painel de ganhos.`);
+          }
+        }
+      } else {
+        // Excluir venda completa
+        await db.deleteVenda(vendaParaExcluir.id);
+
+        // Excluir do Supabase
+        await supabase
+          .from("vendas")
+          .delete()
+          .eq("id", vendaParaExcluir.id)
+          .eq("user_id", operador.id);
+
+        setSucesso("Venda excluída com sucesso! Atualize o painel de ganhos.");
+      }
+
+      setTimeout(() => setSucesso(""), 5000);
+      setShowModalExclusao(false);
+      await carregarVendas();
+    } catch (err) {
+      console.error("Erro ao excluir:", err);
+      setErro("Erro ao processar exclusão");
+      setTimeout(() => setErro(""), 3000);
+    }
+  };
+
   const limparFiltroData = () => {
     setDataFiltro("");
   };
@@ -577,7 +683,7 @@ export default function HistoricoPage() {
                           <Printer className="w-5 h-5" />
                           <span className="font-semibold">Cupom</span>
                         </button>
-                        
+
                         <button
                           onClick={() => imprimirNFCe(venda)}
                           className="flex items-center space-x-2 px-4 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg transition-all"
@@ -586,7 +692,7 @@ export default function HistoricoPage() {
                           <Printer className="w-5 h-5" />
                           <span className="font-semibold">NFC-e</span>
                         </button>
-                        
+
                         <button
                           onClick={() => imprimirNotaFiscalCompleta(venda)}
                           className="flex items-center space-x-2 px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg transition-all"
@@ -594,6 +700,15 @@ export default function HistoricoPage() {
                         >
                           <Printer className="w-5 h-5" />
                           <span className="font-semibold">Nota Completa</span>
+                        </button>
+
+                        <button
+                          onClick={() => abrirModalExclusaoVenda(venda)}
+                          className="flex items-center space-x-2 px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg transition-all"
+                          title="Apagar venda completa"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                          <span className="font-semibold">Apagar Venda</span>
                         </button>
                       </div>
                     </div>
@@ -619,12 +734,12 @@ export default function HistoricoPage() {
                               R$ {item.subtotal.toFixed(2)}
                             </p>
                             <button
-                              onClick={() => abrirModalDevolucao(venda, item)}
-                              className="flex items-center space-x-1 px-3 py-2 bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 rounded-lg transition-all"
-                              title="Devolução"
+                              onClick={() => abrirModalExclusaoItem(venda, item)}
+                              className="flex items-center space-x-1 px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg transition-all"
+                              title="Apagar item"
                             >
-                              <RotateCcw className="w-4 h-4" />
-                              <span className="text-sm font-semibold">Devolver</span>
+                              <Trash2 className="w-4 h-4" />
+                              <span className="text-sm font-semibold">Apagar</span>
                             </button>
                           </div>
                         </div>
@@ -858,6 +973,99 @@ export default function HistoricoPage() {
                 >
                   <RotateCcw className="w-5 h-5" />
                   <span>Processar Devolução</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Exclusão */}
+      {showModalExclusao && vendaParaExcluir && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl max-w-md w-full border border-white/10">
+            <div className="bg-gradient-to-r from-red-600 to-orange-600 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+              <h3 className="text-xl font-bold text-white flex items-center">
+                <Trash2 className="w-6 h-6 mr-2" />
+                {tipoExclusao === "venda" ? "Apagar Venda Completa" : "Apagar Item da Venda"}
+              </h3>
+              <button
+                onClick={() => setShowModalExclusao(false)}
+                className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+                <div className="flex items-start space-x-3">
+                  <AlertCircle className="w-6 h-6 text-red-300 mt-1 flex-shrink-0" />
+                  <div>
+                    <p className="text-red-300 font-semibold mb-2">
+                      ⚠️ Atenção! Esta ação não pode ser desfeita.
+                    </p>
+                    {tipoExclusao === "venda" ? (
+                      <p className="text-red-200 text-sm">
+                        A venda <strong>#{vendaParaExcluir.numero}</strong> será excluída permanentemente com todos os seus itens.
+                      </p>
+                    ) : itemParaExcluir && (
+                      <p className="text-red-200 text-sm">
+                        O item <strong>{itemParaExcluir.nome}</strong> será removido da venda #{vendaParaExcluir.numero}.
+                        {vendaParaExcluir.itens.length === 1 && (
+                          <span className="block mt-2 font-semibold">
+                            Como este é o único item, a venda completa será excluída.
+                          </span>
+                        )}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+                <p className="text-blue-300 text-sm">
+                  💡 Após excluir, lembre-se de atualizar o painel "Análise de Ganhos" no menu Financeiro para ver os valores corretos.
+                </p>
+              </div>
+
+              {tipoExclusao === "venda" && (
+                <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+                  <p className="text-white font-semibold mb-2">Venda #{vendaParaExcluir.numero}</p>
+                  <p className="text-purple-200 text-sm">
+                    Total: R$ {vendaParaExcluir.total.toFixed(2)}
+                  </p>
+                  <p className="text-purple-200 text-sm">
+                    Itens: {vendaParaExcluir.itens.length}
+                  </p>
+                </div>
+              )}
+
+              {tipoExclusao === "item" && itemParaExcluir && (
+                <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+                  <p className="text-white font-semibold mb-1">{itemParaExcluir.nome}</p>
+                  <p className="text-purple-200 text-sm">
+                    Quantidade: {itemParaExcluir.quantidade}x
+                  </p>
+                  <p className="text-purple-200 text-sm">
+                    Subtotal: R$ {itemParaExcluir.subtotal.toFixed(2)}
+                  </p>
+                </div>
+              )}
+
+              <div className="flex space-x-3 pt-4">
+                <button
+                  onClick={() => setShowModalExclusao(false)}
+                  className="flex-1 px-4 py-3 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={processarExclusao}
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-red-500 to-orange-600 text-white rounded-lg hover:from-red-600 hover:to-orange-700 transition-all font-semibold shadow-lg flex items-center justify-center space-x-2"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  <span>Confirmar Exclusão</span>
                 </button>
               </div>
             </div>
