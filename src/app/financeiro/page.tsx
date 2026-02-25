@@ -41,8 +41,11 @@ export default function FinanceiroPage() {
   const [metaSemanal, setMetaSemanal] = useState(3500); // 500 * 7
   const [showModalMeta, setShowModalMeta] = useState(false);
   const [showModalEditarMeta, setShowModalEditarMeta] = useState(false);
+  const [showModalEditarGanho, setShowModalEditarGanho] = useState(false);
   const [tipoMetaEditando, setTipoMetaEditando] = useState<"diario" | "semanal">("diario");
+  const [tipoGanhoEditando, setTipoGanhoEditando] = useState<"diario" | "semanal">("diario");
   const [novaMeta, setNovaMeta] = useState("");
+  const [novoGanho, setNovoGanho] = useState("");
 
   // Modal de pagamento
   const [showModalPagamento, setShowModalPagamento] = useState(false);
@@ -675,6 +678,70 @@ export default function FinanceiroPage() {
     setShowModalEditarMeta(true);
   };
 
+  const abrirEdicaoGanho = (tipo: "diario" | "semanal") => {
+    setTipoGanhoEditando(tipo);
+    setNovoGanho(ganhos.toString());
+    setShowModalEditarGanho(true);
+  };
+
+  const salvarGanhoEditado = async () => {
+    const valor = parseFloat(novoGanho);
+    if (isNaN(valor) || valor < 0) {
+      alert("Digite um valor válido para o ganho!");
+      return;
+    }
+
+    // Criar ou atualizar venda manual com o valor de ganho ajustado
+    try {
+      const { AuthSupabase } = await import("@/lib/auth-supabase");
+      const { supabase } = await import("@/lib/supabase");
+      const operador = await AuthSupabase.getCurrentOperador();
+
+      if (!operador) {
+        alert("Erro: Operador não encontrado");
+        return;
+      }
+
+      const diferencaGanho = valor - ganhos;
+
+      if (diferencaGanho === 0) {
+        setShowModalEditarGanho(false);
+        setNovoGanho("");
+        return;
+      }
+
+      // Criar uma venda de ajuste manual
+      const vendaAjuste = {
+        id: `ajuste_ganho_${Date.now()}`,
+        numero: Math.floor(Math.random() * 1000000),
+        operador_id: operador.id,
+        operador_nome: operador.nome,
+        user_id: operador.id,
+        total: Math.abs(diferencaGanho),
+        forma_pagamento: "ajuste_manual",
+        status: diferencaGanho > 0 ? "concluida" : "cancelada",
+        motivo_cancelamento: diferencaGanho < 0 ? "Ajuste manual de ganhos (redução)" : null,
+        created_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase.from("vendas").insert(vendaAjuste);
+
+      if (error) {
+        console.error("Erro ao criar venda de ajuste:", error);
+        alert("Erro ao salvar ajuste de ganhos");
+        return;
+      }
+
+      await calcularGanhos();
+      setShowModalEditarGanho(false);
+      setNovoGanho("");
+      alert(diferencaGanho > 0 ? "Ganho ajustado com sucesso! Valor adicionado." : "Ganho ajustado com sucesso! Valor reduzido.");
+    } catch (err) {
+      console.error("Erro ao salvar ganho:", err);
+      alert("Erro ao salvar ajuste de ganhos");
+    }
+  };
+
   const salvarMetaEditada = () => {
     const valor = parseFloat(novaMeta);
     if (isNaN(valor) || valor <= 0) {
@@ -975,7 +1042,7 @@ export default function FinanceiroPage() {
                 <div className="flex items-center space-x-2">
                   {(filtroTempo === "diario" || filtroTempo === "semanal") && (
                     <button
-                      onClick={() => abrirEdicaoMeta(filtroTempo)}
+                      onClick={() => abrirEdicaoGanho(filtroTempo)}
                       className="p-1.5 bg-white/20 hover:bg-white/30 rounded-lg transition-all"
                       title="Editar ganho manualmente"
                     >
@@ -1652,6 +1719,74 @@ export default function FinanceiroPage() {
                 <button
                   onClick={salvarMetaEditada}
                   className="flex-1 px-4 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-lg hover:from-emerald-600 hover:to-teal-700 transition-all font-semibold shadow-lg flex items-center justify-center space-x-2"
+                >
+                  <Save className="w-5 h-5" />
+                  <span>Salvar</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Editar Ganho (Diário ou Semanal) */}
+      {showModalEditarGanho && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl max-w-md w-full border border-white/10">
+            <div className="bg-gradient-to-r from-blue-600 to-cyan-600 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+              <h3 className="text-xl font-bold text-white">
+                Editar Ganho {tipoGanhoEditando === "diario" ? "Diário" : "Semanal"}
+              </h3>
+              <button
+                onClick={() => setShowModalEditarGanho(false)}
+                className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-4">
+                <p className="text-blue-300 text-sm">
+                  {tipoGanhoEditando === "diario"
+                    ? "Ajuste manualmente o valor de ganhos diários. Isso criará um ajuste nas vendas realizadas."
+                    : "Ajuste manualmente o valor de ganhos semanais. Isso criará um ajuste nas vendas realizadas."}
+                </p>
+              </div>
+
+              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
+                <p className="text-yellow-300 text-sm">
+                  ⚠️ Valor atual de ganhos: R$ {ganhos.toFixed(2)}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-purple-200 text-sm font-semibold mb-2">
+                  Novo Valor de Ganhos {tipoGanhoEditando === "diario" ? "Diários" : "Semanais"} (R$)
+                </label>
+                <input
+                  type="number"
+                  value={novoGanho}
+                  onChange={(e) => setNovoGanho(e.target.value)}
+                  placeholder={tipoGanhoEditando === "diario" ? "Ex: 450.00" : "Ex: 3200.00"}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-purple-200 text-xs mt-2">
+                  Diferença: R$ {(parseFloat(novoGanho || "0") - ganhos).toFixed(2)}
+                  {parseFloat(novoGanho || "0") > ganhos ? " (será adicionado)" : " (será reduzido)"}
+                </p>
+              </div>
+
+              <div className="flex space-x-3 pt-4">
+                <button
+                  onClick={() => setShowModalEditarGanho(false)}
+                  className="flex-1 px-4 py-3 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={salvarGanhoEditado}
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-lg hover:from-blue-600 hover:to-cyan-700 transition-all font-semibold shadow-lg flex items-center justify-center space-x-2"
                 >
                   <Save className="w-5 h-5" />
                   <span>Salvar</span>

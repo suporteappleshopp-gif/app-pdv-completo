@@ -52,6 +52,7 @@ export default function HistoricoPage() {
   const [tipoExclusao, setTipoExclusao] = useState<"venda" | "item">("item");
   const [vendaParaExcluir, setVendaParaExcluir] = useState<Venda | null>(null);
   const [itemParaExcluir, setItemParaExcluir] = useState<ItemVenda | null>(null);
+  const [quantidadeApagar, setQuantidadeApagar] = useState(1);
 
   useEffect(() => {
     let channel: any = null;
@@ -373,6 +374,7 @@ export default function HistoricoPage() {
     setVendaParaExcluir(venda);
     setItemParaExcluir(item);
     setTipoExclusao("item");
+    setQuantidadeApagar(1);
     setShowModalExclusao(true);
   };
 
@@ -399,15 +401,30 @@ export default function HistoricoPage() {
       const { supabase } = await import("@/lib/supabase");
 
       if (tipoExclusao === "item" && itemParaExcluir) {
-        // Excluir apenas um item da venda
+        // Validar quantidade
+        if (quantidadeApagar <= 0 || quantidadeApagar > itemParaExcluir.quantidade) {
+          setErro("Quantidade inválida para exclusão");
+          setTimeout(() => setErro(""), 3000);
+          return;
+        }
+
+        // Excluir quantidade específica do item
         const vendaAtualizada = { ...vendaParaExcluir };
         const itemIndex = vendaAtualizada.itens.findIndex(
           (i) => i.produtoId === itemParaExcluir.produtoId
         );
 
         if (itemIndex !== -1) {
-          // Remover item
-          vendaAtualizada.itens.splice(itemIndex, 1);
+          const itemAtual = vendaAtualizada.itens[itemIndex];
+
+          if (quantidadeApagar >= itemAtual.quantidade) {
+            // Remover item completamente
+            vendaAtualizada.itens.splice(itemIndex, 1);
+          } else {
+            // Reduzir quantidade
+            itemAtual.quantidade -= quantidadeApagar;
+            itemAtual.subtotal = itemAtual.quantidade * itemAtual.precoUnitario;
+          }
 
           // Recalcular total
           vendaAtualizada.total = vendaAtualizada.itens.reduce(
@@ -419,43 +436,73 @@ export default function HistoricoPage() {
             // Se não sobrou nenhum item, excluir a venda completa
             await db.deleteVenda(vendaAtualizada.id);
 
-            // Excluir do Supabase
+            // Excluir vendas e itens_venda do Supabase
+            await supabase
+              .from("itens_venda")
+              .delete()
+              .eq("venda_id", vendaAtualizada.id);
+
             await supabase
               .from("vendas")
               .delete()
               .eq("id", vendaAtualizada.id)
-              .eq("user_id", operador.id);
+              .eq("operador_id", operador.id);
 
-            setSucesso("Item excluído! Venda removida (sem itens restantes). Atualize o painel de ganhos.");
+            setSucesso("Item excluído! Venda removida (sem itens restantes).");
           } else {
-            // Atualizar venda
+            // Atualizar venda localmente
             await db.updateVenda(vendaAtualizada);
 
-            // Atualizar no Supabase
+            // Atualizar no Supabase - vendas
             await supabase
               .from("vendas")
               .update({
-                itens: vendaAtualizada.itens,
                 total: vendaAtualizada.total,
               })
               .eq("id", vendaAtualizada.id)
-              .eq("user_id", operador.id);
+              .eq("operador_id", operador.id);
 
-            setSucesso(`Item ${itemParaExcluir.nome} excluído! Atualize o painel de ganhos.`);
+            // Atualizar ou excluir item no Supabase - itens_venda
+            if (quantidadeApagar >= itemAtual.quantidade + quantidadeApagar) {
+              // Excluir item completamente de itens_venda
+              await supabase
+                .from("itens_venda")
+                .delete()
+                .eq("venda_id", vendaAtualizada.id)
+                .eq("produto_id", itemParaExcluir.produtoId);
+            } else {
+              // Atualizar quantidade em itens_venda
+              await supabase
+                .from("itens_venda")
+                .update({
+                  quantidade: itemAtual.quantidade,
+                  subtotal: itemAtual.subtotal,
+                })
+                .eq("venda_id", vendaAtualizada.id)
+                .eq("produto_id", itemParaExcluir.produtoId);
+            }
+
+            setSucesso(`${quantidadeApagar}x ${itemParaExcluir.nome} excluído(s)!`);
           }
         }
       } else {
         // Excluir venda completa
         await db.deleteVenda(vendaParaExcluir.id);
 
-        // Excluir do Supabase
+        // Excluir itens_venda primeiro (relacionamento)
+        await supabase
+          .from("itens_venda")
+          .delete()
+          .eq("venda_id", vendaParaExcluir.id);
+
+        // Depois excluir venda
         await supabase
           .from("vendas")
           .delete()
           .eq("id", vendaParaExcluir.id)
-          .eq("user_id", operador.id);
+          .eq("operador_id", operador.id);
 
-        setSucesso("Venda excluída com sucesso! Atualize o painel de ganhos.");
+        setSucesso("Venda excluída com sucesso!");
       }
 
       setTimeout(() => setSucesso(""), 5000);
@@ -1042,14 +1089,43 @@ export default function HistoricoPage() {
               )}
 
               {tipoExclusao === "item" && itemParaExcluir && (
-                <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-                  <p className="text-white font-semibold mb-1">{itemParaExcluir.nome}</p>
-                  <p className="text-purple-200 text-sm">
-                    Quantidade: {itemParaExcluir.quantidade}x
-                  </p>
-                  <p className="text-purple-200 text-sm">
-                    Subtotal: R$ {itemParaExcluir.subtotal.toFixed(2)}
-                  </p>
+                <div className="space-y-3">
+                  <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+                    <p className="text-white font-semibold mb-1">{itemParaExcluir.nome}</p>
+                    <p className="text-purple-200 text-sm">
+                      Quantidade disponível: {itemParaExcluir.quantidade}x
+                    </p>
+                    <p className="text-purple-200 text-sm">
+                      Preço unitário: R$ {itemParaExcluir.precoUnitario.toFixed(2)}
+                    </p>
+                    <p className="text-purple-200 text-sm">
+                      Subtotal: R$ {itemParaExcluir.subtotal.toFixed(2)}
+                    </p>
+                  </div>
+
+                  {itemParaExcluir.quantidade > 1 && (
+                    <div>
+                      <label className="block text-purple-200 text-sm font-semibold mb-2">
+                        Quantidade a apagar
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max={itemParaExcluir.quantidade}
+                        value={quantidadeApagar}
+                        onChange={(e) => setQuantidadeApagar(parseInt(e.target.value) || 1)}
+                        className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-red-500"
+                      />
+                      <p className="text-purple-200 text-xs mt-2">
+                        Valor a ser removido: R$ {(itemParaExcluir.precoUnitario * quantidadeApagar).toFixed(2)}
+                      </p>
+                      {quantidadeApagar < itemParaExcluir.quantidade && (
+                        <p className="text-green-300 text-xs mt-1">
+                          Restará {itemParaExcluir.quantidade - quantidadeApagar}x no pedido
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
