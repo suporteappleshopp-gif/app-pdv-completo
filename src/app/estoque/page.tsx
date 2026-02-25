@@ -578,9 +578,9 @@ export default function EstoquePage() {
                 )}
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
                 <table className="w-full">
-                  <thead>
+                  <thead className="sticky top-0 bg-gradient-to-r from-indigo-600 to-purple-600 z-10">
                     <tr className="border-b border-white/10">
                       <th className="text-left text-purple-200 font-semibold py-3 px-4">
                         Produto

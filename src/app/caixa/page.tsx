@@ -490,6 +490,13 @@ export default function CaixaPage() {
     init();
   }, []);
 
+  // Focar automaticamente no campo de busca quando o componente carregar
+  useEffect(() => {
+    if (mounted && buscaInputRef.current) {
+      buscaInputRef.current.focus();
+    }
+  }, [mounted]);
+
   // Listener para atalhos de teclado do caixa
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
