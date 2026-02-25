@@ -18,6 +18,7 @@ import {
   BarChart3,
   AlertCircle,
   Save,
+  Edit,
 } from "lucide-react";
 import { format, startOfDay, startOfWeek, startOfMonth, endOfDay, endOfWeek, endOfMonth, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -37,7 +38,10 @@ export default function FinanceiroPage() {
   const [filtroTempo, setFiltroTempo] = useState<FiltroTempo>("diario");
   const [ganhos, setGanhos] = useState(0);
   const [metaDiaria, setMetaDiaria] = useState(500);
+  const [metaSemanal, setMetaSemanal] = useState(3500); // 500 * 7
   const [showModalMeta, setShowModalMeta] = useState(false);
+  const [showModalEditarMeta, setShowModalEditarMeta] = useState(false);
+  const [tipoMetaEditando, setTipoMetaEditando] = useState<"diario" | "semanal">("diario");
   const [novaMeta, setNovaMeta] = useState("");
 
   // Modal de pagamento
@@ -333,10 +337,18 @@ export default function FinanceiroPage() {
         console.log(`✅ BANNER DE PENDÊNCIAS NÃO SERÁ EXIBIDO (nenhum pagamento pendente)`);
       }
 
-      // Carregar meta salva (localStorage como cache)
-      const metaSalva = localStorage.getItem(`meta_${operador.id}`);
-      if (metaSalva) {
-        setMetaDiaria(parseFloat(metaSalva));
+      // Carregar metas salvas (localStorage como cache)
+      const metaDiariaSalva = localStorage.getItem(`meta_diaria_${operador.id}`);
+      if (metaDiariaSalva) {
+        setMetaDiaria(parseFloat(metaDiariaSalva));
+      }
+
+      const metaSemanalSalva = localStorage.getItem(`meta_semanal_${operador.id}`);
+      if (metaSemanalSalva) {
+        setMetaSemanal(parseFloat(metaSemanalSalva));
+      } else {
+        // Se não houver meta semanal salva, calcular baseado na diária
+        setMetaSemanal(parseFloat(metaDiariaSalva || "500") * 7);
       }
 
       // Carregar cartão salvo (localStorage como cache)
@@ -644,10 +656,41 @@ export default function FinanceiroPage() {
       alert("Digite um valor válido para a meta!");
       return;
     }
-    
+
     setMetaDiaria(valor);
-    localStorage.setItem(`meta_${operadorId}`, valor.toString());
+    localStorage.setItem(`meta_diaria_${operadorId}`, valor.toString());
+
+    // Atualizar meta semanal automaticamente (7 dias)
+    const novaSemanal = valor * 7;
+    setMetaSemanal(novaSemanal);
+    localStorage.setItem(`meta_semanal_${operadorId}`, novaSemanal.toString());
+
     setShowModalMeta(false);
+    setNovaMeta("");
+  };
+
+  const abrirEdicaoMeta = (tipo: "diario" | "semanal") => {
+    setTipoMetaEditando(tipo);
+    setNovaMeta(tipo === "diario" ? metaDiaria.toString() : metaSemanal.toString());
+    setShowModalEditarMeta(true);
+  };
+
+  const salvarMetaEditada = () => {
+    const valor = parseFloat(novaMeta);
+    if (isNaN(valor) || valor <= 0) {
+      alert("Digite um valor válido para a meta!");
+      return;
+    }
+
+    if (tipoMetaEditando === "diario") {
+      setMetaDiaria(valor);
+      localStorage.setItem(`meta_diaria_${operadorId}`, valor.toString());
+    } else {
+      setMetaSemanal(valor);
+      localStorage.setItem(`meta_semanal_${operadorId}`, valor.toString());
+    }
+
+    setShowModalEditarMeta(false);
     setNovaMeta("");
   };
 
@@ -799,9 +842,9 @@ export default function FinanceiroPage() {
       case "diario":
         return metaDiaria;
       case "semanal":
-        return metaDiaria * 7;
+        return metaSemanal;
       case "mensal":
-        return metaDiaria * 30;
+        return metaSemanal * 4; // 4 semanas
     }
   };
 
@@ -939,7 +982,18 @@ export default function FinanceiroPage() {
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-green-100 text-sm font-semibold">Meta</p>
-                <Target className="w-5 h-5 text-white" />
+                <div className="flex items-center space-x-2">
+                  {(filtroTempo === "diario" || filtroTempo === "semanal") && (
+                    <button
+                      onClick={() => abrirEdicaoMeta(filtroTempo)}
+                      className="p-1.5 bg-white/20 hover:bg-white/30 rounded-lg transition-all"
+                      title="Editar meta"
+                    >
+                      <Edit className="w-4 h-4 text-white" />
+                    </button>
+                  )}
+                  <Target className="w-5 h-5 text-white" />
+                </div>
               </div>
               <p className="text-white text-3xl font-bold">
                 R$ {metaAtual.toFixed(2)}
@@ -1527,6 +1581,69 @@ export default function FinanceiroPage() {
                   className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg hover:from-purple-600 hover:to-indigo-700 transition-all font-semibold shadow-lg"
                 >
                   Salvar Meta
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Editar Meta (Diária ou Semanal) */}
+      {showModalEditarMeta && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl max-w-md w-full border border-white/10">
+            <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+              <h3 className="text-xl font-bold text-white">
+                Editar Meta {tipoMetaEditando === "diario" ? "Diária" : "Semanal"}
+              </h3>
+              <button
+                onClick={() => setShowModalEditarMeta(false)}
+                className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3 mb-4">
+                <p className="text-emerald-300 text-sm">
+                  {tipoMetaEditando === "diario"
+                    ? "Ajuste sua meta de ganhos diários. Esta é a meta que você deseja alcançar todos os dias."
+                    : "Ajuste sua meta de ganhos semanais. Esta é a meta que você deseja alcançar por semana."}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-purple-200 text-sm font-semibold mb-2">
+                  Valor da Meta {tipoMetaEditando === "diario" ? "Diária" : "Semanal"} (R$)
+                </label>
+                <input
+                  type="number"
+                  value={novaMeta}
+                  onChange={(e) => setNovaMeta(e.target.value)}
+                  placeholder={tipoMetaEditando === "diario" ? "Ex: 500.00" : "Ex: 3500.00"}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                <p className="text-purple-200 text-xs mt-2">
+                  {tipoMetaEditando === "diario"
+                    ? `Meta semanal automática: R$ ${(parseFloat(novaMeta || "0") * 7).toFixed(2)}`
+                    : `Aproximadamente R$ ${(parseFloat(novaMeta || "0") / 7).toFixed(2)} por dia`}
+                </p>
+              </div>
+
+              <div className="flex space-x-3 pt-4">
+                <button
+                  onClick={() => setShowModalEditarMeta(false)}
+                  className="flex-1 px-4 py-3 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={salvarMetaEditada}
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-lg hover:from-emerald-600 hover:to-teal-700 transition-all font-semibold shadow-lg flex items-center justify-center space-x-2"
+                >
+                  <Save className="w-5 h-5" />
+                  <span>Salvar</span>
                 </button>
               </div>
             </div>
