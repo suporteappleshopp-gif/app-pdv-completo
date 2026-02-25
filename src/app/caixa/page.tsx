@@ -781,6 +781,7 @@ export default function CaixaPage() {
       const novoItem: ItemVenda = {
         produtoId: produto.id,
         nome: produto.nome,
+        codigoBarras: produto.codigoBarras, // ✅ Salvar código de barras para devolução
         quantidade: 1,
         precoUnitario: produto.preco,
         subtotal: produto.preco,

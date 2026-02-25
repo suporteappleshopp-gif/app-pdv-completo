@@ -282,6 +282,7 @@ export default function HistoricoPage() {
         .insert({
           user_id: operador.id,
           produto_nome: itemParaDevolver.nome,
+          codigo_barras: itemParaDevolver.codigoBarras || null, // ✅ CRÍTICO: Necessário para atualizar estoque
           quantidade: quantidadeDevolver,
           valor_unitario: itemParaDevolver.precoUnitario,
           valor_total: itemParaDevolver.precoUnitario * quantidadeDevolver,
@@ -635,13 +636,28 @@ export default function HistoricoPage() {
                       <div className="mb-4 bg-orange-500/10 border border-orange-500/30 rounded-lg p-3">
                         <p className="text-orange-300 font-semibold mb-2 flex items-center">
                           <RotateCcw className="w-4 h-4 mr-2" />
-                          Devoluções:
+                          Devoluções Realizadas:
                         </p>
-                        {venda.devolucoes.map((dev, idx) => (
-                          <p key={idx} className="text-orange-200 text-sm ml-6">
-                            • {dev.quantidade}x {dev.nomeProduto} - {dev.motivo}
-                          </p>
-                        ))}
+                        <div className="space-y-2">
+                          {venda.devolucoes.map((dev, idx) => (
+                            <div key={idx} className="ml-6 bg-white/5 rounded-lg p-2">
+                              <p className="text-orange-200 text-sm font-medium">
+                                • {dev.quantidade}x {dev.nomeProduto}
+                              </p>
+                              <p className="text-orange-300/70 text-xs ml-3 mt-1">
+                                Motivo: {dev.motivo}
+                              </p>
+                              <p className="text-orange-300/70 text-xs ml-3">
+                                Destino: {dev.tipoDestino === "estoque"
+                                  ? "✅ Devolvido ao estoque"
+                                  : "❌ Avaria (produto descartado)"}
+                              </p>
+                              <p className="text-orange-300/70 text-xs ml-3">
+                                Data: {new Date(dev.dataHora).toLocaleString("pt-BR")}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
 

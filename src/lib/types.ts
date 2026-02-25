@@ -45,6 +45,7 @@ export interface Produto {
 export interface ItemVenda {
   produtoId: string;
   nome: string;
+  codigoBarras?: string; // Código de barras do produto (para devolução)
   quantidade: number;
   precoUnitario: number;
   subtotal: number;
