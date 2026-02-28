@@ -125,6 +125,9 @@ export default function CaixaPage() {
   // Ref para o input de busca
   const buscaInputRef = useRef<HTMLInputElement>(null);
 
+  // Ref para o input de valor recebido
+  const valorRecebidoInputRef = useRef<HTMLInputElement>(null);
+
   // Timer para salvamento automático
   const salvamentoTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -669,6 +672,16 @@ export default function CaixaPage() {
     setTotal(novoTotal);
   }, [carrinho]);
 
+  // 🎯 FOCO: Quando o modal de finalização estiver aberto e o tipo de pagamento for dinheiro,
+  // focar automaticamente no campo de valor recebido
+  useEffect(() => {
+    if (mostrarModalFinalizacao && tipoPagamento === "dinheiro") {
+      setTimeout(() => {
+        valorRecebidoInputRef.current?.focus();
+      }, 100);
+    }
+  }, [mostrarModalFinalizacao, tipoPagamento]);
+
   const carregarVendas = async () => {
     // Tentar carregar da nuvem primeiro isoladas por usuário
     if (supabaseConfigured && operadorId) {
@@ -791,6 +804,11 @@ export default function CaixaPage() {
 
     setBusca("");
     setMostrarProdutos(false);
+
+    // 🎯 FOCO: Retornar o cursor para o campo de busca após adicionar produto
+    setTimeout(() => {
+      buscaInputRef.current?.focus();
+    }, 100);
   };
 
   const alterarQuantidade = async (produtoId: string, delta: number) => {
@@ -849,6 +867,11 @@ export default function CaixaPage() {
         })
         .filter((item): item is ItemVenda => item !== null)
     );
+
+    // 🎯 FOCO: Retornar o cursor para o campo de busca após alterar quantidade
+    setTimeout(() => {
+      buscaInputRef.current?.focus();
+    }, 100);
   };
 
   const abrirConfirmacaoExcluirItem = async (produtoId: string) => {
@@ -867,12 +890,22 @@ export default function CaixaPage() {
       setCarrinho(carrinho.filter((item) => item.produtoId !== itemParaExcluir));
       setMostrarConfirmacaoExcluirItem(false);
       setItemParaExcluir(null);
+
+      // 🎯 FOCO: Retornar o cursor para o campo de busca após excluir item
+      setTimeout(() => {
+        buscaInputRef.current?.focus();
+      }, 100);
     }
   };
 
   const cancelarExclusaoItem = () => {
     setMostrarConfirmacaoExcluirItem(false);
     setItemParaExcluir(null);
+
+    // 🎯 FOCO: Retornar o cursor para o campo de busca após cancelar exclusão
+    setTimeout(() => {
+      buscaInputRef.current?.focus();
+    }, 100);
   };
 
   const cancelarVenda = async () => {
@@ -1882,6 +1915,7 @@ export default function CaixaPage() {
                   Valor Recebido (R$)
                 </label>
                 <input
+                  ref={valorRecebidoInputRef}
                   type="number"
                   step="0.01"
                   value={valorRecebido}
