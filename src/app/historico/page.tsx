@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/db";
-import { Venda, ItemVenda } from "@/lib/types";
+import { Venda, ItemVenda, Exclusao } from "@/lib/types";
 import {
   ArrowLeft,
   History,
@@ -416,6 +416,21 @@ export default function HistoricoPage() {
 
         if (itemIndex !== -1) {
           const itemAtual = vendaAtualizada.itens[itemIndex];
+          const valorExcluido = itemAtual.precoUnitario * quantidadeApagar;
+
+          // 🔥 REGISTRAR EXCLUSÃO NO HISTÓRICO
+          if (!vendaAtualizada.exclusoes) {
+            vendaAtualizada.exclusoes = [];
+          }
+          vendaAtualizada.exclusoes.push({
+            tipo: "item",
+            produtoId: itemParaExcluir.produtoId,
+            nomeProduto: itemParaExcluir.nome,
+            quantidade: quantidadeApagar,
+            valorExcluido: valorExcluido,
+            dataHora: new Date(),
+            operadorResponsavel: operador.nome,
+          });
 
           if (quantidadeApagar >= itemAtual.quantidade) {
             // Remover item completamente
@@ -453,11 +468,12 @@ export default function HistoricoPage() {
             // Atualizar venda localmente
             await db.updateVenda(vendaAtualizada);
 
-            // Atualizar no Supabase - vendas
+            // Atualizar no Supabase - vendas (incluindo histórico de exclusões)
             await supabase
               .from("vendas")
               .update({
                 total: vendaAtualizada.total,
+                exclusoes: vendaAtualizada.exclusoes,
               })
               .eq("id", vendaAtualizada.id)
               .eq("operador_id", operador.id);
@@ -486,23 +502,35 @@ export default function HistoricoPage() {
           }
         }
       } else {
-        // Excluir venda completa
-        await db.deleteVenda(vendaParaExcluir.id);
+        // 🔥 REGISTRAR EXCLUSÃO COMPLETA DA VENDA NO HISTÓRICO
+        // Primeiro, atualizar a venda com o registro de exclusão antes de deletar
+        const vendaAtualizada = { ...vendaParaExcluir };
+        if (!vendaAtualizada.exclusoes) {
+          vendaAtualizada.exclusoes = [];
+        }
+        vendaAtualizada.exclusoes.push({
+          tipo: "venda",
+          valorExcluido: vendaParaExcluir.total,
+          dataHora: new Date(),
+          operadorResponsavel: operador.nome,
+        });
 
-        // Excluir itens_venda primeiro (relacionamento)
-        await supabase
-          .from("itens_venda")
-          .delete()
-          .eq("venda_id", vendaParaExcluir.id);
-
-        // Depois excluir venda
+        // Atualizar venda no Supabase com histórico de exclusão antes de deletar
         await supabase
           .from("vendas")
-          .delete()
+          .update({
+            status: "cancelada",
+            exclusoes: vendaAtualizada.exclusoes,
+          })
           .eq("id", vendaParaExcluir.id)
           .eq("operador_id", operador.id);
 
-        setSucesso("Venda excluída com sucesso!");
+        // �� NÃO DELETAR MAIS! Apenas marcar como cancelada para manter histórico
+        // await db.deleteVenda(vendaParaExcluir.id);
+        vendaAtualizada.status = "cancelada";
+        await db.updateVenda(vendaAtualizada);
+
+        setSucesso("Venda marcada como excluída! O registro foi mantido no histórico.");
       }
 
       setTimeout(() => setSucesso(""), 5000);
@@ -816,6 +844,49 @@ export default function HistoricoPage() {
                               </p>
                               <p className="text-orange-300/70 text-xs ml-3">
                                 Data: {new Date(dev.dataHora).toLocaleString("pt-BR")}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 🔥 NOVO: Exclusões (se houver) */}
+                    {venda.exclusoes && venda.exclusoes.length > 0 && (
+                      <div className="mb-4 bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+                        <p className="text-red-300 font-semibold mb-2 flex items-center">
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Histórico de Exclus��es:
+                        </p>
+                        <div className="space-y-2">
+                          {venda.exclusoes.map((exc, idx) => (
+                            <div key={idx} className="ml-6 bg-white/5 rounded-lg p-2">
+                              {exc.tipo === "item" ? (
+                                <>
+                                  <p className="text-red-200 text-sm font-medium">
+                                    • {exc.quantidade}x {exc.nomeProduto} (excluído)
+                                  </p>
+                                  <p className="text-red-300/70 text-xs ml-3 mt-1">
+                                    Valor excluído: R$ {exc.valorExcluido.toFixed(2)}
+                                  </p>
+                                </>
+                              ) : (
+                                <>
+                                  <p className="text-red-200 text-sm font-medium">
+                                    • Venda completa excluída
+                                  </p>
+                                  <p className="text-red-300/70 text-xs ml-3 mt-1">
+                                    Valor da venda: R$ {exc.valorExcluido.toFixed(2)}
+                                  </p>
+                                </>
+                              )}
+                              {exc.operadorResponsavel && (
+                                <p className="text-red-300/70 text-xs ml-3">
+                                  Por: {exc.operadorResponsavel}
+                                </p>
+                              )}
+                              <p className="text-red-300/70 text-xs ml-3">
+                                Data: {new Date(exc.dataHora).toLocaleString("pt-BR")}
                               </p>
                             </div>
                           ))}

@@ -99,9 +99,53 @@ export default function AnaliseLojasPage() {
       setOperadores(ops.filter((op) => !op.isAdmin));
     });
 
+    // 🔥 NOVO: Escutar mudanças em vendas e itens_venda em tempo real
+    const channelVendas = supabase
+      .channel(`admin_vendas_realtime_${Date.now()}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'vendas',
+        },
+        (payload) => {
+          console.log('🔔 [ADMIN] Mudança detectada em vendas:', payload);
+          // Recarregar vendas se estiver visualizando algum operador
+          if (operadorSelecionado) {
+            carregarVendasUsuario();
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'itens_venda',
+        },
+        (payload) => {
+          console.log('🔔 [ADMIN] Mudança detectada em itens_venda:', payload);
+          // Recarregar vendas se estiver visualizando algum operador
+          if (operadorSelecionado) {
+            carregarVendasUsuario();
+          }
+        }
+      )
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ [ADMIN] Realtime CONECTADO para vendas e itens');
+        } else if (status === 'CLOSED') {
+          console.warn('⚠️ [ADMIN] Realtime vendas FECHADO');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ [ADMIN] Erro no canal realtime vendas:', err);
+        }
+      });
+
     // Cleanup ao desmontar
     return () => {
       supabase.removeChannel(channelOperadores);
+      supabase.removeChannel(channelVendas);
     };
   };
 
@@ -152,12 +196,22 @@ export default function AnaliseLojasPage() {
     try {
       setLoadingVendas(true);
 
-      // Buscar vendas do usuário no Supabase
+      // Buscar vendas do usuário no Supabase COM itens_venda
       console.log("🔍 Carregando vendas do usuário:", operadorSelecionado);
 
       const { data, error } = await supabase
         .from("vendas")
-        .select("*")
+        .select(`
+          *,
+          itens_venda (
+            produto_id,
+            nome,
+            codigo_barras,
+            quantidade,
+            preco_unitario,
+            subtotal
+          )
+        `)
         .eq("operador_id", operadorSelecionado)
         .order("data_hora", { ascending: false });
 
@@ -197,13 +251,36 @@ export default function AnaliseLojasPage() {
 
       console.log("✅ Vendas carregadas do Supabase:", data?.length || 0);
 
+      // 🔥 MAPEAR vendas do Supabase para o formato esperado (snake_case -> camelCase)
+      const vendasMapeadas = (data || []).map((v: any) => ({
+        id: v.id,
+        numero: v.numero,
+        operadorId: v.operador_id,
+        operadorNome: v.operador_nome,
+        dataHora: v.data_hora,
+        total: v.total,
+        status: v.status,
+        tipoPagamento: v.tipo_pagamento,
+        valorRecebido: v.valor_recebido,
+        troco: v.troco,
+        itens: (v.itens_venda || []).map((item: any) => ({
+          produtoId: item.produto_id,
+          nome: item.nome,
+          codigoBarras: item.codigo_barras,
+          quantidade: item.quantidade,
+          precoUnitario: item.preco_unitario,
+          subtotal: item.subtotal,
+        })),
+        devolucoes: v.devolucoes || [],
+      }));
+
       // Calcular estatísticas
-      const vendasConcluidas = (data || []).filter((v) => v.status !== "cancelada");
+      const vendasConcluidas = vendasMapeadas.filter((v) => v.status !== "cancelada");
       const total = vendasConcluidas.length;
       const faturamento = vendasConcluidas.reduce((acc, v) => acc + (v.total || 0), 0);
       const ticket = total > 0 ? faturamento / total : 0;
 
-      setVendas(data || []);
+      setVendas(vendasMapeadas);
       setTotalVendas(total);
       setFaturamentoTotal(faturamento);
       setTicketMedio(ticket);

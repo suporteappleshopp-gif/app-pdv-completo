@@ -60,6 +60,16 @@ export interface Devolucao {
   tipoDestino?: "estoque" | "avaria"; // Para onde foi o produto devolvido
 }
 
+export interface Exclusao {
+  tipo: "item" | "venda";
+  produtoId?: string;
+  nomeProduto?: string;
+  quantidade?: number;
+  valorExcluido: number;
+  dataHora: Date;
+  operadorResponsavel?: string;
+}
+
 export interface Avaria {
   id: string;
   userId: string;
@@ -85,9 +95,12 @@ export interface Venda {
   total: number;
   dataHora: Date;
   devolucoes?: Devolucao[];
+  exclusoes?: Exclusao[];
   status?: "concluida" | "cancelada";
   motivoCancelamento?: string;
   tipoPagamento?: TipoPagamento;
+  valorRecebido?: number;
+  troco?: number;
 }
 
 export interface Empresa {
