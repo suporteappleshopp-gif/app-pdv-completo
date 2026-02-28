@@ -220,7 +220,8 @@ export default function HistoricoPage() {
             status: v.status as "concluida" | "cancelada",
             tipoPagamento: v.forma_pagamento,
             motivoCancelamento: v.motivo_cancelamento,
-            devolucoes: [],
+            devolucoes: v.devolucoes || [],
+            exclusoes: v.exclusoes || [],
           } as Venda;
         })
       );
@@ -468,8 +469,9 @@ export default function HistoricoPage() {
             // Atualizar venda localmente
             await db.updateVenda(vendaAtualizada);
 
-            // Atualizar no Supabase - vendas (incluindo histórico de exclusões)
-            await supabase
+            // 🔥 ATUALIZAR NO SUPABASE - vendas (incluindo histórico de exclusões)
+            console.log("���� Atualizando venda no Supabase:", vendaAtualizada.id);
+            const { error: vendaError } = await supabase
               .from("vendas")
               .update({
                 total: vendaAtualizada.total,
@@ -478,17 +480,31 @@ export default function HistoricoPage() {
               .eq("id", vendaAtualizada.id)
               .eq("operador_id", operador.id);
 
-            // Atualizar ou excluir item no Supabase - itens_venda
-            if (quantidadeApagar >= itemAtual.quantidade + quantidadeApagar) {
+            if (vendaError) {
+              console.error("❌ Erro ao atualizar venda no Supabase:", vendaError);
+            } else {
+              console.log("✅ Venda atualizada no Supabase");
+            }
+
+            // 🔥 ATUALIZAR OU EXCLUIR ITEM NO SUPABASE - itens_venda
+            if (quantidadeApagar >= itemParaExcluir.quantidade) {
               // Excluir item completamente de itens_venda
-              await supabase
+              console.log("📤 Excluindo item do Supabase:", itemParaExcluir.produtoId);
+              const { error: itemError } = await supabase
                 .from("itens_venda")
                 .delete()
                 .eq("venda_id", vendaAtualizada.id)
                 .eq("produto_id", itemParaExcluir.produtoId);
+
+              if (itemError) {
+                console.error("❌ Erro ao excluir item no Supabase:", itemError);
+              } else {
+                console.log("✅ Item excluído do Supabase");
+              }
             } else {
               // Atualizar quantidade em itens_venda
-              await supabase
+              console.log("📤 Atualizando quantidade do item no Supabase:", itemAtual.quantidade);
+              const { error: itemError } = await supabase
                 .from("itens_venda")
                 .update({
                   quantidade: itemAtual.quantidade,
@@ -496,9 +512,15 @@ export default function HistoricoPage() {
                 })
                 .eq("venda_id", vendaAtualizada.id)
                 .eq("produto_id", itemParaExcluir.produtoId);
+
+              if (itemError) {
+                console.error("❌ Erro ao atualizar item no Supabase:", itemError);
+              } else {
+                console.log("✅ Item atualizado no Supabase");
+              }
             }
 
-            setSucesso(`${quantidadeApagar}x ${itemParaExcluir.nome} excluído(s)!`);
+            setSucesso(`${quantidadeApagar}x ${itemParaExcluir.nome} excluído(s)! Aguarde atualização dos painéis...`);
           }
         }
       } else {
@@ -516,7 +538,8 @@ export default function HistoricoPage() {
         });
 
         // Atualizar venda no Supabase com histórico de exclusão antes de deletar
-        await supabase
+        console.log("📤 Marcando venda como cancelada no Supabase:", vendaParaExcluir.id);
+        const { error: vendaError } = await supabase
           .from("vendas")
           .update({
             status: "cancelada",
@@ -525,12 +548,21 @@ export default function HistoricoPage() {
           .eq("id", vendaParaExcluir.id)
           .eq("operador_id", operador.id);
 
+        if (vendaError) {
+          console.error("❌ Erro ao marcar venda como cancelada no Supabase:", vendaError);
+          setErro("Erro ao excluir venda no Supabase");
+          setTimeout(() => setErro(""), 3000);
+          return;
+        }
+
+        console.log("✅ Venda marcada como cancelada no Supabase");
+
         // �� NÃO DELETAR MAIS! Apenas marcar como cancelada para manter histórico
         // await db.deleteVenda(vendaParaExcluir.id);
         vendaAtualizada.status = "cancelada";
         await db.updateVenda(vendaAtualizada);
 
-        setSucesso("Venda marcada como excluída! O registro foi mantido no histórico.");
+        setSucesso("Venda marcada como excluída! O registro foi mantido no histórico. Aguarde atualização dos painéis...");
       }
 
       setTimeout(() => setSucesso(""), 5000);
@@ -545,6 +577,12 @@ export default function HistoricoPage() {
 
   const limparFiltroData = () => {
     setDataFiltro("");
+  };
+
+  // Verificar se um item específico teve exclusões
+  const itemFoiExcluido = (venda: Venda, produtoId: string): boolean => {
+    if (!venda.exclusoes) return false;
+    return venda.exclusoes.some(exc => exc.tipo === "item" && exc.produtoId === produtoId);
   };
 
   const vendasFiltradas = vendas.filter((venda) => {
@@ -728,13 +766,27 @@ export default function HistoricoPage() {
                 {vendasFiltradas.map((venda) => (
                   <div
                     key={venda.id}
-                    className="bg-white/5 border border-white/10 rounded-xl p-6 hover:bg-white/10 transition-all"
+                    className={`border rounded-xl p-6 hover:bg-white/10 transition-all ${
+                      venda.status === "cancelada"
+                        ? "bg-red-500/5 border-red-500/30"
+                        : venda.exclusoes && venda.exclusoes.length > 0
+                        ? "bg-yellow-500/5 border-yellow-500/30"
+                        : "bg-white/5 border-white/10"
+                    }`}
                   >
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
                         <div className="flex items-center space-x-3 mb-2">
-                          <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 rounded-full text-sm font-bold">
+                          <span className={`px-3 py-1 rounded-full text-sm font-bold ${
+                            venda.status === "cancelada"
+                              ? "bg-red-500/20 text-red-300"
+                              : venda.exclusoes && venda.exclusoes.length > 0
+                              ? "bg-yellow-500/20 text-yellow-300"
+                              : "bg-indigo-500/20 text-indigo-300"
+                          }`}>
                             Venda #{venda.numero}
+                            {venda.status === "cancelada" && " (EXCLUÍDA)"}
+                            {venda.status !== "cancelada" && venda.exclusoes && venda.exclusoes.length > 0 && " (COM EXCLUSÕES)"}
                           </span>
                           <span className="text-purple-200 text-sm flex items-center">
                             <Calendar className="w-4 h-4 mr-1" />
@@ -778,47 +830,63 @@ export default function HistoricoPage() {
                         </button>
 
                         <button
-                          onClick={() => abrirModalExclusaoVenda(venda)}
-                          className="flex items-center space-x-2 px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg transition-all"
-                          title="Apagar venda completa"
+                          onClick={() => venda.status !== "cancelada" && abrirModalExclusaoVenda(venda)}
+                          className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all ${
+                            venda.status === "cancelada"
+                              ? "bg-gray-500/30 text-gray-400 cursor-not-allowed"
+                              : "bg-red-500/20 hover:bg-red-500/30 text-red-300"
+                          }`}
+                          title={venda.status === "cancelada" ? "Venda já foi excluída" : "Apagar venda completa"}
+                          disabled={venda.status === "cancelada"}
                         >
                           <Trash2 className="w-5 h-5" />
-                          <span className="font-semibold">Apagar Venda</span>
+                          <span className="font-semibold">
+                            {venda.status === "cancelada" ? "Nota Apagada" : "Apagar Venda"}
+                          </span>
                         </button>
                       </div>
                     </div>
 
                     {/* Itens da Venda */}
                     <div className="space-y-2 mb-4">
-                      {venda.itens.map((item, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between bg-white/5 rounded-lg p-3"
-                        >
-                          <div className="flex items-center space-x-3 flex-1">
-                            <Package className="w-5 h-5 text-purple-300" />
-                            <div>
-                              <p className="text-white font-semibold">{item.nome}</p>
-                              <p className="text-purple-200 text-sm">
-                                {item.quantidade}x R$ {item.precoUnitario.toFixed(2)}
+                      {venda.itens.map((item, index) => {
+                        const itemExcluido = itemFoiExcluido(venda, item.produtoId);
+                        return (
+                          <div
+                            key={index}
+                            className="flex items-center justify-between bg-white/5 rounded-lg p-3"
+                          >
+                            <div className="flex items-center space-x-3 flex-1">
+                              <Package className="w-5 h-5 text-purple-300" />
+                              <div>
+                                <p className="text-white font-semibold">{item.nome}</p>
+                                <p className="text-purple-200 text-sm">
+                                  {item.quantidade}x R$ {item.precoUnitario.toFixed(2)}
+                                </p>
+                                {itemExcluido && (
+                                  <p className="text-yellow-300 text-xs mt-1 flex items-center">
+                                    <AlertCircle className="w-3 h-3 mr-1" />
+                                    Item teve exclusões (veja histórico abaixo)
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-4">
+                              <p className="text-white font-bold">
+                                R$ {item.subtotal.toFixed(2)}
                               </p>
+                              <button
+                                onClick={() => abrirModalExclusaoItem(venda, item)}
+                                className="flex items-center space-x-1 px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg transition-all"
+                                title="Apagar item"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                <span className="text-sm font-semibold">Apagar</span>
+                              </button>
                             </div>
                           </div>
-                          <div className="flex items-center space-x-4">
-                            <p className="text-white font-bold">
-                              R$ {item.subtotal.toFixed(2)}
-                            </p>
-                            <button
-                              onClick={() => abrirModalExclusaoItem(venda, item)}
-                              className="flex items-center space-x-1 px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg transition-all"
-                              title="Apagar item"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                              <span className="text-sm font-semibold">Apagar</span>
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
 
                     {/* Devoluções (se houver) */}
