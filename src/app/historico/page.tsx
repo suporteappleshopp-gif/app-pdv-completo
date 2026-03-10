@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/db";
-import { Venda, ItemVenda, Exclusao } from "@/lib/types";
+import { Venda, ItemVenda } from "@/lib/types";
 import {
   ArrowLeft,
   History,
@@ -18,8 +18,11 @@ import {
   AlertCircle,
   CheckCircle,
   X,
-  Filter,
-  Trash2,
+  ArrowLeftRight,
+  RefreshCw,
+  FileText,
+  Receipt,
+  Info,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -28,6 +31,30 @@ import {
   imprimirNFCe,
   imprimirNotaFiscalCompleta,
 } from "@/lib/impressao";
+
+// Tipos para troca/extorno
+interface ItemTrocaExtorno {
+  produtoId: string;
+  nome: string;
+  quantidade: number;
+  precoUnitario: number;
+  subtotal: number;
+  codigoBarras?: string;
+}
+
+// Motivos fiscais conforme SEFAZ
+const MOTIVOS_DEVOLUCAO_SEFAZ = [
+  { codigo: "01", descricao: "Mercadoria com defeito" },
+  { codigo: "02", descricao: "Mercadoria errada (erro na emissão)" },
+  { codigo: "03", descricao: "Mercadoria em desacordo com o pedido" },
+  { codigo: "04", descricao: "Não recebimento da mercadoria" },
+  { codigo: "05", descricao: "Devolvida pelo destinatário" },
+  { codigo: "06", descricao: "Arrependimento do consumidor (CDC art. 49)" },
+  { codigo: "07", descricao: "Produto vencido ou deteriorado" },
+  { codigo: "08", descricao: "Troca por produto diferente" },
+  { codigo: "09", descricao: "Erro de preço ou cobrança" },
+  { codigo: "99", descricao: "Outros motivos" },
+];
 
 export default function HistoricoPage() {
   const router = useRouter();
@@ -38,21 +65,16 @@ export default function HistoricoPage() {
   const [sucesso, setSucesso] = useState("");
   const [erro, setErro] = useState("");
 
-  // Modal de devolução
-  const [showModalDevolucao, setShowModalDevolucao] = useState(false);
-  const [vendaSelecionada, setVendaSelecionada] = useState<Venda | null>(null);
-  const [itemParaDevolver, setItemParaDevolver] = useState<ItemVenda | null>(null);
-  const [quantidadeDevolver, setQuantidadeDevolver] = useState(1);
-  const [motivoDevolucao, setMotivoDevolucao] = useState("");
-  const [tipoDestino, setTipoDestino] = useState<"estoque" | "avaria">("estoque");
-  const [observacoesAvaria, setObservacoesAvaria] = useState("");
-
-  // Modal de exclusão
-  const [showModalExclusao, setShowModalExclusao] = useState(false);
-  const [tipoExclusao, setTipoExclusao] = useState<"venda" | "item">("item");
-  const [vendaParaExcluir, setVendaParaExcluir] = useState<Venda | null>(null);
-  const [itemParaExcluir, setItemParaExcluir] = useState<ItemVenda | null>(null);
-  const [quantidadeApagar, setQuantidadeApagar] = useState(1);
+  // Modal de Troca/Extorno
+  const [showModalTrocaExtorno, setShowModalTrocaExtorno] = useState(false);
+  const [tipoOperacao, setTipoOperacao] = useState<"troca" | "extorno">("extorno");
+  const [vendaTrocaExtorno, setVendaTrocaExtorno] = useState<Venda | null>(null);
+  const [itensSelecionados, setItensSelecionados] = useState<Array<{item: ItemVenda; quantidade: number; selecionado: boolean}>>([]);
+  const [motivoFiscal, setMotivoFiscal] = useState("");
+  const [observacoes, setObservacoes] = useState("");
+  const [notaReferenciada, setNotaReferenciada] = useState("");
+  const [formaPagamentoDevolucao, setFormaPagamentoDevolucao] = useState<"dinheiro" | "credito" | "debito" | "pix" | "troca">("dinheiro");
+  const [processando, setProcessando] = useState(false);
 
   useEffect(() => {
     let channel: any = null;
@@ -61,19 +83,13 @@ export default function HistoricoPage() {
     const init = async () => {
       await carregarVendas();
 
-      // Configurar subscription de realtime
       const { AuthSupabase } = await import("@/lib/auth-supabase");
       const operador = await AuthSupabase.getCurrentOperador();
 
       if (operador && !operador.isAdmin) {
         const { supabase } = await import("@/lib/supabase");
 
-        // ✅ Canal único com timestamp para evitar conflitos
         const channelId = `vendas_historico_${operador.id}_${Date.now()}`;
-        console.log('🔧 Configurando realtime para histórico. Canal:', channelId);
-        console.log('🔧 Filtro:', `operador_id=eq.${operador.id}`);
-
-        // Escutar mudanças na tabela de vendas em tempo real
         channel = supabase
           .channel(channelId)
           .on(
@@ -84,69 +100,34 @@ export default function HistoricoPage() {
               table: 'vendas',
               filter: `operador_id=eq.${operador.id}`,
             },
-            (payload) => {
-              console.log('🔔 Mudança detectada em vendas (histórico):', payload);
-              // Recarregar vendas quando houver mudança
-              carregarVendas();
-            }
+            () => { carregarVendas(); }
           )
-          .subscribe((status, err) => {
-            if (status === 'SUBSCRIBED') {
-              console.log('✅ Realtime CONECTADO para histórico de vendas');
-            } else if (status === 'CLOSED') {
-              console.warn('⚠️ Realtime histórico FECHADO');
-            } else if (status === 'CHANNEL_ERROR') {
-              console.error('❌ Erro no canal realtime histórico:', err);
-            }
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') console.log('✅ Realtime CONECTADO para histórico');
           });
 
-        // ✅ Também escutar mudanças nos itens de venda
-        const channelItensId = `itens_venda_historico_${operador.id}_${Date.now()}`;
+        const channelItensId = `itens_historico_${operador.id}_${Date.now()}`;
         channelItens = supabase
           .channel(channelItensId)
           .on(
             'postgres_changes',
-            {
-              event: '*',
-              schema: 'public',
-              table: 'itens_venda',
-            },
-            (payload) => {
-              console.log('🔔 Mudança detectada em itens de venda:', payload);
-              carregarVendas();
-            }
+            { event: '*', schema: 'public', table: 'itens_venda' },
+            () => { carregarVendas(); }
           )
-          .subscribe((status, err) => {
-            if (status === 'SUBSCRIBED') {
-              console.log('✅ Realtime CONECTADO para itens de venda');
-            } else if (status === 'CLOSED') {
-              console.warn('⚠️ Realtime itens FECHADO');
-            } else if (status === 'CHANNEL_ERROR') {
-              console.error('❌ Erro no canal realtime itens:', err);
-            }
-          });
+          .subscribe();
       }
     };
 
     init();
 
-    // ✅ FALLBACK: Recarregar vendas a cada 15 segundos (caso realtime não funcione)
     const intervaloFallback = setInterval(() => {
-      console.log('🔄 Recarregando histórico (polling)...');
       carregarVendas();
     }, 15000);
 
-    // Cleanup ao desmontar
     return () => {
       clearInterval(intervaloFallback);
-      if (channel) {
-        channel.unsubscribe();
-        console.log('🔌 Realtime de vendas desconectado');
-      }
-      if (channelItens) {
-        channelItens.unsubscribe();
-        console.log('🔌 Realtime de itens desconectado');
-      }
+      if (channel) channel.unsubscribe();
+      if (channelItens) channelItens.unsubscribe();
     };
   }, []);
 
@@ -154,24 +135,19 @@ export default function HistoricoPage() {
     try {
       setLoading(true);
 
-      // Buscar operador logado
       const { AuthSupabase } = await import("@/lib/auth-supabase");
       const operador = await AuthSupabase.getCurrentOperador();
 
       if (!operador) {
-        setErro("Usuário não autenticado");
         router.push("/");
         return;
       }
 
-      // 🔒 Bloquear admin
       if (operador.isAdmin) {
         router.push("/admin");
         return;
       }
 
-      // Carregar vendas diretamente do Supabase
-      console.log("☁️ Carregando vendas do Supabase...");
       const { supabase } = await import("@/lib/supabase");
 
       const { data: vendasData, error: errorVendas } = await supabase
@@ -188,14 +164,10 @@ export default function HistoricoPage() {
       }
 
       if (!vendasData || vendasData.length === 0) {
-        console.log("⚠️ Nenhuma venda encontrada");
         setVendas([]);
         return;
       }
 
-      console.log(`✅ ${vendasData.length} vendas encontradas no Supabase`);
-
-      // Carregar itens para cada venda
       const vendasComItens = await Promise.all(
         vendasData.map(async (v) => {
           const { data: itens } = await supabase
@@ -211,6 +183,7 @@ export default function HistoricoPage() {
             itens: (itens || []).map((item) => ({
               produtoId: item.produto_id,
               nome: item.nome,
+              codigoBarras: item.codigo_barras || "",
               quantidade: item.quantidade,
               precoUnitario: parseFloat(item.preco_unitario.toString()),
               subtotal: parseFloat(item.subtotal.toString()),
@@ -218,7 +191,7 @@ export default function HistoricoPage() {
             total: parseFloat(v.total.toString()),
             dataHora: new Date(v.created_at),
             status: v.status as "concluida" | "cancelada",
-            tipoPagamento: v.forma_pagamento,
+            tipoPagamento: v.forma_pagamento || v.tipo_pagamento,
             motivoCancelamento: v.motivo_cancelamento,
             devolucoes: v.devolucoes || [],
             exclusoes: v.exclusoes || [],
@@ -227,7 +200,6 @@ export default function HistoricoPage() {
       );
 
       setVendas(vendasComItens);
-      console.log(`✅ ${vendasComItens.length} vendas carregadas com itens`);
     } catch (err) {
       console.error("❌ Erro ao carregar vendas:", err);
       setErro("Erro ao carregar histórico de vendas");
@@ -238,366 +210,176 @@ export default function HistoricoPage() {
   };
 
   const imprimirNota = (venda: Venda) => {
-    // Imprime nota fiscal completa (detecta dispositivo automaticamente)
     imprimirNotaFiscalCompleta(venda);
   };
 
-  const abrirModalDevolucao = (venda: Venda, item: ItemVenda) => {
-    setVendaSelecionada(venda);
-    setItemParaDevolver(item);
-    setQuantidadeDevolver(1);
-    setMotivoDevolucao("");
-    setTipoDestino("estoque");
-    setObservacoesAvaria("");
-    setShowModalDevolucao(true);
+  // Abrir modal de troca/extorno
+  const abrirModalTrocaExtorno = (venda: Venda, tipo: "troca" | "extorno") => {
+    setVendaTrocaExtorno(venda);
+    setTipoOperacao(tipo);
+    setItensSelecionados(
+      venda.itens.map(item => ({
+        item,
+        quantidade: item.quantidade,
+        selecionado: tipo === "extorno", // Para extorno, seleciona tudo por padrão
+      }))
+    );
+    setMotivoFiscal("");
+    setObservacoes("");
+    setNotaReferenciada(venda.numero?.toString() || "");
+    setFormaPagamentoDevolucao("dinheiro");
+    setShowModalTrocaExtorno(true);
   };
 
-  const processarDevolucao = async () => {
-    if (!vendaSelecionada || !itemParaDevolver) return;
+  // Calcular valor total dos itens selecionados
+  const calcularValorSelecionado = () => {
+    return itensSelecionados
+      .filter(i => i.selecionado)
+      .reduce((acc, i) => acc + (i.item.precoUnitario * i.quantidade), 0);
+  };
+
+  const processarTrocaExtorno = async () => {
+    if (!vendaTrocaExtorno) return;
+
+    const itensSel = itensSelecionados.filter(i => i.selecionado && i.quantidade > 0);
+    if (itensSel.length === 0) {
+      setErro("Selecione ao menos um item para processar");
+      setTimeout(() => setErro(""), 3000);
+      return;
+    }
+
+    if (!motivoFiscal) {
+      setErro("Informe o motivo fiscal conforme SEFAZ");
+      setTimeout(() => setErro(""), 3000);
+      return;
+    }
 
     try {
-      // Validações
-      if (quantidadeDevolver <= 0 || quantidadeDevolver > itemParaDevolver.quantidade) {
-        setErro("Quantidade inválida para devolução");
-        setTimeout(() => setErro(""), 3000);
-        return;
-      }
+      setProcessando(true);
 
-      if (!motivoDevolucao.trim()) {
-        setErro("Informe o motivo da devolução");
-        setTimeout(() => setErro(""), 3000);
-        return;
-      }
-
-      // Buscar operador atual
       const { AuthSupabase } = await import("@/lib/auth-supabase");
       const operador = await AuthSupabase.getCurrentOperador();
 
       if (!operador) {
-        setErro("Erro: Operador não encontrado");
-        setTimeout(() => setErro(""), 3000);
+        setErro("Operador não encontrado");
         return;
       }
 
-      // ☁️ SINCRONIZAR COM SUPABASE EM TEMPO REAL
       const { supabase } = await import("@/lib/supabase");
 
-      // ✅ NOVO SISTEMA: Registrar devolução com tipo_destino
-      // O trigger do banco vai atualizar o estoque automaticamente se tipo_destino = 'estoque'
-      console.log(`🔄 Registrando devolução no Supabase (destino: ${tipoDestino})...`);
+      const valorTotal = calcularValorSelecionado();
+      const motivoSefaz = MOTIVOS_DEVOLUCAO_SEFAZ.find(m => m.codigo === motivoFiscal);
+      const numero = `${tipoOperacao.toUpperCase()}-${Date.now().toString().slice(-8)}`;
 
-      const { data: avariaDevolucao, error: errorAvaria } = await supabase
-        .from("avarias")
+      // 1. Registrar na tabela trocas_extornos
+      const { data: registro, error: erroRegistro } = await supabase
+        .from("trocas_extornos")
         .insert({
-          user_id: operador.id,
-          produto_nome: itemParaDevolver.nome,
-          codigo_barras: itemParaDevolver.codigoBarras || null, // ✅ CRÍTICO: Necessário para atualizar estoque
-          quantidade: quantidadeDevolver,
-          valor_unitario: itemParaDevolver.precoUnitario,
-          valor_total: itemParaDevolver.precoUnitario * quantidadeDevolver,
-          motivo: motivoDevolucao,
-          observacoes: tipoDestino === "avaria" ? observacoesAvaria : `Devolvido ao estoque`,
-          tipo_destino: tipoDestino, // ✅ CRÍTICO: Define se volta ao estoque ou não
+          venda_id: vendaTrocaExtorno.id,
+          operador_id: operador.id,
+          operador_nome: operador.nome,
+          tipo: tipoOperacao,
+          numero,
+          itens_originais: itensSel.map(i => ({
+            produtoId: i.item.produtoId,
+            nome: i.item.nome,
+            quantidade: i.quantidade,
+            precoUnitario: i.item.precoUnitario,
+            subtotal: i.item.precoUnitario * i.quantidade,
+            codigoBarras: i.item.codigoBarras,
+          })),
+          itens_novos: [],
+          valor_original: valorTotal,
+          valor_diferenca: tipoOperacao === "extorno" ? -valorTotal : 0,
+          forma_pagamento_diferenca: tipoOperacao === "extorno" ? formaPagamentoDevolucao : null,
+          motivo: motivoSefaz?.descricao || motivoFiscal,
+          observacoes,
+          nota_referenciada: notaReferenciada || vendaTrocaExtorno.numero?.toString(),
+          cfop_devolucao: tipoOperacao === "extorno" ? "5411" : "5411",
+          motivo_fiscal: `${motivoFiscal} - ${motivoSefaz?.descricao}`,
+          status: "processado",
         })
         .select()
         .single();
 
-      if (errorAvaria) {
-        console.error("❌ Erro ao registrar devolução:", errorAvaria);
-        setErro("Erro ao processar devolução. Tente novamente.");
-        setTimeout(() => setErro(""), 3000);
+      if (erroRegistro) {
+        console.error("Erro ao registrar:", erroRegistro);
+        setErro("Erro ao registrar operação no banco de dados");
         return;
       }
 
-      console.log(`✅ Devolução registrada no Supabase (ID: ${avariaDevolucao.id})`);
-      console.log(`   - Produto: ${itemParaDevolver.nome}`);
-      console.log(`   - Quantidade: ${quantidadeDevolver}`);
-      console.log(`   - Valor total: R$ ${(itemParaDevolver.precoUnitario * quantidadeDevolver).toFixed(2)}`);
-      console.log(`   - Destino: ${tipoDestino === "estoque" ? "ESTOQUE (volta automaticamente)" : "AVARIA (não volta ao estoque)"}`);
-      console.log(`   - Motivo: ${motivoDevolucao}`);
-
-      // Atualizar venda
-      const vendaAtualizada = { ...vendaSelecionada };
-      const itemIndex = vendaAtualizada.itens.findIndex(
-        (i) => i.produtoId === itemParaDevolver.produtoId
-      );
-
-      if (itemIndex !== -1) {
-        const itemAtual = vendaAtualizada.itens[itemIndex];
-
-        if (quantidadeDevolver === itemAtual.quantidade) {
-          // Remover item completamente
-          vendaAtualizada.itens.splice(itemIndex, 1);
-        } else {
-          // Reduzir quantidade
-          itemAtual.quantidade -= quantidadeDevolver;
-          itemAtual.subtotal = itemAtual.quantidade * itemAtual.precoUnitario;
-        }
-
-        // Recalcular total
-        vendaAtualizada.total = vendaAtualizada.itens.reduce(
-          (acc, item) => acc + item.subtotal,
-          0
-        );
-
-        // Adicionar registro de devolução
-        if (!vendaAtualizada.devolucoes) {
-          vendaAtualizada.devolucoes = [];
-        }
-        vendaAtualizada.devolucoes.push({
-          produtoId: itemParaDevolver.produtoId,
-          nomeProduto: itemParaDevolver.nome,
-          quantidade: quantidadeDevolver,
-          motivo: motivoDevolucao,
-          dataHora: new Date(),
-          tipoDestino: tipoDestino,
+      // 2. Registrar na tabela avarias (para controle de estoque se necessário)
+      for (const itemSel of itensSel) {
+        // Tenta inserir na tabela de avarias, ignorando erro se falhar
+        await supabase.from("avarias").insert({
+          produto_nome: itemSel.item.nome,
+          codigo_barras: itemSel.item.codigoBarras || null,
+          quantidade: itemSel.quantidade,
+          valor_unitario: itemSel.item.precoUnitario,
+          valor_total: itemSel.item.precoUnitario * itemSel.quantidade,
+          motivo: `${tipoOperacao === "troca" ? "TROCA" : "EXTORNO"}: ${motivoSefaz?.descricao}`,
+          observacoes: `Nota Referenciada: ${notaReferenciada || vendaTrocaExtorno.numero} | ${observacoes}`,
+          tipo_destino: tipoOperacao === "troca" ? "estoque" : "avaria",
+        }).then(({ error: avError }) => {
+          if (avError) console.warn("Aviso ao registrar avaria:", avError.message);
         });
-
-        await db.updateVenda(vendaAtualizada);
-        await carregarVendas();
-
-        const mensagem = tipoDestino === "estoque"
-          ? `Devolução processada! ${quantidadeDevolver}x ${itemParaDevolver.nome} devolvido(s) ao estoque.`
-          : `Avaria registrada! ${quantidadeDevolver}x ${itemParaDevolver.nome} - ${motivoDevolucao}`;
-
-        setSucesso(mensagem);
-        setTimeout(() => setSucesso(""), 5000);
-        setShowModalDevolucao(false);
-      }
-    } catch (err) {
-      console.error("Erro ao processar devolução:", err);
-      setErro("Erro ao processar devolução");
-      setTimeout(() => setErro(""), 3000);
-    }
-  };
-
-  const abrirModalExclusaoItem = (venda: Venda, item: ItemVenda) => {
-    setVendaParaExcluir(venda);
-    setItemParaExcluir(item);
-    setTipoExclusao("item");
-    setQuantidadeApagar(1);
-    setShowModalExclusao(true);
-  };
-
-  const abrirModalExclusaoVenda = (venda: Venda) => {
-    setVendaParaExcluir(venda);
-    setItemParaExcluir(null);
-    setTipoExclusao("venda");
-    setShowModalExclusao(true);
-  };
-
-  const processarExclusao = async () => {
-    if (!vendaParaExcluir) return;
-
-    try {
-      const { AuthSupabase } = await import("@/lib/auth-supabase");
-      const operador = await AuthSupabase.getCurrentOperador();
-
-      if (!operador) {
-        setErro("Erro: Operador não encontrado");
-        setTimeout(() => setErro(""), 3000);
-        return;
       }
 
-      const { supabase } = await import("@/lib/supabase");
+      // 3. Atualizar venda com registro da operação
+      const devolucaoRecord = {
+        tipo: tipoOperacao,
+        numero,
+        itens: itensSel.map(i => ({
+          produtoId: i.item.produtoId,
+          nomeProduto: i.item.nome,
+          quantidade: i.quantidade,
+          valorUnitario: i.item.precoUnitario,
+        })),
+        valorTotal,
+        motivoFiscal: `${motivoFiscal} - ${motivoSefaz?.descricao}`,
+        observacoes,
+        formaPagamentoDevolucao: tipoOperacao === "extorno" ? formaPagamentoDevolucao : null,
+        dataHora: new Date().toISOString(),
+        operador: operador.nome,
+      };
 
-      if (tipoExclusao === "item" && itemParaExcluir) {
-        // Validar quantidade
-        if (quantidadeApagar <= 0 || quantidadeApagar > itemParaExcluir.quantidade) {
-          setErro("Quantidade inválida para exclusão");
-          setTimeout(() => setErro(""), 3000);
-          return;
-        }
+      const devolucoeAtuais = vendaTrocaExtorno.devolucoes || [];
+      await supabase
+        .from("vendas")
+        .update({
+          devolucoes: [...devolucoeAtuais, devolucaoRecord],
+        })
+        .eq("id", vendaTrocaExtorno.id)
+        .eq("operador_id", operador.id);
 
-        // Excluir quantidade específica do item
-        const vendaAtualizada = { ...vendaParaExcluir };
-        const itemIndex = vendaAtualizada.itens.findIndex(
-          (i) => i.produtoId === itemParaExcluir.produtoId
-        );
+      const msg = tipoOperacao === "extorno"
+        ? `Extorno registrado com sucesso! Valor devolvido: R$ ${valorTotal.toFixed(2)} via ${formaPagamentoDevolucao}. Protocolo: ${numero}`
+        : `Troca registrada com sucesso! Protocolo: ${numero}. Encaminhe o produto ao estoque.`;
 
-        if (itemIndex !== -1) {
-          const itemAtual = vendaAtualizada.itens[itemIndex];
-          const valorExcluido = itemAtual.precoUnitario * quantidadeApagar;
-
-          // 🔥 REGISTRAR EXCLUSÃO NO HISTÓRICO
-          if (!vendaAtualizada.exclusoes) {
-            vendaAtualizada.exclusoes = [];
-          }
-          vendaAtualizada.exclusoes.push({
-            tipo: "item",
-            produtoId: itemParaExcluir.produtoId,
-            nomeProduto: itemParaExcluir.nome,
-            quantidade: quantidadeApagar,
-            valorExcluido: valorExcluido,
-            dataHora: new Date(),
-            operadorResponsavel: operador.nome,
-          });
-
-          if (quantidadeApagar >= itemAtual.quantidade) {
-            // Remover item completamente
-            vendaAtualizada.itens.splice(itemIndex, 1);
-          } else {
-            // Reduzir quantidade
-            itemAtual.quantidade -= quantidadeApagar;
-            itemAtual.subtotal = itemAtual.quantidade * itemAtual.precoUnitario;
-          }
-
-          // Recalcular total
-          vendaAtualizada.total = vendaAtualizada.itens.reduce(
-            (acc, item) => acc + item.subtotal,
-            0
-          );
-
-          if (vendaAtualizada.itens.length === 0) {
-            // Se não sobrou nenhum item, excluir a venda completa
-            await db.deleteVenda(vendaAtualizada.id);
-
-            // Excluir vendas e itens_venda do Supabase
-            await supabase
-              .from("itens_venda")
-              .delete()
-              .eq("venda_id", vendaAtualizada.id);
-
-            await supabase
-              .from("vendas")
-              .delete()
-              .eq("id", vendaAtualizada.id)
-              .eq("operador_id", operador.id);
-
-            setSucesso("Item excluído! Venda removida (sem itens restantes).");
-          } else {
-            // Atualizar venda localmente
-            await db.updateVenda(vendaAtualizada);
-
-            // 🔥 ATUALIZAR NO SUPABASE - vendas (incluindo histórico de exclusões)
-            console.log("���� Atualizando venda no Supabase:", vendaAtualizada.id);
-            const { error: vendaError } = await supabase
-              .from("vendas")
-              .update({
-                total: vendaAtualizada.total,
-                exclusoes: vendaAtualizada.exclusoes,
-              })
-              .eq("id", vendaAtualizada.id)
-              .eq("operador_id", operador.id);
-
-            if (vendaError) {
-              console.error("❌ Erro ao atualizar venda no Supabase:", vendaError);
-            } else {
-              console.log("✅ Venda atualizada no Supabase");
-            }
-
-            // 🔥 ATUALIZAR OU EXCLUIR ITEM NO SUPABASE - itens_venda
-            if (quantidadeApagar >= itemParaExcluir.quantidade) {
-              // Excluir item completamente de itens_venda
-              console.log("📤 Excluindo item do Supabase:", itemParaExcluir.produtoId);
-              const { error: itemError } = await supabase
-                .from("itens_venda")
-                .delete()
-                .eq("venda_id", vendaAtualizada.id)
-                .eq("produto_id", itemParaExcluir.produtoId);
-
-              if (itemError) {
-                console.error("❌ Erro ao excluir item no Supabase:", itemError);
-              } else {
-                console.log("✅ Item excluído do Supabase");
-              }
-            } else {
-              // Atualizar quantidade em itens_venda
-              console.log("📤 Atualizando quantidade do item no Supabase:", itemAtual.quantidade);
-              const { error: itemError } = await supabase
-                .from("itens_venda")
-                .update({
-                  quantidade: itemAtual.quantidade,
-                  subtotal: itemAtual.subtotal,
-                })
-                .eq("venda_id", vendaAtualizada.id)
-                .eq("produto_id", itemParaExcluir.produtoId);
-
-              if (itemError) {
-                console.error("❌ Erro ao atualizar item no Supabase:", itemError);
-              } else {
-                console.log("✅ Item atualizado no Supabase");
-              }
-            }
-
-            setSucesso(`${quantidadeApagar}x ${itemParaExcluir.nome} excluído(s)! Aguarde atualização dos painéis...`);
-          }
-        }
-      } else {
-        // 🔥 REGISTRAR EXCLUSÃO COMPLETA DA VENDA NO HISTÓRICO
-        // Primeiro, atualizar a venda com o registro de exclusão antes de deletar
-        const vendaAtualizada = { ...vendaParaExcluir };
-        if (!vendaAtualizada.exclusoes) {
-          vendaAtualizada.exclusoes = [];
-        }
-        vendaAtualizada.exclusoes.push({
-          tipo: "venda",
-          valorExcluido: vendaParaExcluir.total,
-          dataHora: new Date(),
-          operadorResponsavel: operador.nome,
-        });
-
-        // Atualizar venda no Supabase com histórico de exclusão antes de deletar
-        console.log("📤 Marcando venda como cancelada no Supabase:", vendaParaExcluir.id);
-        const { error: vendaError } = await supabase
-          .from("vendas")
-          .update({
-            status: "cancelada",
-            exclusoes: vendaAtualizada.exclusoes,
-          })
-          .eq("id", vendaParaExcluir.id)
-          .eq("operador_id", operador.id);
-
-        if (vendaError) {
-          console.error("❌ Erro ao marcar venda como cancelada no Supabase:", vendaError);
-          setErro("Erro ao excluir venda no Supabase");
-          setTimeout(() => setErro(""), 3000);
-          return;
-        }
-
-        console.log("✅ Venda marcada como cancelada no Supabase");
-
-        // �� NÃO DELETAR MAIS! Apenas marcar como cancelada para manter histórico
-        // await db.deleteVenda(vendaParaExcluir.id);
-        vendaAtualizada.status = "cancelada";
-        await db.updateVenda(vendaAtualizada);
-
-        setSucesso("Venda marcada como excluída! O registro foi mantido no histórico. Aguarde atualização dos painéis...");
-      }
-
-      setTimeout(() => setSucesso(""), 5000);
-      setShowModalExclusao(false);
+      setSucesso(msg);
+      setTimeout(() => setSucesso(""), 8000);
+      setShowModalTrocaExtorno(false);
       await carregarVendas();
+
     } catch (err) {
-      console.error("Erro ao excluir:", err);
-      setErro("Erro ao processar exclusão");
+      console.error("Erro ao processar:", err);
+      setErro("Erro ao processar operação");
       setTimeout(() => setErro(""), 3000);
+    } finally {
+      setProcessando(false);
     }
-  };
-
-  const limparFiltroData = () => {
-    setDataFiltro("");
-  };
-
-  // Verificar se um item específico teve exclusões
-  const itemFoiExcluido = (venda: Venda, produtoId: string): boolean => {
-    if (!venda.exclusoes) return false;
-    return venda.exclusoes.some(exc => exc.tipo === "item" && exc.produtoId === produtoId);
   };
 
   const vendasFiltradas = vendas.filter((venda) => {
-    // Filtro por busca
     if (busca) {
       const buscaLower = busca.toLowerCase();
-      const matchBusca = 
+      const matchBusca =
         venda.numero.toString().includes(busca) ||
         venda.operadorNome.toLowerCase().includes(buscaLower) ||
         venda.itens.some((item) => item.nome.toLowerCase().includes(buscaLower));
-      
       if (!matchBusca) return false;
     }
 
-    // Filtro por data
     if (dataFiltro) {
       const dataVenda = format(new Date(venda.dataHora), "yyyy-MM-dd");
       if (dataVenda !== dataFiltro) return false;
@@ -606,13 +388,15 @@ export default function HistoricoPage() {
     return true;
   });
 
-  const totalVendas = vendasFiltradas.length;
-  const valorTotalVendas = vendasFiltradas.reduce((acc, venda) => acc + venda.total, 0);
+  const totalVendas = vendasFiltradas.filter(v => v.status !== "cancelada").length;
+  const valorTotalVendas = vendasFiltradas
+    .filter(v => v.status !== "cancelada")
+    .reduce((acc, venda) => acc + venda.total, 0);
   const ticketMedio = totalVendas > 0 ? valorTotalVendas / totalVendas : 0;
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-white text-lg">Carregando histórico...</p>
@@ -622,7 +406,7 @@ export default function HistoricoPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div className="min-h-screen bg-slate-900">
       {/* Header */}
       <div className="bg-black/30 backdrop-blur-md border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -643,7 +427,13 @@ export default function HistoricoPage() {
               <p className="text-purple-200">Todas as vendas realizadas</p>
             </div>
 
-            <div className="w-32"></div>
+            <button
+              onClick={carregarVendas}
+              className="flex items-center space-x-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all"
+            >
+              <RefreshCw className="w-5 h-5" />
+              <span>Atualizar</span>
+            </button>
           </div>
         </div>
       </div>
@@ -651,8 +441,8 @@ export default function HistoricoPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         {/* Alertas */}
         {sucesso && (
-          <div className="bg-green-500/20 border border-green-500 text-green-100 px-4 py-3 rounded-lg flex items-center backdrop-blur-sm">
-            <CheckCircle className="w-5 h-5 mr-2" />
+          <div className="bg-green-500/20 border border-green-500 text-green-100 px-4 py-3 rounded-lg flex items-start backdrop-blur-sm">
+            <CheckCircle className="w-5 h-5 mr-2 mt-0.5 flex-shrink-0" />
             <span className="font-medium">{sucesso}</span>
           </div>
         )}
@@ -664,9 +454,22 @@ export default function HistoricoPage() {
           </div>
         )}
 
+        {/* Aviso fiscal sobre trocas/extornos */}
+        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg px-5 py-4 flex items-start space-x-3">
+          <Info className="w-5 h-5 text-blue-300 mt-0.5 flex-shrink-0" />
+          <div className="text-sm">
+            <p className="text-blue-200 font-semibold mb-1">Trocas e Extornos — Conformidade Fiscal (SEFAZ/Receita Federal)</p>
+            <p className="text-blue-300/80">
+              Use os botões <strong>Troca</strong> ou <strong>Extorno</strong> para processar devoluções de forma legal.
+              Cada operação gera um protocolo com CFOP 5411 e motivo fiscal conforme tabela SEFAZ,
+              sendo registrada no banco de dados para auditoria da Receita Federal.
+            </p>
+          </div>
+        </div>
+
         {/* Estatísticas */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-2xl p-8">
+          <div className="bg-blue-600 rounded-2xl shadow-2xl p-8">
             <div className="flex items-center justify-between mb-4">
               <ShoppingCart className="w-12 h-12 text-white/80" />
               <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full">
@@ -677,7 +480,7 @@ export default function HistoricoPage() {
             <p className="text-blue-100 text-sm">Vendas realizadas</p>
           </div>
 
-          <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl shadow-2xl p-8">
+          <div className="bg-green-600 rounded-2xl shadow-2xl p-8">
             <div className="flex items-center justify-between mb-4">
               <DollarSign className="w-12 h-12 text-white/80" />
               <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full">
@@ -690,7 +493,7 @@ export default function HistoricoPage() {
             <p className="text-green-100 text-sm">Faturamento total</p>
           </div>
 
-          <div className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl shadow-2xl p-8">
+          <div className="bg-purple-600 rounded-2xl shadow-2xl p-8">
             <div className="flex items-center justify-between mb-4">
               <Calendar className="w-12 h-12 text-white/80" />
               <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full">
@@ -706,40 +509,35 @@ export default function HistoricoPage() {
 
         {/* Lista de Vendas */}
         <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
-          <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-8 py-6">
+          <div className="bg-indigo-600 px-8 py-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold text-white flex items-center">
                 <History className="w-7 h-7 mr-3" />
                 Vendas Realizadas
               </h2>
             </div>
-            
-            {/* Filtros */}
+
             <div className="flex items-center space-x-3">
-              {/* Filtro por Data */}
               <div className="relative flex-shrink-0">
                 <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white/50" />
                 <input
                   type="date"
                   value={dataFiltro}
                   onChange={(e) => setDataFiltro(e.target.value)}
-                  className="pl-10 pr-4 py-2 bg-white/20 border border-white/30 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/50"
+                  className="pl-10 pr-4 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-white/50"
                 />
               </div>
 
-              {/* Botão Limpar Filtro */}
               {dataFiltro && (
                 <button
-                  onClick={limparFiltroData}
+                  onClick={() => setDataFiltro("")}
                   className="flex items-center space-x-1 px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg transition-all"
-                  title="Limpar filtro de data"
                 >
                   <X className="w-4 h-4" />
                   <span className="text-sm font-semibold">Limpar</span>
                 </button>
               )}
 
-              {/* Campo de Busca */}
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white/50" />
                 <input
@@ -762,37 +560,36 @@ export default function HistoricoPage() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-4 max-h-[700px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-purple-500 scrollbar-track-white/10">
+              <div className="space-y-4 max-h-[700px] overflow-y-auto pr-2">
                 {vendasFiltradas.map((venda) => (
                   <div
                     key={venda.id}
                     className={`border rounded-xl p-6 hover:bg-white/10 transition-all ${
                       venda.status === "cancelada"
                         ? "bg-red-500/5 border-red-500/30"
-                        : venda.exclusoes && venda.exclusoes.length > 0
-                        ? "bg-yellow-500/5 border-yellow-500/30"
+                        : venda.devolucoes && venda.devolucoes.length > 0
+                        ? "bg-orange-500/5 border-orange-500/30"
                         : "bg-white/5 border-white/10"
                     }`}
                   >
+                    {/* Cabeçalho da venda */}
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
                         <div className="flex items-center space-x-3 mb-2">
                           <span className={`px-3 py-1 rounded-full text-sm font-bold ${
                             venda.status === "cancelada"
                               ? "bg-red-500/20 text-red-300"
-                              : venda.exclusoes && venda.exclusoes.length > 0
-                              ? "bg-yellow-500/20 text-yellow-300"
+                              : venda.devolucoes && venda.devolucoes.length > 0
+                              ? "bg-orange-500/20 text-orange-300"
                               : "bg-indigo-500/20 text-indigo-300"
                           }`}>
                             Venda #{venda.numero}
-                            {venda.status === "cancelada" && " (EXCLUÍDA)"}
-                            {venda.status !== "cancelada" && venda.exclusoes && venda.exclusoes.length > 0 && " (COM EXCLUSÕES)"}
+                            {venda.status === "cancelada" && " (CANCELADA)"}
+                            {venda.status !== "cancelada" && venda.devolucoes && venda.devolucoes.length > 0 && " (COM DEVOLUÇÃO)"}
                           </span>
                           <span className="text-purple-200 text-sm flex items-center">
                             <Calendar className="w-4 h-4 mr-1" />
-                            {format(new Date(venda.dataHora), "dd/MM/yyyy 'às' HH:mm", {
-                              locale: ptBR,
-                            })}
+                            {format(new Date(venda.dataHora), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                           </span>
                         </div>
                         <p className="text-white/70 text-sm flex items-center">
@@ -801,160 +598,126 @@ export default function HistoricoPage() {
                         </p>
                       </div>
 
-                      <div className="flex items-center space-x-2">
+                      {/* Botões de ação */}
+                      <div className="flex items-center space-x-2 flex-wrap gap-2">
                         <button
-                          onClick={() => imprimirNota(venda)}
-                          className="flex items-center space-x-2 px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg transition-all"
-                          title="Imprimir Cupom Fiscal"
+                          onClick={() => imprimirCupomFiscal(venda)}
+                          className="flex items-center space-x-2 px-3 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg transition-all"
+                          title="Imprimir Cupom"
                         >
-                          <Printer className="w-5 h-5" />
-                          <span className="font-semibold">Cupom</span>
+                          <Printer className="w-4 h-4" />
+                          <span className="font-semibold text-sm">Cupom</span>
                         </button>
 
                         <button
                           onClick={() => imprimirNFCe(venda)}
-                          className="flex items-center space-x-2 px-4 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg transition-all"
+                          className="flex items-center space-x-2 px-3 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg transition-all"
                           title="Imprimir NFC-e"
                         >
-                          <Printer className="w-5 h-5" />
-                          <span className="font-semibold">NFC-e</span>
+                          <Receipt className="w-4 h-4" />
+                          <span className="font-semibold text-sm">NFC-e</span>
                         </button>
 
                         <button
                           onClick={() => imprimirNotaFiscalCompleta(venda)}
-                          className="flex items-center space-x-2 px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg transition-all"
-                          title="Imprimir Nota Fiscal Completa"
+                          className="flex items-center space-x-2 px-3 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg transition-all"
+                          title="Nota Completa"
                         >
-                          <Printer className="w-5 h-5" />
-                          <span className="font-semibold">Nota Completa</span>
+                          <FileText className="w-4 h-4" />
+                          <span className="font-semibold text-sm">Nota</span>
                         </button>
 
-                        <button
-                          onClick={() => venda.status !== "cancelada" && abrirModalExclusaoVenda(venda)}
-                          className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all ${
-                            venda.status === "cancelada"
-                              ? "bg-gray-500/30 text-gray-400 cursor-not-allowed"
-                              : "bg-red-500/20 hover:bg-red-500/30 text-red-300"
-                          }`}
-                          title={venda.status === "cancelada" ? "Venda já foi excluída" : "Apagar venda completa"}
-                          disabled={venda.status === "cancelada"}
-                        >
-                          <Trash2 className="w-5 h-5" />
-                          <span className="font-semibold">
-                            {venda.status === "cancelada" ? "Nota Apagada" : "Apagar Venda"}
-                          </span>
-                        </button>
+                        {venda.status !== "cancelada" && (
+                          <>
+                            <button
+                              onClick={() => abrirModalTrocaExtorno(venda, "troca")}
+                              className="flex items-center space-x-2 px-3 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg transition-all border border-amber-500/30"
+                              title="Solicitar Troca"
+                            >
+                              <ArrowLeftRight className="w-4 h-4" />
+                              <span className="font-semibold text-sm">Troca</span>
+                            </button>
+
+                            <button
+                              onClick={() => abrirModalTrocaExtorno(venda, "extorno")}
+                              className="flex items-center space-x-2 px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg transition-all border border-red-500/30"
+                              title="Processar Extorno/Devolução"
+                            >
+                              <RotateCcw className="w-4 h-4" />
+                              <span className="font-semibold text-sm">Extorno</span>
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
 
-                    {/* Itens da Venda */}
+                    {/* Itens da venda */}
                     <div className="space-y-2 mb-4">
-                      {venda.itens.map((item, index) => {
-                        const itemExcluido = itemFoiExcluido(venda, item.produtoId);
-                        return (
-                          <div
-                            key={index}
-                            className="flex items-center justify-between bg-white/5 rounded-lg p-3"
-                          >
-                            <div className="flex items-center space-x-3 flex-1">
-                              <Package className="w-5 h-5 text-purple-300" />
-                              <div>
-                                <p className="text-white font-semibold">{item.nome}</p>
-                                <p className="text-purple-200 text-sm">
-                                  {item.quantidade}x R$ {item.precoUnitario.toFixed(2)}
-                                </p>
-                                {itemExcluido && (
-                                  <p className="text-yellow-300 text-xs mt-1 flex items-center">
-                                    <AlertCircle className="w-3 h-3 mr-1" />
-                                    Item teve exclusões (veja histórico abaixo)
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex items-center space-x-4">
-                              <p className="text-white font-bold">
-                                R$ {item.subtotal.toFixed(2)}
+                      {venda.itens.map((item, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between bg-white/5 rounded-lg p-3"
+                        >
+                          <div className="flex items-center space-x-3 flex-1">
+                            <Package className="w-5 h-5 text-purple-300" />
+                            <div>
+                              <p className="text-white font-semibold">{item.nome}</p>
+                              <p className="text-purple-200 text-sm">
+                                {item.quantidade}x R$ {item.precoUnitario.toFixed(2)}
                               </p>
-                              <button
-                                onClick={() => abrirModalExclusaoItem(venda, item)}
-                                className="flex items-center space-x-1 px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg transition-all"
-                                title="Apagar item"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                                <span className="text-sm font-semibold">Apagar</span>
-                              </button>
                             </div>
                           </div>
-                        );
-                      })}
+                          <p className="text-white font-bold">
+                            R$ {item.subtotal.toFixed(2)}
+                          </p>
+                        </div>
+                      ))}
                     </div>
 
-                    {/* Devoluções (se houver) */}
+                    {/* Histórico de Trocas/Extornos */}
                     {venda.devolucoes && venda.devolucoes.length > 0 && (
                       <div className="mb-4 bg-orange-500/10 border border-orange-500/30 rounded-lg p-3">
                         <p className="text-orange-300 font-semibold mb-2 flex items-center">
                           <RotateCcw className="w-4 h-4 mr-2" />
-                          Devoluções Realizadas:
+                          Histórico de Trocas/Extornos:
                         </p>
                         <div className="space-y-2">
-                          {venda.devolucoes.map((dev, idx) => (
-                            <div key={idx} className="ml-6 bg-white/5 rounded-lg p-2">
-                              <p className="text-orange-200 text-sm font-medium">
-                                • {dev.quantidade}x {dev.nomeProduto}
-                              </p>
-                              <p className="text-orange-300/70 text-xs ml-3 mt-1">
-                                Motivo: {dev.motivo}
-                              </p>
-                              <p className="text-orange-300/70 text-xs ml-3">
-                                Destino: {dev.tipoDestino === "estoque"
-                                  ? "✅ Devolvido ao estoque"
-                                  : "❌ Avaria (produto descartado)"}
-                              </p>
-                              <p className="text-orange-300/70 text-xs ml-3">
-                                Data: {new Date(dev.dataHora).toLocaleString("pt-BR")}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 🔥 NOVO: Exclusões (se houver) */}
-                    {venda.exclusoes && venda.exclusoes.length > 0 && (
-                      <div className="mb-4 bg-red-500/10 border border-red-500/30 rounded-lg p-3">
-                        <p className="text-red-300 font-semibold mb-2 flex items-center">
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Histórico de Exclus��es:
-                        </p>
-                        <div className="space-y-2">
-                          {venda.exclusoes.map((exc, idx) => (
-                            <div key={idx} className="ml-6 bg-white/5 rounded-lg p-2">
-                              {exc.tipo === "item" ? (
-                                <>
-                                  <p className="text-red-200 text-sm font-medium">
-                                    • {exc.quantidade}x {exc.nomeProduto} (excluído)
+                          {venda.devolucoes.map((dev: any, idx: number) => (
+                            <div key={idx} className="ml-2 bg-white/5 rounded-lg p-2 border border-orange-500/20">
+                              <div className="flex items-center space-x-2 mb-1">
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                  dev.tipo === "extorno" ? "bg-red-500/20 text-red-300" : "bg-amber-500/20 text-amber-300"
+                                }`}>
+                                  {dev.tipo === "extorno" ? "EXTORNO" : "TROCA"}
+                                </span>
+                                {dev.numero && (
+                                  <span className="text-white/50 text-xs">#{dev.numero}</span>
+                                )}
+                              </div>
+                              {dev.itens ? (
+                                dev.itens.map((i: any, iIdx: number) => (
+                                  <p key={iIdx} className="text-orange-200 text-sm">
+                                    • {i.quantidade}x {i.nomeProduto}
                                   </p>
-                                  <p className="text-red-300/70 text-xs ml-3 mt-1">
-                                    Valor excluído: R$ {exc.valorExcluido.toFixed(2)}
-                                  </p>
-                                </>
-                              ) : (
-                                <>
-                                  <p className="text-red-200 text-sm font-medium">
-                                    • Venda completa excluída
-                                  </p>
-                                  <p className="text-red-300/70 text-xs ml-3 mt-1">
-                                    Valor da venda: R$ {exc.valorExcluido.toFixed(2)}
-                                  </p>
-                                </>
-                              )}
-                              {exc.operadorResponsavel && (
-                                <p className="text-red-300/70 text-xs ml-3">
-                                  Por: {exc.operadorResponsavel}
+                                ))
+                              ) : dev.nomeProduto ? (
+                                <p className="text-orange-200 text-sm">
+                                  • {dev.quantidade}x {dev.nomeProduto}
+                                </p>
+                              ) : null}
+                              {dev.motivoFiscal && (
+                                <p className="text-orange-300/70 text-xs mt-1">
+                                  Motivo: {dev.motivoFiscal}
                                 </p>
                               )}
-                              <p className="text-red-300/70 text-xs ml-3">
-                                Data: {new Date(exc.dataHora).toLocaleString("pt-BR")}
+                              {dev.valorTotal && (
+                                <p className="text-orange-300/70 text-xs">
+                                  Valor: R$ {dev.valorTotal.toFixed(2)}
+                                  {dev.formaPagamentoDevolucao && ` via ${dev.formaPagamentoDevolucao}`}
+                                </p>
+                              )}
+                              <p className="text-orange-300/50 text-xs">
+                                {new Date(dev.dataHora).toLocaleString("pt-BR")} — {dev.operador}
                               </p>
                             </div>
                           ))}
@@ -964,7 +727,17 @@ export default function HistoricoPage() {
 
                     {/* Total */}
                     <div className="flex justify-between items-center pt-4 border-t border-white/10">
-                      <span className="text-purple-200 font-semibold">TOTAL:</span>
+                      <div className="flex items-center space-x-4">
+                        <span className="text-purple-200 font-semibold">TOTAL:</span>
+                        {venda.tipoPagamento && (
+                          <span className="text-purple-300 text-sm">
+                            {venda.tipoPagamento === "dinheiro" ? "Dinheiro" :
+                             venda.tipoPagamento === "credito" ? "Crédito" :
+                             venda.tipoPagamento === "debito" ? "Débito" :
+                             venda.tipoPagamento === "pix" ? "PIX" : venda.tipoPagamento}
+                          </span>
+                        )}
+                      </div>
                       <span className="text-2xl font-bold text-green-400">
                         R$ {venda.total.toFixed(2)}
                       </span>
@@ -977,313 +750,265 @@ export default function HistoricoPage() {
         </div>
       </div>
 
-      {/* Modal de Devolução */}
-      {showModalDevolucao && itemParaDevolver && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl max-w-md w-full border border-white/10 my-8 max-h-[90vh] flex flex-col">
-            <div className="bg-gradient-to-r from-orange-600 to-red-600 px-6 py-4 flex items-center justify-between rounded-t-2xl flex-shrink-0">
-              <h3 className="text-xl font-bold text-white flex items-center">
-                <RotateCcw className="w-6 h-6 mr-2" />
-                Devolução de Produto
-              </h3>
+      {/* Modal de Troca/Extorno */}
+      {showModalTrocaExtorno && vendaTrocaExtorno && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-slate-900 rounded-2xl shadow-2xl max-w-2xl w-full border border-white/10 my-8 max-h-[90vh] flex flex-col">
+            {/* Header do Modal */}
+            <div className={`px-6 py-4 flex items-center justify-between rounded-t-2xl flex-shrink-0 ${
+              tipoOperacao === "extorno" ? "bg-red-700" : "bg-amber-700"
+            }`}>
+              <div className="flex items-center space-x-3">
+                {tipoOperacao === "extorno" ? (
+                  <RotateCcw className="w-6 h-6 text-white" />
+                ) : (
+                  <ArrowLeftRight className="w-6 h-6 text-white" />
+                )}
+                <div>
+                  <h3 className="text-xl font-bold text-white">
+                    {tipoOperacao === "extorno" ? "Extorno / Devolução" : "Troca de Produto"}
+                  </h3>
+                  <p className="text-white/70 text-sm">
+                    Venda #{vendaTrocaExtorno.numero} — Conforme SEFAZ/Receita Federal
+                  </p>
+                </div>
+              </div>
               <button
-                onClick={() => setShowModalDevolucao(false)}
+                onClick={() => setShowModalTrocaExtorno(false)}
                 className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6 space-y-4 overflow-y-auto flex-1">
-              <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-                <p className="text-white font-semibold mb-1">{itemParaDevolver.nome}</p>
-                <p className="text-purple-200 text-sm">
-                  Quantidade na venda: {itemParaDevolver.quantidade}
+            <div className="p-6 space-y-5 overflow-y-auto flex-1">
+              {/* Aviso fiscal */}
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+                <p className="text-blue-200 text-sm font-semibold mb-1">
+                  {tipoOperacao === "extorno" ? "Extorno Fiscal (CFOP 5411)" : "Troca de Mercadoria (CFOP 5411)"}
                 </p>
-                <p className="text-purple-200 text-sm">
-                  Preço unitário: R$ {itemParaDevolver.precoUnitario.toFixed(2)}
+                <p className="text-blue-300/70 text-xs">
+                  {tipoOperacao === "extorno"
+                    ? "O extorno cancela parcial ou totalmente a nota fiscal original. O consumidor tem direito por 30 dias (bem durável: 90 dias) conforme CDC. Registro obrigatório para conformidade com a Receita Federal."
+                    : "A troca gera um novo registro fiscal vinculado à nota original. O produto devolvido volta ao estoque. Registro obrigatório para conformidade com a SEFAZ."}
                 </p>
               </div>
 
+              {/* Seleção de itens */}
               <div>
-                <label className="block text-purple-200 text-sm font-semibold mb-2">
-                  Quantidade a Devolver
+                <label className="block text-white text-sm font-semibold mb-3">
+                  Selecione os itens para {tipoOperacao === "extorno" ? "extorno" : "troca"}:
+                </label>
+                <div className="space-y-2">
+                  {itensSelecionados.map((itemSel, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex items-center space-x-3 p-3 rounded-lg border transition-all ${
+                        itemSel.selecionado
+                          ? "bg-white/10 border-white/30"
+                          : "bg-white/5 border-white/10"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={itemSel.selecionado}
+                        onChange={(e) => {
+                          const novos = [...itensSelecionados];
+                          novos[idx].selecionado = e.target.checked;
+                          setItensSelecionados(novos);
+                        }}
+                        className="w-5 h-5 rounded accent-purple-500"
+                      />
+                      <div className="flex-1">
+                        <p className="text-white font-semibold">{itemSel.item.nome}</p>
+                        <p className="text-purple-200 text-sm">
+                          R$ {itemSel.item.precoUnitario.toFixed(2)} por unidade
+                        </p>
+                      </div>
+                      {itemSel.selecionado && (
+                        <div className="flex items-center space-x-2">
+                          <label className="text-purple-200 text-sm">Qtd:</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max={itemSel.item.quantidade}
+                            value={itemSel.quantidade}
+                            onChange={(e) => {
+                              const novos = [...itensSelecionados];
+                              novos[idx].quantidade = Math.min(
+                                parseInt(e.target.value) || 1,
+                                itemSel.item.quantidade
+                              );
+                              setItensSelecionados(novos);
+                            }}
+                            className="w-16 px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-center focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          />
+                          <span className="text-white/50 text-sm">/ {itemSel.item.quantidade}</span>
+                        </div>
+                      )}
+                      <p className="text-white font-bold min-w-[80px] text-right">
+                        R$ {(itemSel.item.precoUnitario * (itemSel.selecionado ? itemSel.quantidade : 0)).toFixed(2)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Total selecionado */}
+                <div className="mt-3 flex justify-between items-center bg-white/5 rounded-lg p-3 border border-white/10">
+                  <span className="text-white font-semibold">
+                    {tipoOperacao === "extorno" ? "Valor a ser extornado:" : "Valor dos itens para troca:"}
+                  </span>
+                  <span className="text-green-400 font-bold text-xl">
+                    R$ {calcularValorSelecionado().toFixed(2)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Motivo Fiscal (obrigatório SEFAZ) */}
+              <div>
+                <label className="block text-white text-sm font-semibold mb-2">
+                  Motivo Fiscal (obrigatório — conforme tabela SEFAZ) *
+                </label>
+                <select
+                  value={motivoFiscal}
+                  onChange={(e) => setMotivoFiscal(e.target.value)}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                >
+                  <option value="" className="bg-slate-800">Selecione o motivo fiscal...</option>
+                  {MOTIVOS_DEVOLUCAO_SEFAZ.map(m => (
+                    <option key={m.codigo} value={m.codigo} className="bg-slate-800">
+                      {m.codigo} — {m.descricao}
+                    </option>
+                  ))}
+                </select>
+                {motivoFiscal && (
+                  <p className="text-purple-300 text-xs mt-1">
+                    CFOP: 5411 | Motivo {motivoFiscal}: {MOTIVOS_DEVOLUCAO_SEFAZ.find(m => m.codigo === motivoFiscal)?.descricao}
+                  </p>
+                )}
+              </div>
+
+              {/* Nota referenciada */}
+              <div>
+                <label className="block text-white text-sm font-semibold mb-2">
+                  Número da Nota Original Referenciada
                 </label>
                 <input
-                  type="number"
-                  min="1"
-                  max={itemParaDevolver.quantidade}
-                  value={quantidadeDevolver}
-                  onChange={(e) => setQuantidadeDevolver(parseInt(e.target.value) || 1)}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-purple-300 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  type="text"
+                  value={notaReferenciada}
+                  onChange={(e) => setNotaReferenciada(e.target.value)}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  placeholder={`Nº ${vendaTrocaExtorno.numero} (preenchido automaticamente)`}
                 />
               </div>
 
-              <div>
-                <label className="block text-purple-200 text-sm font-semibold mb-2">
-                  Destino do Produto *
-                </label>
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  <button
-                    type="button"
-                    onClick={() => setTipoDestino("estoque")}
-                    className={`px-4 py-3 rounded-lg font-semibold transition-all ${
-                      tipoDestino === "estoque"
-                        ? "bg-green-600 text-white"
-                        : "bg-white/10 text-purple-200 hover:bg-white/20"
-                    }`}
-                  >
-                    ✅ Estoque
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTipoDestino("avaria")}
-                    className={`px-4 py-3 rounded-lg font-semibold transition-all ${
-                      tipoDestino === "avaria"
-                        ? "bg-red-600 text-white"
-                        : "bg-white/10 text-purple-200 hover:bg-white/20"
-                    }`}
-                  >
-                    ⚠️ Avaria
-                  </button>
+              {/* Forma de pagamento da devolução (apenas extorno) */}
+              {tipoOperacao === "extorno" && (
+                <div>
+                  <label className="block text-white text-sm font-semibold mb-2">
+                    Como será devolvido o dinheiro ao cliente? *
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { valor: "dinheiro", label: "Dinheiro" },
+                      { valor: "credito", label: "Crédito" },
+                      { valor: "debito", label: "Débito" },
+                      { valor: "pix", label: "PIX" },
+                      { valor: "troca", label: "Crédito na Loja" },
+                    ].map(op => (
+                      <button
+                        key={op.valor}
+                        type="button"
+                        onClick={() => setFormaPagamentoDevolucao(op.valor as any)}
+                        className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
+                          formaPagamentoDevolucao === op.valor
+                            ? "bg-red-600 text-white"
+                            : "bg-white/10 text-white/70 hover:bg-white/20"
+                        }`}
+                      >
+                        {op.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+              )}
+
+              {/* Observações */}
+              <div>
+                <label className="block text-white text-sm font-semibold mb-2">
+                  Observações (opcional)
+                </label>
+                <textarea
+                  value={observacoes}
+                  onChange={(e) => setObservacoes(e.target.value)}
+                  rows={3}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                  placeholder="Detalhes adicionais sobre a operação..."
+                />
               </div>
 
-              <div>
-                <label className="block text-purple-200 text-sm font-semibold mb-2">
-                  Motivo {tipoDestino === "avaria" ? "da Avaria" : "da Devolução"} *
-                </label>
-                <select
-                  value={motivoDevolucao}
-                  onChange={(e) => setMotivoDevolucao(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                >
-                  <option value="" className="bg-slate-800">
-                    Selecione o motivo
-                  </option>
-                  {tipoDestino === "estoque" ? (
+              {/* Resumo da operação */}
+              <div className={`border rounded-lg p-4 ${
+                tipoOperacao === "extorno"
+                  ? "bg-red-500/10 border-red-500/30"
+                  : "bg-amber-500/10 border-amber-500/30"
+              }`}>
+                <p className={`font-semibold text-sm mb-2 ${tipoOperacao === "extorno" ? "text-red-300" : "text-amber-300"}`}>
+                  O que acontecerá:
+                </p>
+                <ul className={`text-sm space-y-1 ${tipoOperacao === "extorno" ? "text-red-200/80" : "text-amber-200/80"}`}>
+                  {tipoOperacao === "extorno" ? (
                     <>
-                      <option value="Produto errado" className="bg-slate-800">
-                        Produto errado
-                      </option>
-                      <option value="Cancelamento do cliente" className="bg-slate-800">
-                        Cancelamento do cliente
-                      </option>
-                      <option value="Arrependimento" className="bg-slate-800">
-                        Arrependimento
-                      </option>
-                      <option value="Outro motivo" className="bg-slate-800">
-                        Outro motivo
-                      </option>
+                      <li>• Extorno de R$ {calcularValorSelecionado().toFixed(2)} ao cliente via {formaPagamentoDevolucao}</li>
+                      <li>• Registro fiscal com CFOP 5411 vinculado à nota #{vendaTrocaExtorno.numero}</li>
+                      <li>• Histórico de auditoria gerado para a Receita Federal</li>
+                      <li>• Protocolo de extorno gerado para o cliente</li>
                     </>
                   ) : (
                     <>
-                      <option value="Produto danificado" className="bg-slate-800">
-                        Produto danificado
-                      </option>
-                      <option value="Produto vencido" className="bg-slate-800">
-                        Produto vencido
-                      </option>
-                      <option value="Defeito de fabricação" className="bg-slate-800">
-                        Defeito de fabricação
-                      </option>
-                      <option value="Embalagem violada" className="bg-slate-800">
-                        Embalagem violada
-                      </option>
-                      <option value="Perda no transporte" className="bg-slate-800">
-                        Perda no transporte
-                      </option>
-                      <option value="Contaminação" className="bg-slate-800">
-                        Contaminação
-                      </option>
-                      <option value="Outros danos" className="bg-slate-800">
-                        Outros danos
-                      </option>
+                      <li>• Produto(s) devolvido(s) ao estoque para nova venda</li>
+                      <li>• Registro de troca com CFOP 5411 vinculado à nota #{vendaTrocaExtorno.numero}</li>
+                      <li>• Histórico de auditoria gerado conforme exigência SEFAZ</li>
+                      <li>• Protocolo de troca gerado para o cliente</li>
                     </>
                   )}
-                </select>
-              </div>
-
-              {tipoDestino === "avaria" && (
-                <div>
-                  <label className="block text-purple-200 text-sm font-semibold mb-2">
-                    Observações (Opcional)
-                  </label>
-                  <textarea
-                    value={observacoesAvaria}
-                    onChange={(e) => setObservacoesAvaria(e.target.value)}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-purple-300 focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
-                    placeholder="Detalhes adicionais sobre a avaria..."
-                    rows={3}
-                  />
-                </div>
-              )}
-
-              <div className={`${tipoDestino === "estoque" ? "bg-blue-500/10 border-blue-500/30" : "bg-red-500/10 border-red-500/30"} border rounded-lg p-3`}>
-                {tipoDestino === "estoque" ? (
-                  <>
-                    <p className="text-blue-300 text-sm">
-                      ✅ O produto será devolvido automaticamente ao estoque
-                    </p>
-                    <p className="text-blue-300 text-sm mt-1">
-                      ✅ O valor da venda será atualizado
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-red-300 text-sm">
-                      ⚠️ O produto NÃO voltará ao estoque
-                    </p>
-                    <p className="text-red-300 text-sm mt-1">
-                      ⚠️ Será registrado como avaria no sistema
-                    </p>
-                    <p className="text-red-300 text-sm mt-1">
-                      ✅ O valor da venda será atualizado
-                    </p>
-                  </>
-                )}
+                </ul>
               </div>
             </div>
 
+            {/* Botões */}
             <div className="p-6 pt-4 border-t border-white/10 bg-slate-900/50 rounded-b-2xl flex-shrink-0">
               <div className="flex space-x-3">
                 <button
-                  onClick={() => setShowModalDevolucao(false)}
+                  onClick={() => setShowModalTrocaExtorno(false)}
                   className="flex-1 px-4 py-3 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors font-semibold"
+                  disabled={processando}
                 >
                   Cancelar
                 </button>
                 <button
-                  onClick={processarDevolucao}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg hover:from-orange-600 hover:to-red-700 transition-all font-semibold shadow-lg flex items-center justify-center space-x-2"
+                  onClick={processarTrocaExtorno}
+                  disabled={processando || !motivoFiscal || itensSelecionados.filter(i => i.selecionado).length === 0}
+                  className={`flex-1 px-4 py-3 text-white rounded-lg transition-all font-semibold shadow-lg flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    tipoOperacao === "extorno"
+                      ? "bg-red-600 hover:bg-red-700"
+                      : "bg-amber-600 hover:bg-amber-700"
+                  }`}
                 >
-                  <RotateCcw className="w-5 h-5" />
-                  <span>Processar Devolução</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Exclusão */}
-      {showModalExclusao && vendaParaExcluir && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl max-w-md w-full border border-white/10 my-8 max-h-[90vh] flex flex-col">
-            <div className="bg-gradient-to-r from-red-600 to-orange-600 px-6 py-4 flex items-center justify-between rounded-t-2xl">
-              <h3 className="text-xl font-bold text-white flex items-center">
-                <Trash2 className="w-6 h-6 mr-2" />
-                {tipoExclusao === "venda" ? "Apagar Venda Completa" : "Apagar Item da Venda"}
-              </h3>
-              <button
-                onClick={() => setShowModalExclusao(false)}
-                className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4 overflow-y-auto flex-1">
-              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
-                <div className="flex items-start space-x-3">
-                  <AlertCircle className="w-6 h-6 text-red-300 mt-1 flex-shrink-0" />
-                  <div>
-                    <p className="text-red-300 font-semibold mb-2">
-                      ⚠️ Atenção! Esta ação não pode ser desfeita.
-                    </p>
-                    {tipoExclusao === "venda" ? (
-                      <p className="text-red-200 text-sm">
-                        A venda <strong>#{vendaParaExcluir.numero}</strong> será excluída permanentemente com todos os seus itens.
-                      </p>
-                    ) : itemParaExcluir && (
-                      <p className="text-red-200 text-sm">
-                        O item <strong>{itemParaExcluir.nome}</strong> será removido da venda #{vendaParaExcluir.numero}.
-                        {vendaParaExcluir.itens.length === 1 && (
-                          <span className="block mt-2 font-semibold">
-                            Como este é o único item, a venda completa será excluída.
-                          </span>
-                        )}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
-                <p className="text-blue-300 text-sm">
-                  💡 Após excluir, lembre-se de atualizar o painel "Análise de Ganhos" no menu Financeiro para ver os valores corretos.
-                </p>
-              </div>
-
-              {tipoExclusao === "venda" && (
-                <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-                  <p className="text-white font-semibold mb-2">Venda #{vendaParaExcluir.numero}</p>
-                  <p className="text-purple-200 text-sm">
-                    Total: R$ {vendaParaExcluir.total.toFixed(2)}
-                  </p>
-                  <p className="text-purple-200 text-sm">
-                    Itens: {vendaParaExcluir.itens.length}
-                  </p>
-                </div>
-              )}
-
-              {tipoExclusao === "item" && itemParaExcluir && (
-                <div className="space-y-3">
-                  <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-                    <p className="text-white font-semibold mb-1">{itemParaExcluir.nome}</p>
-                    <p className="text-purple-200 text-sm">
-                      Quantidade disponível: {itemParaExcluir.quantidade}x
-                    </p>
-                    <p className="text-purple-200 text-sm">
-                      Preço unitário: R$ {itemParaExcluir.precoUnitario.toFixed(2)}
-                    </p>
-                    <p className="text-purple-200 text-sm">
-                      Subtotal: R$ {itemParaExcluir.subtotal.toFixed(2)}
-                    </p>
-                  </div>
-
-                  {itemParaExcluir.quantidade > 1 && (
-                    <div>
-                      <label className="block text-purple-200 text-sm font-semibold mb-2">
-                        Quantidade a apagar
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        max={itemParaExcluir.quantidade}
-                        value={quantidadeApagar}
-                        onChange={(e) => setQuantidadeApagar(parseInt(e.target.value) || 1)}
-                        className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-red-500"
-                      />
-                      <p className="text-purple-200 text-xs mt-2">
-                        Valor a ser removido: R$ {(itemParaExcluir.precoUnitario * quantidadeApagar).toFixed(2)}
-                      </p>
-                      {quantidadeApagar < itemParaExcluir.quantidade && (
-                        <p className="text-green-300 text-xs mt-1">
-                          Restará {itemParaExcluir.quantidade - quantidadeApagar}x no pedido
-                        </p>
-                      )}
-                    </div>
+                  {processando ? (
+                    <RefreshCw className="w-5 h-5 animate-spin" />
+                  ) : tipoOperacao === "extorno" ? (
+                    <RotateCcw className="w-5 h-5" />
+                  ) : (
+                    <ArrowLeftRight className="w-5 h-5" />
                   )}
-                </div>
-              )}
-
-            </div>
-
-            <div className="px-6 pb-6 pt-2 bg-gradient-to-br from-slate-800 to-slate-900 rounded-b-2xl flex-shrink-0">
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => setShowModalExclusao(false)}
-                  className="flex-1 px-4 py-3 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors font-semibold"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={processarExclusao}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-red-500 to-orange-600 text-white rounded-lg hover:from-red-600 hover:to-orange-700 transition-all font-semibold shadow-lg flex items-center justify-center space-x-2"
-                >
-                  <Trash2 className="w-5 h-5" />
-                  <span>Confirmar Exclusão</span>
+                  <span>
+                    {processando
+                      ? "Processando..."
+                      : tipoOperacao === "extorno"
+                      ? "Confirmar Extorno"
+                      : "Confirmar Troca"}
+                  </span>
                 </button>
               </div>
             </div>

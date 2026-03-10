@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { AdminSupabase } from "@/lib/admin-supabase";
 import { Operador } from "@/lib/types";
@@ -20,6 +20,7 @@ import {
   Send,
   ArrowUpDown,
   Printer,
+  RefreshCw,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -38,9 +39,10 @@ export default function AnaliseLojasPage() {
   const [loading, setLoading] = useState(true);
   const [operadores, setOperadores] = useState<Operador[]>([]);
   const [operadorSelecionado, setOperadorSelecionado] = useState<string>("");
+  const operadorSelecionadoRef = useRef<string>("");
   const [busca, setBusca] = useState("");
   const [ordenacaoUsuarios, setOrdenacaoUsuarios] = useState<"asc" | "desc">("asc");
-  
+
   // Modal de troca de senha
   const [showModalSenha, setShowModalSenha] = useState(false);
   const [novaSenha, setNovaSenha] = useState("");
@@ -63,15 +65,105 @@ export default function AnaliseLojasPage() {
   const [faturamentoTotal, setFaturamentoTotal] = useState(0);
   const [ticketMedio, setTicketMedio] = useState(0);
 
+  // Manter ref do operador selecionado para closures de realtime
+  useEffect(() => {
+    operadorSelecionadoRef.current = operadorSelecionado;
+  }, [operadorSelecionado]);
+
+  const carregarVendasUsuario = useCallback(async (opId?: string) => {
+    const targetId = opId || operadorSelecionadoRef.current;
+    if (!targetId) return;
+
+    try {
+      setLoadingVendas(true);
+      console.log("🔍 Carregando vendas do usuário:", targetId);
+
+      const { data, error } = await supabase
+        .from("vendas")
+        .select(`
+          *,
+          itens_venda (
+            produto_id,
+            nome,
+            codigo_barras,
+            quantidade,
+            preco_unitario,
+            subtotal
+          )
+        `)
+        .eq("operador_id", targetId)
+        .order("data_hora", { ascending: false });
+
+      if (error) {
+        console.error("❌ Erro ao carregar vendas (Supabase):", {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
+        setVendas([]);
+        setTotalVendas(0);
+        setFaturamentoTotal(0);
+        setTicketMedio(0);
+        return;
+      }
+
+      console.log("✅ Vendas carregadas do Supabase:", data?.length || 0);
+
+      const vendasMapeadas = (data || []).map((v: any) => ({
+        id: v.id,
+        numero: v.numero,
+        operadorId: v.operador_id,
+        operadorNome: v.operador_nome,
+        dataHora: v.data_hora || v.created_at,
+        data_hora: v.data_hora || v.created_at,
+        total: parseFloat(v.total) || 0,
+        status: v.status,
+        tipoPagamento: v.tipo_pagamento || v.forma_pagamento,
+        tipo_pagamento: v.tipo_pagamento || v.forma_pagamento,
+        forma_pagamento: v.forma_pagamento || v.tipo_pagamento,
+        valorRecebido: v.valor_recebido,
+        troco: v.troco,
+        itens: (v.itens_venda || []).map((item: any) => ({
+          produtoId: item.produto_id,
+          nome: item.nome,
+          codigoBarras: item.codigo_barras,
+          quantidade: item.quantidade,
+          precoUnitario: parseFloat(item.preco_unitario) || 0,
+          subtotal: parseFloat(item.subtotal) || 0,
+        })),
+        devolucoes: v.devolucoes || [],
+        exclusoes: v.exclusoes || [],
+      }));
+
+      // Calcular estatísticas apenas das vendas concluídas
+      const vendasConcluidas = vendasMapeadas.filter((v) => v.status !== "cancelada");
+      const total = vendasConcluidas.length;
+      const faturamento = vendasConcluidas.reduce((acc: number, v: any) => acc + (v.total || 0), 0);
+      const ticket = total > 0 ? faturamento / total : 0;
+
+      setVendas(vendasMapeadas);
+      setTotalVendas(total);
+      setFaturamentoTotal(faturamento);
+      setTicketMedio(ticket);
+    } catch (err) {
+      console.error("Erro ao carregar vendas:", err);
+      setVendas([]);
+      setTotalVendas(0);
+      setFaturamentoTotal(0);
+      setTicketMedio(0);
+    } finally {
+      setLoadingVendas(false);
+    }
+  }, []);
+
   useEffect(() => {
     const checkAuth = async () => {
-      // Verificar se é admin master (login direto)
       const adminMaster = localStorage.getItem("admin_master_session");
       if (adminMaster === "true") {
         return true;
       }
 
-      // Verificar se é admin via Supabase Auth
       const { AuthSupabase } = await import("@/lib/auth-supabase");
       const operador = await AuthSupabase.getCurrentOperador();
 
@@ -93,13 +185,13 @@ export default function AnaliseLojasPage() {
 
   // Configurar sincronização em tempo real
   const setupRealtimeSync = () => {
-    // Watch operadores ativos em tempo real
+    // Watch operadores em tempo real
     const channelOperadores = AdminSupabase.watchOperadores((ops) => {
-      console.log("✅ Operadores ativos atualizados em tempo real:", ops.length);
+      console.log("✅ Operadores atualizados em tempo real:", ops.length);
       setOperadores(ops.filter((op) => !op.isAdmin));
     });
 
-    // 🔥 NOVO: Escutar mudanças em vendas e itens_venda em tempo real
+    // Escutar mudanças em vendas e itens_venda em tempo real
     const channelVendas = supabase
       .channel(`admin_vendas_realtime_${Date.now()}`)
       .on(
@@ -111,9 +203,9 @@ export default function AnaliseLojasPage() {
         },
         (payload) => {
           console.log('🔔 [ADMIN] Mudança detectada em vendas:', payload);
-          // Recarregar vendas se estiver visualizando algum operador
-          if (operadorSelecionado) {
-            carregarVendasUsuario();
+          // Usar ref para garantir valor atualizado
+          if (operadorSelecionadoRef.current) {
+            carregarVendasUsuario(operadorSelecionadoRef.current);
           }
         }
       )
@@ -126,23 +218,35 @@ export default function AnaliseLojasPage() {
         },
         (payload) => {
           console.log('🔔 [ADMIN] Mudança detectada em itens_venda:', payload);
-          // Recarregar vendas se estiver visualizando algum operador
-          if (operadorSelecionado) {
-            carregarVendasUsuario();
+          if (operadorSelecionadoRef.current) {
+            carregarVendasUsuario(operadorSelecionadoRef.current);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'trocas_extornos',
+        },
+        (payload) => {
+          console.log('🔔 [ADMIN] Mudança detectada em trocas_extornos:', payload);
+          if (operadorSelecionadoRef.current) {
+            carregarVendasUsuario(operadorSelecionadoRef.current);
           }
         }
       )
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
-          console.log('✅ [ADMIN] Realtime CONECTADO para vendas e itens');
+          console.log('✅ [ADMIN] Realtime CONECTADO para vendas, itens e trocas');
         } else if (status === 'CLOSED') {
-          console.warn('⚠️ [ADMIN] Realtime vendas FECHADO');
+          console.warn('⚠️ [ADMIN] Realtime FECHADO');
         } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ [ADMIN] Erro no canal realtime vendas:', err);
+          console.error('❌ [ADMIN] Erro no canal realtime:', err);
         }
       });
 
-    // Cleanup ao desmontar
     return () => {
       supabase.removeChannel(channelOperadores);
       supabase.removeChannel(channelVendas);
@@ -152,16 +256,25 @@ export default function AnaliseLojasPage() {
   useEffect(() => {
     if (operadorSelecionado) {
       carregarMensagens();
-      carregarVendasUsuario();
+      carregarVendasUsuario(operadorSelecionado);
 
-      // Verificar novas mensagens do usuário a cada 3 segundos
       const interval = setInterval(() => {
         carregarMensagens();
       }, 3000);
 
-      return () => clearInterval(interval);
+      // Fallback polling a cada 30s para garantir dados atualizados
+      const pollInterval = setInterval(() => {
+        if (operadorSelecionadoRef.current) {
+          carregarVendasUsuario(operadorSelecionadoRef.current);
+        }
+      }, 30000);
+
+      return () => {
+        clearInterval(interval);
+        clearInterval(pollInterval);
+      };
     }
-  }, [operadorSelecionado]);
+  }, [operadorSelecionado, carregarVendasUsuario]);
 
   useEffect(() => {
     if (chatRef.current) {
@@ -179,7 +292,6 @@ export default function AnaliseLojasPage() {
     try {
       setLoading(true);
 
-      // Carregar operadores ativos
       const todosOperadores = await AdminSupabase.getAllOperadores();
       const operadoresUsuarios = todosOperadores.filter((op) => !op.isAdmin);
       setOperadores(operadoresUsuarios);
@@ -190,122 +302,16 @@ export default function AnaliseLojasPage() {
     }
   };
 
-  const carregarVendasUsuario = async () => {
-    if (!operadorSelecionado) return;
-
-    try {
-      setLoadingVendas(true);
-
-      // Buscar vendas do usuário no Supabase COM itens_venda
-      console.log("🔍 Carregando vendas do usuário:", operadorSelecionado);
-
-      const { data, error } = await supabase
-        .from("vendas")
-        .select(`
-          *,
-          itens_venda (
-            produto_id,
-            nome,
-            codigo_barras,
-            quantidade,
-            preco_unitario,
-            subtotal
-          )
-        `)
-        .eq("operador_id", operadorSelecionado)
-        .order("data_hora", { ascending: false });
-
-      if (error) {
-        console.error("❌ Erro ao carregar vendas (Supabase):", {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint
-        });
-
-        // Fallback: tentar buscar do localStorage
-        console.warn("⚠️ Tentando fallback localStorage...");
-        const vendasLocal = JSON.parse(localStorage.getItem("vendas") || "[]");
-        const vendasDoUsuario = vendasLocal.filter((v: any) => v.operadorId === operadorSelecionado);
-
-        if (vendasDoUsuario.length > 0) {
-          console.log("✅ Encontradas", vendasDoUsuario.length, "vendas no localStorage");
-          const vendasConcluidas = vendasDoUsuario.filter((v: any) => v.status !== "cancelada");
-          const total = vendasConcluidas.length;
-          const faturamento = vendasConcluidas.reduce((acc: number, v: any) => acc + (v.total || 0), 0);
-          const ticket = total > 0 ? faturamento / total : 0;
-
-          setVendas(vendasDoUsuario);
-          setTotalVendas(total);
-          setFaturamentoTotal(faturamento);
-          setTicketMedio(ticket);
-          return;
-        }
-
-        setVendas([]);
-        setTotalVendas(0);
-        setFaturamentoTotal(0);
-        setTicketMedio(0);
-        return;
-      }
-
-      console.log("✅ Vendas carregadas do Supabase:", data?.length || 0);
-
-      // 🔥 MAPEAR vendas do Supabase para o formato esperado (snake_case -> camelCase)
-      const vendasMapeadas = (data || []).map((v: any) => ({
-        id: v.id,
-        numero: v.numero,
-        operadorId: v.operador_id,
-        operadorNome: v.operador_nome,
-        dataHora: v.data_hora,
-        total: v.total,
-        status: v.status,
-        tipoPagamento: v.tipo_pagamento,
-        valorRecebido: v.valor_recebido,
-        troco: v.troco,
-        itens: (v.itens_venda || []).map((item: any) => ({
-          produtoId: item.produto_id,
-          nome: item.nome,
-          codigoBarras: item.codigo_barras,
-          quantidade: item.quantidade,
-          precoUnitario: item.preco_unitario,
-          subtotal: item.subtotal,
-        })),
-        devolucoes: v.devolucoes || [],
-      }));
-
-      // Calcular estatísticas
-      const vendasConcluidas = vendasMapeadas.filter((v) => v.status !== "cancelada");
-      const total = vendasConcluidas.length;
-      const faturamento = vendasConcluidas.reduce((acc, v) => acc + (v.total || 0), 0);
-      const ticket = total > 0 ? faturamento / total : 0;
-
-      setVendas(vendasMapeadas);
-      setTotalVendas(total);
-      setFaturamentoTotal(faturamento);
-      setTicketMedio(ticket);
-    } catch (err) {
-      console.error("Erro ao carregar vendas:", err);
-      setVendas([]);
-      setTotalVendas(0);
-      setFaturamentoTotal(0);
-      setTicketMedio(0);
-    } finally {
-      setLoadingVendas(false);
-    }
-  };
-
   const carregarMensagens = () => {
     if (!operadorSelecionado) return;
 
     const chaveChat = `chat_${operadorSelecionado}`;
     const mensagensSalvas = localStorage.getItem(chaveChat);
-    
+
     if (mensagensSalvas) {
       const msgs: Mensagem[] = JSON.parse(mensagensSalvas);
       setMensagens(msgs);
-      
-      // Contar mensagens não lidas do usuário
+
       const naoLidas = msgs.filter(m => m.remetente === "usuario" && !m.lida).length;
       setMensagensNaoLidas(naoLidas);
     } else {
@@ -392,7 +398,7 @@ export default function AnaliseLojasPage() {
       };
 
       const sucesso = await AdminSupabase.updateOperador(operadorAtualizado);
-      
+
       if (sucesso) {
         setSuccess("Senha alterada com sucesso!");
         setTimeout(() => setSuccess(""), 3000);
@@ -400,7 +406,7 @@ export default function AnaliseLojasPage() {
         setError("Erro ao alterar senha");
         setTimeout(() => setError(""), 3000);
       }
-      
+
       setShowModalSenha(false);
     } catch (err) {
       console.error("Erro ao trocar senha:", err);
@@ -427,6 +433,17 @@ export default function AnaliseLojasPage() {
       op.email.toLowerCase().includes(buscaLower)
     );
   });
+
+  const formatarPagamento = (tipo: string) => {
+    const mapa: Record<string, string> = {
+      dinheiro: "Dinheiro",
+      credito: "Crédito",
+      debito: "Débito",
+      pix: "PIX",
+      outros: "Outros",
+    };
+    return mapa[tipo] || tipo || "Não informado";
+  };
 
   if (loading) {
     return (
@@ -500,7 +517,6 @@ export default function AnaliseLojasPage() {
               </button>
             </div>
             <div className="flex items-center space-x-3">
-              {/* Busca */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white/50" />
                 <input
@@ -514,7 +530,7 @@ export default function AnaliseLojasPage() {
               {operadorSelecionado && (
                 <button
                   onClick={abrirModalSenha}
-                  className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-xl hover:from-orange-600 hover:to-red-700 transition-all shadow-lg font-semibold"
+                  className="flex items-center space-x-2 px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl transition-all shadow-lg font-semibold"
                 >
                   <Key className="w-5 h-5" />
                   <span>Trocar Senha</span>
@@ -543,7 +559,7 @@ export default function AnaliseLojasPage() {
                   }`}
                 >
                   <div className="flex items-center space-x-4">
-                    <div className="bg-gradient-to-r from-purple-500 to-indigo-500 w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-lg flex-shrink-0">
+                    <div className="bg-purple-600 w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-lg flex-shrink-0">
                       {operador.nome.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1">
@@ -562,13 +578,16 @@ export default function AnaliseLojasPage() {
           </div>
         </div>
 
-        {/* Estatísticas */}
+        {/* Estatísticas em tempo real */}
         {operadorSelecionado && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-2xl p-8">
+            <div className="bg-blue-600 rounded-2xl shadow-2xl p-8">
               <div className="flex items-center justify-between mb-4">
                 <ShoppingCart className="w-12 h-12 text-white/80" />
-                <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full">
+                <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full flex items-center space-x-2">
+                  {loadingVendas ? (
+                    <RefreshCw className="w-4 h-4 text-white animate-spin" />
+                  ) : null}
                   <span className="text-white font-bold text-lg">{totalVendas}</span>
                 </div>
               </div>
@@ -578,7 +597,7 @@ export default function AnaliseLojasPage() {
               <p className="text-blue-100 text-sm">Vendas realizadas</p>
             </div>
 
-            <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl shadow-2xl p-8">
+            <div className="bg-green-600 rounded-2xl shadow-2xl p-8">
               <div className="flex items-center justify-between mb-4">
                 <DollarSign className="w-12 h-12 text-white/80" />
                 <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full">
@@ -589,7 +608,7 @@ export default function AnaliseLojasPage() {
               <p className="text-green-100 text-sm">Total arrecadado</p>
             </div>
 
-            <div className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl shadow-2xl p-8">
+            <div className="bg-purple-600 rounded-2xl shadow-2xl p-8">
               <div className="flex items-center justify-between mb-4">
                 <Calendar className="w-12 h-12 text-white/80" />
                 <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full">
@@ -607,7 +626,7 @@ export default function AnaliseLojasPage() {
         {/* Painel de Chat Fixo */}
         {operadorSelecionado && (
           <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-6">
+            <div className="bg-blue-600 px-8 py-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
                   <MessageCircle className="w-7 h-7 text-white" />
@@ -625,7 +644,6 @@ export default function AnaliseLojasPage() {
             </div>
 
             <div className="p-6">
-              {/* Área de Mensagens */}
               <div
                 ref={chatPainelRef}
                 className="h-96 overflow-y-auto mb-4 space-y-3 bg-white/5 rounded-xl p-4 border border-white/10"
@@ -651,7 +669,7 @@ export default function AnaliseLojasPage() {
                       <div
                         className={`max-w-[70%] px-5 py-3 rounded-2xl shadow-lg ${
                           msg.remetente === "admin"
-                            ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white"
+                            ? "bg-blue-600 text-white"
                             : "bg-white/20 text-white border border-white/20"
                         }`}
                       >
@@ -672,7 +690,6 @@ export default function AnaliseLojasPage() {
                 )}
               </div>
 
-              {/* Input de Mensagem */}
               <div className="flex items-center space-x-3">
                 <input
                   type="text"
@@ -686,7 +703,7 @@ export default function AnaliseLojasPage() {
                 <button
                   onClick={enviarMensagem}
                   disabled={!novaMensagem.trim()}
-                  className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
                 >
                   <Send className="w-5 h-5" />
                   <span className="font-semibold">Enviar</span>
@@ -697,92 +714,133 @@ export default function AnaliseLojasPage() {
         )}
 
         {/* Histórico de Vendas */}
-        {operadorSelecionado && vendas.length > 0 && (
+        {operadorSelecionado && (
           <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
-            <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-8 py-6">
+            <div className="bg-purple-600 px-8 py-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
                   <ShoppingCart className="w-7 h-7 text-white" />
                   <div>
                     <h2 className="text-2xl font-bold text-white">Histórico de Vendas</h2>
-                    <p className="text-purple-100 text-sm">{vendas.length} venda(s) registrada(s)</p>
+                    <p className="text-purple-100 text-sm">
+                      {loadingVendas ? "Carregando..." : `${vendas.length} venda(s) registrada(s)`}
+                    </p>
                   </div>
                 </div>
+                <button
+                  onClick={() => carregarVendasUsuario(operadorSelecionado)}
+                  className="flex items-center space-x-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-all"
+                >
+                  <RefreshCw className={`w-5 h-5 ${loadingVendas ? 'animate-spin' : ''}`} />
+                  <span>Atualizar</span>
+                </button>
               </div>
             </div>
 
             <div className="p-6">
-              <div className="space-y-4 max-h-[600px] overflow-y-auto">
-                {vendas.map((venda) => (
-                  <div
-                    key={venda.id}
-                    className="bg-white/5 rounded-xl p-6 border border-white/10 hover:bg-white/10 transition-all"
-                  >
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <h3 className="text-white font-bold text-lg mb-1">Venda #{venda.numero}</h3>
-                        <p className="text-purple-200 text-sm">
-                          {format(new Date(venda.data_hora), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                        </p>
+              {loadingVendas ? (
+                <div className="text-center py-12">
+                  <div className="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                  <p className="text-white/50">Carregando vendas...</p>
+                </div>
+              ) : vendas.length === 0 ? (
+                <div className="text-center py-12">
+                  <ShoppingCart className="w-16 h-16 text-white/30 mx-auto mb-4" />
+                  <p className="text-white/50 text-lg">Nenhuma venda encontrada para este usuário</p>
+                </div>
+              ) : (
+                <div className="space-y-4 max-h-[600px] overflow-y-auto">
+                  {vendas.map((venda) => (
+                    <div
+                      key={venda.id}
+                      className={`rounded-xl p-6 border transition-all ${
+                        venda.status === "cancelada"
+                          ? "bg-red-500/5 border-red-500/30"
+                          : "bg-white/5 border-white/10 hover:bg-white/10"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <div className="flex items-center space-x-2 mb-1">
+                            <h3 className="text-white font-bold text-lg">Venda #{venda.numero}</h3>
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                              venda.status === "concluida" ? "bg-green-500/20 text-green-300" :
+                              venda.status === "cancelada" ? "bg-red-500/20 text-red-300" :
+                              "bg-blue-500/20 text-blue-300"
+                            }`}>
+                              {venda.status === "cancelada" ? "Cancelada" : "Concluída"}
+                            </span>
+                          </div>
+                          <p className="text-purple-200 text-sm">
+                            {(() => {
+                              try {
+                                return format(new Date(venda.dataHora || venda.data_hora), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+                              } catch {
+                                return "Data inválida";
+                              }
+                            })()}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-white font-bold text-xl">R$ {(venda.total || 0).toFixed(2)}</p>
+                          <p className="text-purple-200 text-sm">{formatarPagamento(venda.tipo_pagamento || venda.forma_pagamento || '')}</p>
+                        </div>
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        venda.status === "concluida" ? "bg-green-500/20 text-green-300" :
-                        venda.status === "cancelada" ? "bg-red-500/20 text-red-300" :
-                        "bg-blue-500/20 text-blue-300"
-                      }`}>
-                        {venda.status || "concluída"}
-                      </span>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <p className="text-purple-200 text-sm mb-1">Valor Total</p>
-                        <p className="text-white font-bold text-xl">R$ {venda.total.toFixed(2)}</p>
+                      {/* Itens da venda */}
+                      {venda.itens && venda.itens.length > 0 && (
+                        <div className="space-y-1 mb-4">
+                          {venda.itens.map((item: any, idx: number) => (
+                            <div key={idx} className="flex justify-between text-sm bg-white/5 rounded-lg px-3 py-2">
+                              <span className="text-purple-200">{item.quantidade}x {item.nome}</span>
+                              <span className="text-white font-semibold">R$ {(item.subtotal || 0).toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Devoluções */}
+                      {venda.devolucoes && venda.devolucoes.length > 0 && (
+                        <div className="mb-3 bg-orange-500/10 border border-orange-500/30 rounded-lg p-3">
+                          <p className="text-orange-300 text-sm font-semibold mb-1">Devoluções/Extornos:</p>
+                          {venda.devolucoes.map((dev: any, idx: number) => (
+                            <p key={idx} className="text-orange-200 text-xs">
+                              • {dev.quantidade}x {dev.nomeProduto} — {dev.motivo}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Botões de impressão */}
+                      <div className="flex items-center space-x-3">
+                        <button
+                          onClick={() => window.open(`/imprimir-nota/${venda.id}`, '_blank')}
+                          className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg transition-all font-semibold"
+                        >
+                          <Printer className="w-5 h-5" />
+                          <span>Cupom</span>
+                        </button>
+
+                        <button
+                          onClick={() => window.open(`/imprimir-nota/${venda.id}`, '_blank')}
+                          className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg transition-all font-semibold"
+                        >
+                          <Printer className="w-5 h-5" />
+                          <span>NFC-e</span>
+                        </button>
+
+                        <button
+                          onClick={() => window.open(`/imprimir-nota/${venda.id}`, '_blank')}
+                          className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg transition-all font-semibold"
+                        >
+                          <Printer className="w-5 h-5" />
+                          <span>Nota Completa</span>
+                        </button>
                       </div>
-                      <div>
-                        <p className="text-purple-200 text-sm mb-1">Forma de Pagamento</p>
-                        <p className="text-white font-semibold">
-                          {venda.tipo_pagamento === "dinheiro" ? "💵 Dinheiro" :
-                           venda.tipo_pagamento === "credito" ? "💳 Crédito" :
-                           venda.tipo_pagamento === "debito" ? "💳 Débito" :
-                           venda.tipo_pagamento === "pix" ? "📱 PIX" :
-                           venda.tipo_pagamento === "outros" ? "🔹 Outros" :
-                           "Não informado"}
-                        </p>
-                      </div>
                     </div>
-
-                    <div className="flex items-center space-x-3">
-                      <button
-                        onClick={() => window.open(`/imprimir-nota/${venda.id}`, '_blank')}
-                        className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg transition-all font-semibold"
-                        title="Imprimir Cupom Fiscal"
-                      >
-                        <Printer className="w-5 h-5" />
-                        <span>Cupom</span>
-                      </button>
-
-                      <button
-                        onClick={() => window.open(`/imprimir-nota/${venda.id}`, '_blank')}
-                        className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg transition-all font-semibold"
-                        title="Imprimir NFC-e"
-                      >
-                        <Printer className="w-5 h-5" />
-                        <span>NFC-e</span>
-                      </button>
-
-                      <button
-                        onClick={() => window.open(`/imprimir-nota/${venda.id}`, '_blank')}
-                        className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg transition-all font-semibold"
-                        title="Imprimir Nota Completa"
-                      >
-                        <Printer className="w-5 h-5" />
-                        <span>Nota Completa</span>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -791,7 +849,6 @@ export default function AnaliseLojasPage() {
       {/* Chat Flutuante */}
       {operadorSelecionado && (
         <>
-          {/* Botão do Chat */}
           <button
             onClick={() => {
               setChatAberto(!chatAberto);
@@ -799,7 +856,7 @@ export default function AnaliseLojasPage() {
                 marcarMensagensComoLidas();
               }
             }}
-            className="fixed bottom-8 right-8 w-16 h-16 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-full shadow-2xl hover:from-blue-600 hover:to-indigo-700 transition-all flex items-center justify-center z-50"
+            className="fixed bottom-8 right-8 w-16 h-16 bg-blue-600 text-white rounded-full shadow-2xl hover:bg-blue-700 transition-all flex items-center justify-center z-50"
           >
             <MessageCircle className="w-7 h-7" />
             {mensagensNaoLidas > 0 && (
@@ -809,11 +866,9 @@ export default function AnaliseLojasPage() {
             )}
           </button>
 
-          {/* Janela do Chat */}
           {chatAberto && (
-            <div className="fixed bottom-28 right-8 w-80 h-[420px] bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl border border-white/20 flex flex-col z-50">
-              {/* Header do Chat */}
-              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 rounded-t-2xl flex items-center justify-between">
+            <div className="fixed bottom-28 right-8 w-80 h-[420px] bg-slate-900 rounded-2xl shadow-2xl border border-white/20 flex flex-col z-50">
+              <div className="bg-blue-600 px-6 py-4 rounded-t-2xl flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div className="bg-white/20 w-10 h-10 rounded-full flex items-center justify-center text-white font-bold">
                     {operadorAtual?.nome.charAt(0).toUpperCase()}
@@ -831,7 +886,6 @@ export default function AnaliseLojasPage() {
                 </button>
               </div>
 
-              {/* Mensagens */}
               <div
                 ref={chatRef}
                 className="flex-1 overflow-y-auto p-4 space-y-3"
@@ -854,7 +908,7 @@ export default function AnaliseLojasPage() {
                       <div
                         className={`max-w-[70%] px-4 py-2 rounded-lg ${
                           msg.remetente === "admin"
-                            ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white"
+                            ? "bg-blue-600 text-white"
                             : "bg-white/10 text-white"
                         }`}
                       >
@@ -868,7 +922,6 @@ export default function AnaliseLojasPage() {
                 )}
               </div>
 
-              {/* Input de Mensagem */}
               <div className="p-4 border-t border-white/10">
                 <div className="flex items-center space-x-2">
                   <input
@@ -881,7 +934,7 @@ export default function AnaliseLojasPage() {
                   />
                   <button
                     onClick={enviarMensagem}
-                    className="p-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all"
+                    className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all"
                   >
                     <Send className="w-5 h-5" />
                   </button>
@@ -895,8 +948,8 @@ export default function AnaliseLojasPage() {
       {/* Modal de Troca de Senha */}
       {showModalSenha && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl max-w-md w-full border border-white/10">
-            <div className="bg-gradient-to-r from-orange-600 to-red-600 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+          <div className="bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full border border-white/10">
+            <div className="bg-orange-600 px-6 py-4 flex items-center justify-between rounded-t-2xl">
               <h3 className="text-xl font-bold text-white">Trocar Senha</h3>
               <button
                 onClick={() => setShowModalSenha(false)}
@@ -951,7 +1004,7 @@ export default function AnaliseLojasPage() {
                 </button>
                 <button
                   onClick={trocarSenha}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg hover:from-orange-600 hover:to-red-700 transition-all font-semibold shadow-lg"
+                  className="flex-1 px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-all font-semibold shadow-lg"
                 >
                   Trocar Senha
                 </button>
