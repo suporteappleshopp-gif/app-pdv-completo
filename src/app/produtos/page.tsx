@@ -609,28 +609,27 @@ export default function ProdutosPage() {
                     value={categoria}
                     onChange={(e) => setCategoria(e.target.value)}
                     placeholder="Ex: Bebidas, Carnes, Laticínios..."
-                    className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    className="flex-1 min-w-0 px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   />
                   <button
                     type="button"
                     onClick={() => setVendaPorKg(!vendaPorKg)}
                     title={vendaPorKg ? "Venda por KG ativada — clique para desativar" : "Clique para ativar venda por KG"}
-                    className={`flex items-center gap-2 px-4 py-3 rounded-lg border-2 font-bold text-sm transition-all whitespace-nowrap ${
+                    style={{ flexShrink: 0, minWidth: '96px' }}
+                    className={`flex items-center justify-center gap-1 px-3 py-3 rounded-lg border-2 font-bold text-sm transition-all whitespace-nowrap ${
                       vendaPorKg
                         ? "bg-orange-500 border-orange-500 text-white shadow-md"
-                        : "bg-white border-gray-300 text-gray-500 hover:border-orange-400 hover:text-orange-500"
+                        : "bg-orange-50 border-orange-300 text-orange-500 hover:bg-orange-100 hover:border-orange-500"
                     }`}
                   >
                     <Scale className="w-4 h-4" />
                     <span>Por KG</span>
                   </button>
                 </div>
-                {vendaPorKg && (
-                  <p className="mt-1 text-xs text-orange-600 font-semibold flex items-center gap-1">
-                    <Scale className="w-3 h-3" />
-                    Venda por KG ativada
-                  </p>
-                )}
+                <p className="mt-1 text-xs font-semibold flex items-center gap-1" style={{ color: vendaPorKg ? '#ea580c' : '#9ca3af' }}>
+                  <Scale className="w-3 h-3" />
+                  {vendaPorKg ? "Venda por KG ativada" : "Clique em 'Por KG' para vender por peso"}
+                </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
