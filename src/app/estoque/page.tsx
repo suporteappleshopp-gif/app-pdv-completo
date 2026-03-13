@@ -20,6 +20,7 @@ import {
   TrendingDown,
   Lock,
   Camera,
+  Scale,
 } from "lucide-react";
 
 export default function EstoquePage() {
@@ -47,6 +48,7 @@ export default function EstoquePage() {
     estoque: 0,
     estoqueMinimo: 0,
     categoria: "",
+    vendaPorKg: false,
   });
 
   // Estado para o valor formatado do preço (com vírgula)
@@ -143,6 +145,7 @@ export default function EstoquePage() {
       estoque: 0,
       estoqueMinimo: 0,
       categoria: "",
+      vendaPorKg: false,
     });
     setPrecoFormatado("");
     setModoEdicao(false);
@@ -591,6 +594,9 @@ export default function EstoquePage() {
                       <th className="text-left text-purple-200 font-semibold py-3 px-4">
                         Categoria
                       </th>
+                      <th className="text-center text-purple-200 font-semibold py-3 px-4">
+                        Tipo
+                      </th>
                       <th className="text-right text-purple-200 font-semibold py-3 px-4">
                         Preço
                       </th>
@@ -629,9 +635,22 @@ export default function EstoquePage() {
                             {produto.categoria || "Sem categoria"}
                           </span>
                         </td>
+                        <td className="py-4 px-4 text-center">
+                          {produto.vendaPorKg ? (
+                            <span className="inline-flex items-center gap-1 bg-orange-500/20 text-orange-300 text-xs font-semibold px-2 py-1 rounded-full border border-orange-400/30">
+                              <Scale className="w-3 h-3" />
+                              Por KG
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 bg-blue-500/20 text-blue-300 text-xs font-semibold px-2 py-1 rounded-full border border-blue-400/30">
+                              <Package className="w-3 h-3" />
+                              Unidade
+                            </span>
+                          )}
+                        </td>
                         <td className="py-4 px-4 text-right">
                           <p className="text-white font-bold">
-                            R$ {produto.preco.toFixed(2).replace(".", ",")}
+                            R$ {produto.preco.toFixed(2).replace(".", ",")}{produto.vendaPorKg ? "/kg" : ""}
                           </p>
                         </td>
                         <td className="py-4 px-4 text-center">
@@ -813,6 +832,49 @@ export default function EstoquePage() {
                     placeholder="0"
                   />
                 </div>
+              </div>
+
+              {/* Toggle Venda por KG */}
+              <div className="mt-2">
+                <label className="block text-purple-200 text-sm font-semibold mb-2">
+                  Tipo de Venda
+                </label>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setProdutoForm({
+                      ...produtoForm,
+                      vendaPorKg: !produtoForm.vendaPorKg,
+                    })
+                  }
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border-2 transition-all font-semibold ${
+                    produtoForm.vendaPorKg
+                      ? "bg-orange-500/20 border-orange-400 text-orange-300"
+                      : "bg-white/10 border-white/20 text-purple-200 hover:bg-white/20"
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <Scale className="w-5 h-5" />
+                    <span>Vendido por KG (peso)</span>
+                  </div>
+                  <div
+                    className={`w-12 h-6 rounded-full transition-all flex items-center px-1 ${
+                      produtoForm.vendaPorKg ? "bg-orange-500" : "bg-white/20"
+                    }`}
+                  >
+                    <div
+                      className={`w-4 h-4 bg-white rounded-full shadow transition-all ${
+                        produtoForm.vendaPorKg ? "translate-x-6" : "translate-x-0"
+                      }`}
+                    />
+                  </div>
+                </button>
+                {produtoForm.vendaPorKg && (
+                  <p className="text-orange-300 text-xs mt-2 flex items-center space-x-1">
+                    <Scale className="w-3 h-3" />
+                    <span>O caixa pedirá o peso ao passar este produto</span>
+                  </p>
+                )}
               </div>
 
               <div className="flex space-x-3 pt-4">
