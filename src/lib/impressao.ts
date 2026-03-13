@@ -9,6 +9,45 @@ import { Venda, Empresa, ConfiguracaoNFCe } from "./types";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
+// Formatar texto de pagamento para nota (compatível SEFAZ)
+function formatarPagamentoTexto(venda: Venda): string {
+  if (venda.pagamentos && venda.pagamentos.length > 0) {
+    return venda.pagamentos.map(p => `${p.label}: R$ ${p.valor.toFixed(2)}`).join(" | ");
+  }
+  const labels: Record<string, string> = { dinheiro: "Dinheiro", credito: "Cartão Crédito", debito: "Cartão Débito", pix: "PIX", outros: "Outros" };
+  return venda.tipoPagamento ? (labels[venda.tipoPagamento] || "Outros") : "-";
+}
+
+// Gerar HTML das formas de pagamento para nota fiscal (padrão SEFAZ)
+function gerarHtmlPagamentos(venda: Venda, fontSize: string = "11px"): string {
+  if (venda.pagamentos && venda.pagamentos.length > 0) {
+    const totalPago = venda.pagamentos.reduce((s, p) => s + p.valor, 0);
+    const troco = totalPago > venda.total ? totalPago - venda.total : 0;
+    return `
+      <div class="section-title" style="margin-top:8px;">FORMA(S) DE PAGAMENTO</div>
+      ${venda.pagamentos.map(p => `
+        <p style="display:flex;justify-content:space-between;font-size:${fontSize};">
+          <span>${p.label}</span><span>R$ ${p.valor.toFixed(2)}</span>
+        </p>
+      `).join("")}
+      <p style="display:flex;justify-content:space-between;font-size:${fontSize};font-weight:bold;border-top:1px dashed #000;margin-top:4px;padding-top:4px;">
+        <span>Total Pago</span><span>R$ ${totalPago.toFixed(2)}</span>
+      </p>
+      ${troco > 0 ? `<p style="display:flex;justify-content:space-between;font-size:${fontSize};"><span>Troco (Dinheiro)</span><span>R$ ${troco.toFixed(2)}</span></p>` : ""}
+    `;
+  }
+  const labels: Record<string, string> = { dinheiro: "Dinheiro", credito: "Cartão Crédito", debito: "Cartão Débito", pix: "PIX", outros: "Outros" };
+  const label = venda.tipoPagamento ? (labels[venda.tipoPagamento] || "Outros") : "-";
+  const troco = venda.troco && venda.troco > 0 ? `<p style="display:flex;justify-content:space-between;font-size:${fontSize};"><span>Troco</span><span>R$ ${venda.troco.toFixed(2)}</span></p>` : "";
+  return `
+    <div class="section-title" style="margin-top:8px;">FORMA DE PAGAMENTO</div>
+    <p style="display:flex;justify-content:space-between;font-size:${fontSize};">
+      <span>${label}</span><span>R$ ${venda.total.toFixed(2)}</span>
+    </p>
+    ${troco}
+  `;
+}
+
 // Detectar tipo de dispositivo
 export function detectarDispositivo(): "mobile" | "desktop" {
   if (typeof window === "undefined") return "desktop";
@@ -133,12 +172,19 @@ function gerarTextoWhatsApp(venda: Venda, tipo: "cupom" | "nfce" | "completa"): 
   texto += `Data: ${format(venda.dataHora, "dd/MM/yyyy", { locale: ptBR })}\n`;
   texto += `Hora: ${format(venda.dataHora, "HH:mm:ss", { locale: ptBR })}\n`;
   texto += `Operador: ${venda.operadorNome}\n`;
-  if (venda.tipoPagamento) {
-    const pagamento = venda.tipoPagamento === "dinheiro" ? "Dinheiro" : 
-                      venda.tipoPagamento === "credito" ? "Crédito" : 
-                      venda.tipoPagamento === "debito" ? "Débito" : 
+  if (venda.pagamentos && venda.pagamentos.length > 0) {
+    texto += `Pagamento: ${venda.pagamentos.map(p => `${p.label} R$${p.valor.toFixed(2)}`).join(" + ")}\n`;
+    const totalPago = venda.pagamentos.reduce((s, p) => s + p.valor, 0);
+    if (totalPago > venda.total) {
+      texto += `Troco: R$ ${(totalPago - venda.total).toFixed(2)}\n`;
+    }
+  } else if (venda.tipoPagamento) {
+    const pagamento = venda.tipoPagamento === "dinheiro" ? "Dinheiro" :
+                      venda.tipoPagamento === "credito" ? "Crédito" :
+                      venda.tipoPagamento === "debito" ? "Débito" :
                       venda.tipoPagamento === "pix" ? "PIX" : "Outros";
     texto += `Pagamento: ${pagamento}\n`;
+    if (venda.troco && venda.troco > 0) texto += `Troco: R$ ${venda.troco.toFixed(2)}\n`;
   }
   texto += `\n`;
   
@@ -324,9 +370,8 @@ export function imprimirCupomFiscal(venda: Venda) {
         <p><strong>Data:</strong> ${format(venda.dataHora, "dd/MM/yyyy", { locale: ptBR })}</p>
         <p><strong>Hora:</strong> ${format(venda.dataHora, "HH:mm:ss", { locale: ptBR })}</p>
         <p><strong>Operador:</strong> ${venda.operadorNome}</p>
-        ${venda.tipoPagamento ? `<p><strong>Pagamento:</strong> ${venda.tipoPagamento === "dinheiro" ? "Dinheiro" : venda.tipoPagamento === "credito" ? "Crédito" : venda.tipoPagamento === "debito" ? "Débito" : venda.tipoPagamento === "pix" ? "PIX" : "Outros"}</p>` : ""}
       </div>
-      
+
       <div class="items">
         ${venda.itens
           .map(
@@ -342,10 +387,12 @@ export function imprimirCupomFiscal(venda: Venda) {
           )
           .join("")}
       </div>
-      
+
       <div class="total">
         TOTAL: R$ ${venda.total.toFixed(2)}
       </div>
+
+      ${gerarHtmlPagamentos(venda, dispositivo === "mobile" ? "12px" : "11px")}
       
       <div class="footer">
         <p>${config.mensagemNota}</p>
@@ -563,7 +610,7 @@ export function imprimirNFCe(venda: Venda) {
         <p><strong>Série:</strong> ${config.serieNFCe}</p>
         <p><strong>Data Emissão:</strong> ${format(venda.dataHora, "dd/MM/yyyy HH:mm:ss", { locale: ptBR })}</p>
         <p><strong>Operador:</strong> ${venda.operadorNome}</p>
-        ${venda.tipoPagamento ? `<p><strong>Forma de Pagamento:</strong> ${venda.tipoPagamento === "dinheiro" ? "Dinheiro" : venda.tipoPagamento === "credito" ? "Crédito" : venda.tipoPagamento === "debito" ? "Débito" : venda.tipoPagamento === "pix" ? "PIX" : "Outros"}</p>` : ""}
+        <p><strong>Pagamento:</strong> ${formatarPagamentoTexto(venda)}</p>
         <p><strong>CFOP:</strong> ${config.cfopPadrao} - Venda de mercadoria</p>
       </div>
       
@@ -601,7 +648,11 @@ export function imprimirNFCe(venda: Venda) {
       <div class="total">
         VALOR TOTAL: R$ ${venda.total.toFixed(2)}
       </div>
-      
+
+      <div class="impostos">
+        ${gerarHtmlPagamentos(venda, dispositivo === "mobile" ? "11px" : "10px")}
+      </div>
+
       <div class="chave-acesso">
         <p style="font-weight: bold; margin-bottom: 5px;">CHAVE DE ACESSO</p>
         <p>${chaveAcesso}</p>
@@ -827,7 +878,7 @@ export function imprimirNotaFiscalCompleta(venda: Venda) {
           <p><strong>Série:</strong> ${config.serieNFCe}</p>
           <p><strong>Data/Hora:</strong> ${format(venda.dataHora, "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })}</p>
           <p><strong>Operador:</strong> ${venda.operadorNome}</p>
-          ${venda.tipoPagamento ? `<p><strong>Forma de Pagamento:</strong> ${venda.tipoPagamento === "dinheiro" ? "Dinheiro" : venda.tipoPagamento === "credito" ? "Crédito" : venda.tipoPagamento === "debito" ? "Débito" : venda.tipoPagamento === "pix" ? "PIX" : "Outros"}</p>` : ""}
+          <p><strong>Pagamento:</strong> ${formatarPagamentoTexto(venda)}</p>
         </div>
         
         <div class="info-box">
@@ -895,8 +946,36 @@ export function imprimirNotaFiscalCompleta(venda: Venda) {
           <span>VALOR TOTAL DA NOTA:</span>
           <span>R$ ${venda.total.toFixed(2)}</span>
         </div>
+        ${(() => {
+          if (venda.pagamentos && venda.pagamentos.length > 0) {
+            const totalPago = venda.pagamentos.reduce((s: number, p: any) => s + p.valor, 0);
+            const troco = totalPago > venda.total ? totalPago - venda.total : 0;
+            return `
+              <div style="margin-top:12px;border-top:1px solid #000;padding-top:8px;">
+                <div style="font-weight:bold;margin-bottom:6px;font-size:${dispositivo === "mobile" ? "13px" : "11px"};">FORMAS DE PAGAMENTO</div>
+                ${venda.pagamentos.map((p: any) => `
+                  <div class="totais-row" style="font-size:${dispositivo === "mobile" ? "13px" : "11px"};">
+                    <span>${p.label}</span><span>R$ ${p.valor.toFixed(2)}</span>
+                  </div>
+                `).join("")}
+                ${troco > 0 ? `<div class="totais-row" style="font-size:${dispositivo === "mobile" ? "13px" : "11px"};"><span>Troco (Dinheiro)</span><span>R$ ${troco.toFixed(2)}</span></div>` : ""}
+              </div>
+            `;
+          } else if (venda.tipoPagamento) {
+            const labels: Record<string, string> = { dinheiro: "Dinheiro", credito: "Cartão Crédito", debito: "Cartão Débito", pix: "PIX", outros: "Outros" };
+            const troco = venda.troco && venda.troco > 0 ? `<div class="totais-row" style="font-size:${dispositivo === "mobile" ? "13px" : "11px"};"><span>Troco</span><span>R$ ${venda.troco.toFixed(2)}</span></div>` : "";
+            return `
+              <div style="margin-top:12px;border-top:1px solid #000;padding-top:8px;">
+                <div style="font-weight:bold;margin-bottom:6px;font-size:${dispositivo === "mobile" ? "13px" : "11px"};">FORMA DE PAGAMENTO</div>
+                <div class="totais-row" style="font-size:${dispositivo === "mobile" ? "13px" : "11px"};"><span>${labels[venda.tipoPagamento] || "Outros"}</span><span>R$ ${venda.total.toFixed(2)}</span></div>
+                ${troco}
+              </div>
+            `;
+          }
+          return "";
+        })()}
       </div>
-      
+
       <div class="info-box" style="margin-top: 20px;">
         <h3>INFORMAÇÕES COMPLEMENTARES</h3>
         <p>${config.mensagemNota}</p>

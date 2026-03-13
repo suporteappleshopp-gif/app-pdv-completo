@@ -49,6 +49,7 @@ export default function ProdutosPage() {
   const [preco, setPreco] = useState("");
   const [estoque, setEstoque] = useState("");
   const [estoqueMinimo, setEstoqueMinimo] = useState("");
+  const [categoria, setCategoria] = useState("");
   const [vendaPorKg, setVendaPorKg] = useState(false);
 
   useEffect(() => {
@@ -160,6 +161,7 @@ export default function ProdutosPage() {
     setPreco("");
     setEstoque("");
     setEstoqueMinimo("");
+    setCategoria("");
     setVendaPorKg(false);
     setEditando(null);
   };
@@ -178,6 +180,7 @@ export default function ProdutosPage() {
       setPreco(produto.preco.toString());
       setEstoque(produto.estoque.toString());
       setEstoqueMinimo(produto.estoqueMinimo?.toString() || "");
+      setCategoria(produto.categoria || "");
       setVendaPorKg(produto.vendaPorKg ?? false);
     } else {
       limparFormulario();
@@ -213,6 +216,7 @@ export default function ProdutosPage() {
         preco: parseFloat(preco),
         estoque: parseInt(estoque),
         estoqueMinimo: estoqueMinimo ? parseInt(estoqueMinimo) : 0,
+        categoria: categoria || undefined,
         vendaPorKg,
       };
 
@@ -594,6 +598,41 @@ export default function ProdutosPage() {
                 />
               </div>
 
+              {/* Categoria + Toggle KG */}
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Categoria
+                  </label>
+                  <input
+                    type="text"
+                    value={categoria}
+                    onChange={(e) => setCategoria(e.target.value)}
+                    placeholder="Ex: Bebidas, Carnes, Laticínios..."
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                  <label className="text-xs font-semibold text-gray-500">Venda KG</label>
+                  <button
+                    type="button"
+                    onClick={() => setVendaPorKg(!vendaPorKg)}
+                    title={vendaPorKg ? "Venda por KG ativada — clique para desativar" : "Clique para ativar venda por KG"}
+                    className={`flex items-center gap-1 px-4 py-3 rounded-lg border-2 font-bold text-sm transition-all whitespace-nowrap ${
+                      vendaPorKg
+                        ? "bg-orange-500 border-orange-500 text-white shadow-md"
+                        : "bg-white border-gray-300 text-gray-500 hover:border-orange-400 hover:text-orange-500"
+                    }`}
+                  >
+                    <Scale className="w-4 h-4" />
+                    <span>KG</span>
+                  </button>
+                  {vendaPorKg && (
+                    <span className="text-xs text-orange-600 font-semibold">Ativo</span>
+                  )}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -626,33 +665,12 @@ export default function ProdutosPage() {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Estoque Mínimo
                   </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      value={estoqueMinimo}
-                      onChange={(e) => setEstoqueMinimo(e.target.value)}
-                      className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setVendaPorKg(!vendaPorKg)}
-                      title={vendaPorKg ? "Venda por KG ativada" : "Clique para ativar venda por KG"}
-                      className={`flex items-center gap-1 px-3 py-3 rounded-lg border-2 font-semibold text-sm transition-all whitespace-nowrap ${
-                        vendaPorKg
-                          ? "bg-orange-500 border-orange-500 text-white shadow-md"
-                          : "bg-white border-gray-300 text-gray-500 hover:border-orange-400 hover:text-orange-500"
-                      }`}
-                    >
-                      <Scale className="w-4 h-4" />
-                      <span>KG</span>
-                    </button>
-                  </div>
-                  {vendaPorKg && (
-                    <p className="text-xs text-orange-600 mt-1 flex items-center gap-1">
-                      <Scale className="w-3 h-3" />
-                      Produto vendido por peso (kg)
-                    </p>
-                  )}
+                  <input
+                    type="number"
+                    value={estoqueMinimo}
+                    onChange={(e) => setEstoqueMinimo(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
                 </div>
               </div>
 

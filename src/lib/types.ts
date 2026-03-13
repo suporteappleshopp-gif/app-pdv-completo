@@ -88,6 +88,13 @@ export interface Avaria {
 
 export type TipoPagamento = "dinheiro" | "credito" | "debito" | "pix" | "outros";
 
+// Representa um pagamento parcial (para pagamentos mistos)
+export interface PagamentoItem {
+  tipo: TipoPagamento;
+  valor: number;
+  label: string; // ex: "Dinheiro", "PIX", "Crédito"
+}
+
 export interface Venda {
   id: string;
   numero: number;
@@ -101,6 +108,7 @@ export interface Venda {
   status?: "concluida" | "cancelada";
   motivoCancelamento?: string;
   tipoPagamento?: TipoPagamento;
+  pagamentos?: PagamentoItem[]; // Para pagamentos mistos (múltiplas formas)
   valorRecebido?: number;
   troco?: number;
 }

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { db } from "@/lib/db";
 import { SupabaseSync } from "@/lib/supabase-sync";
 import { GerenciadorAssinatura } from "@/lib/assinatura";
-import { Produto, ItemVenda, Venda, Operador, TipoPagamento } from "@/lib/types";
+import { Produto, ItemVenda, Venda, Operador, TipoPagamento, PagamentoItem } from "@/lib/types";
 import {
   ShoppingCart,
   Plus,
@@ -107,6 +107,12 @@ export default function CaixaPage() {
   const [valorRecebido, setValorRecebido] = useState<string>("");
   const [mostrarModalImpressao, setMostrarModalImpressao] = useState(false);
   const [vendaFinalizada, setVendaFinalizada] = useState<Venda | null>(null);
+
+  // Múltiplos pagamentos (ativado ao selecionar "Outros")
+  const [modoMultiplos, setModoMultiplos] = useState(false);
+  const [pagamentosMultiplos, setPagamentosMultiplos] = useState<PagamentoItem[]>([]);
+  const [novoTipoPagamento, setNovoTipoPagamento] = useState<TipoPagamento>("dinheiro");
+  const [novoValorPagamento, setNovoValorPagamento] = useState<string>("");
 
   // Lembrete de vencimento
   const [mostrarLembrete, setMostrarLembrete] = useState(false);
@@ -1123,6 +1129,10 @@ export default function CaixaPage() {
     }
     setValorRecebido("");
     setTipoPagamento("dinheiro");
+    setModoMultiplos(false);
+    setPagamentosMultiplos([]);
+    setNovoTipoPagamento("dinheiro");
+    setNovoValorPagamento("");
     setMostrarModalFinalizacao(true);
   };
 
@@ -1148,6 +1158,8 @@ export default function CaixaPage() {
       const numeroVenda = await db.getProximoNumeroVenda();
       console.log("📝 Número da venda:", numeroVenda);
       
+      // Para pagamentos múltiplos, a forma principal é "outros"
+      // Para pagamento único, usar o tipoPagamento selecionado
       const venda: Venda = {
         id: `venda-${Date.now()}`,
         numero: numeroVenda,
@@ -1157,7 +1169,12 @@ export default function CaixaPage() {
         total,
         dataHora: new Date(),
         status: "concluida",
-        tipoPagamento,
+        tipoPagamento: modoMultiplos ? "outros" : tipoPagamento,
+        pagamentos: modoMultiplos && pagamentosMultiplos.length > 0 ? pagamentosMultiplos : undefined,
+        valorRecebido: !modoMultiplos && tipoPagamento === "dinheiro" && valorRecebido ? parseFloat(valorRecebido) : undefined,
+        troco: !modoMultiplos && tipoPagamento === "dinheiro" && valorRecebido && parseFloat(valorRecebido) > total
+          ? parseFloat(valorRecebido) - total
+          : undefined,
       };
 
       console.log("💾 Salvando venda no IndexedDB...");
@@ -1177,9 +1194,10 @@ export default function CaixaPage() {
         numero: venda.numero,
         operador_id: venda.operadorId,
         operador_nome: venda.operadorNome,
-        itens: carrinho, // Campo obrigatório (NOT NULL)
+        itens: carrinho,
         total: venda.total,
         forma_pagamento: venda.tipoPagamento,
+        pagamentos: venda.pagamentos || null,
         status: venda.status,
         data_hora: venda.dataHora.toISOString(),
       };
@@ -1960,110 +1978,189 @@ export default function CaixaPage() {
               <span>Finalizar Venda</span>
             </h3>
 
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
               <p className="text-sm text-gray-600 mb-1">Total da Venda:</p>
               <p className="text-3xl font-bold text-green-600">R$ {total.toFixed(2)}</p>
             </div>
 
-            <p className="text-gray-600 mb-4 font-semibold">Selecione a forma de pagamento:</p>
+            {/* Modo normal: selecionar forma única */}
+            {!modoMultiplos && (
+              <>
+                <p className="text-gray-600 mb-3 font-semibold">Forma de pagamento:</p>
+                <div className="space-y-2 mb-4">
+                  {[
+                    { tipo: "dinheiro" as TipoPagamento, label: "Dinheiro (R)", icon: <Banknote className="w-5 h-5 text-green-600" />, cor: "border-green-500 bg-green-50" },
+                    { tipo: "credito" as TipoPagamento, label: "Cartão de Crédito (C)", icon: <CreditCard className="w-5 h-5 text-blue-600" />, cor: "border-blue-500 bg-blue-50" },
+                    { tipo: "debito" as TipoPagamento, label: "Cartão de Débito (D)", icon: <CreditCard className="w-5 h-5 text-purple-600" />, cor: "border-purple-500 bg-purple-50" },
+                    { tipo: "pix" as TipoPagamento, label: "PIX (P)", icon: <Smartphone className="w-5 h-5 text-teal-600" />, cor: "border-teal-500 bg-teal-50" },
+                  ].map(({ tipo, label, icon, cor }) => (
+                    <button
+                      key={tipo}
+                      onClick={() => setTipoPagamento(tipo)}
+                      className={`w-full p-3 rounded-lg border-2 transition-all flex items-center space-x-3 ${tipoPagamento === tipo ? cor : "border-gray-300 hover:bg-gray-50"}`}
+                    >
+                      {icon}
+                      <span className="font-semibold">{label}</span>
+                    </button>
+                  ))}
 
-            <div className="space-y-3 mb-6">
-              <button
-                onClick={() => setTipoPagamento("dinheiro")}
-                className={`w-full p-4 rounded-lg border-2 transition-all flex items-center space-x-3 ${
-                  tipoPagamento === "dinheiro"
-                    ? "border-green-500 bg-green-50"
-                    : "border-gray-300 hover:bg-gray-50"
-                }`}
-              >
-                <Banknote className="w-6 h-6 text-green-600" />
-                <span className="font-semibold">Dinheiro (R)</span>
-              </button>
+                  {/* Outros → ativa modo múltiplos */}
+                  <button
+                    onClick={() => {
+                      setModoMultiplos(true);
+                      setPagamentosMultiplos([]);
+                      setNovoTipoPagamento("dinheiro");
+                      setNovoValorPagamento("");
+                    }}
+                    className="w-full p-3 rounded-lg border-2 border-orange-300 hover:bg-orange-50 transition-all flex items-center space-x-3"
+                  >
+                    <Wallet className="w-5 h-5 text-orange-600" />
+                    <span className="font-semibold text-orange-700">Outros / Múltiplas Formas (O)</span>
+                  </button>
+                </div>
 
-              <button
-                onClick={() => setTipoPagamento("credito")}
-                className={`w-full p-4 rounded-lg border-2 transition-all flex items-center space-x-3 ${
-                  tipoPagamento === "credito"
-                    ? "border-blue-500 bg-blue-50"
-                    : "border-gray-300 hover:bg-gray-50"
-                }`}
-              >
-                <CreditCard className="w-6 h-6 text-blue-600" />
-                <span className="font-semibold">Cartão de Crédito (C)</span>
-              </button>
-
-              <button
-                onClick={() => setTipoPagamento("debito")}
-                className={`w-full p-4 rounded-lg border-2 transition-all flex items-center space-x-3 ${
-                  tipoPagamento === "debito"
-                    ? "border-purple-500 bg-purple-50"
-                    : "border-gray-300 hover:bg-gray-50"
-                }`}
-              >
-                <CreditCard className="w-6 h-6 text-purple-600" />
-                <span className="font-semibold">Cartão de Débito (D)</span>
-              </button>
-
-              <button
-                onClick={() => setTipoPagamento("pix")}
-                className={`w-full p-4 rounded-lg border-2 transition-all flex items-center space-x-3 ${
-                  tipoPagamento === "pix"
-                    ? "border-teal-500 bg-teal-50"
-                    : "border-gray-300 hover:bg-gray-50"
-                }`}
-              >
-                <Smartphone className="w-6 h-6 text-teal-600" />
-                <span className="font-semibold">PIX (P)</span>
-              </button>
-
-              <button
-                onClick={() => setTipoPagamento("outros")}
-                className={`w-full p-4 rounded-lg border-2 transition-all flex items-center space-x-3 ${
-                  tipoPagamento === "outros"
-                    ? "border-gray-500 bg-gray-50"
-                    : "border-gray-300 hover:bg-gray-50"
-                }`}
-              >
-                <Wallet className="w-6 h-6 text-gray-600" />
-                <span className="font-semibold">Outros (O)</span>
-              </button>
-            </div>
-
-            {/* Campo de Valor Recebido - Apenas para Dinheiro */}
-            {tipoPagamento === "dinheiro" && (
-              <div className="mb-6 p-4 bg-green-50 rounded-lg border-2 border-green-200">
-                <label className="block text-gray-700 font-semibold mb-2">
-                  Valor Recebido (R$)
-                </label>
-                <input
-                  ref={valorRecebidoInputRef}
-                  type="number"
-                  step="0.01"
-                  value={valorRecebido}
-                  onChange={(e) => setValorRecebido(e.target.value)}
-                  placeholder="Digite o valor recebido"
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-lg"
-                />
-                {valorRecebido && parseFloat(valorRecebido) >= total && (
-                  <div className="mt-3 p-3 bg-white rounded-lg border border-green-300">
-                    <p className="text-gray-600 text-sm mb-1">Troco:</p>
-                    <p className="text-2xl font-bold text-green-600">
-                      R$ {(parseFloat(valorRecebido) - total).toFixed(2)}
-                    </p>
+                {/* Troco - apenas para dinheiro */}
+                {tipoPagamento === "dinheiro" && (
+                  <div className="mb-4 p-4 bg-green-50 rounded-lg border-2 border-green-200">
+                    <label className="block text-gray-700 font-semibold mb-2">Valor Recebido (R$)</label>
+                    <input
+                      ref={valorRecebidoInputRef}
+                      type="number"
+                      step="0.01"
+                      value={valorRecebido}
+                      onChange={(e) => setValorRecebido(e.target.value)}
+                      placeholder="Digite o valor recebido"
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-lg"
+                    />
+                    {valorRecebido && parseFloat(valorRecebido) >= total && (
+                      <div className="mt-2 p-3 bg-white rounded-lg border border-green-300">
+                        <p className="text-gray-600 text-sm mb-1">Troco:</p>
+                        <p className="text-2xl font-bold text-green-600">R$ {(parseFloat(valorRecebido) - total).toFixed(2)}</p>
+                      </div>
+                    )}
+                    {valorRecebido && parseFloat(valorRecebido) < total && (
+                      <p className="mt-2 text-red-600 text-sm font-semibold">⚠️ Valor recebido menor que o total</p>
+                    )}
                   </div>
                 )}
-                {valorRecebido && parseFloat(valorRecebido) < total && (
-                  <p className="mt-2 text-red-600 text-sm font-semibold">
-                    ⚠️ Valor recebido é menor que o total da venda
-                  </p>
+              </>
+            )}
+
+            {/* Modo múltiplos pagamentos */}
+            {modoMultiplos && (
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="font-bold text-gray-800">Múltiplas Formas de Pagamento</p>
+                  <button
+                    onClick={() => { setModoMultiplos(false); setPagamentosMultiplos([]); }}
+                    className="text-xs text-gray-500 hover:text-gray-700 underline"
+                  >
+                    Voltar
+                  </button>
+                </div>
+
+                {/* Pagamentos já adicionados */}
+                {pagamentosMultiplos.length > 0 && (
+                  <div className="mb-3 space-y-2">
+                    {pagamentosMultiplos.map((pg, i) => (
+                      <div key={i} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                        <span className="font-semibold text-gray-700">{pg.label}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-green-700">R$ {pg.valor.toFixed(2)}</span>
+                          <button
+                            onClick={() => setPagamentosMultiplos(pagamentosMultiplos.filter((_, idx) => idx !== i))}
+                            className="text-red-500 hover:text-red-700 p-1"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="flex justify-between text-sm font-bold px-1">
+                      <span className="text-gray-600">Pago:</span>
+                      <span className={pagamentosMultiplos.reduce((s, p) => s + p.valor, 0) >= total ? "text-green-600" : "text-orange-600"}>
+                        R$ {pagamentosMultiplos.reduce((s, p) => s + p.valor, 0).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm font-bold px-1">
+                      <span className="text-gray-600">Restante:</span>
+                      <span className={Math.max(0, total - pagamentosMultiplos.reduce((s, p) => s + p.valor, 0)) === 0 ? "text-green-600" : "text-red-600"}>
+                        R$ {Math.max(0, total - pagamentosMultiplos.reduce((s, p) => s + p.valor, 0)).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Adicionar novo pagamento */}
+                {pagamentosMultiplos.reduce((s, p) => s + p.valor, 0) < total && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 space-y-2">
+                    <p className="text-sm font-semibold text-orange-800">Adicionar pagamento:</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { tipo: "dinheiro" as TipoPagamento, label: "Dinheiro" },
+                        { tipo: "credito" as TipoPagamento, label: "Crédito" },
+                        { tipo: "debito" as TipoPagamento, label: "Débito" },
+                        { tipo: "pix" as TipoPagamento, label: "PIX" },
+                      ].map(({ tipo, label }) => (
+                        <button
+                          key={tipo}
+                          onClick={() => setNovoTipoPagamento(tipo)}
+                          className={`py-2 px-3 rounded-lg border-2 text-sm font-semibold transition-all ${novoTipoPagamento === tipo ? "border-orange-500 bg-orange-100 text-orange-800" : "border-gray-300 bg-white hover:bg-gray-50"}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={novoValorPagamento}
+                        onChange={(e) => setNovoValorPagamento(e.target.value)}
+                        placeholder={`Valor (máx R$ ${Math.max(0, total - pagamentosMultiplos.reduce((s, p) => s + p.valor, 0)).toFixed(2)})`}
+                        className="flex-1 px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-400 focus:border-transparent"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            const val = parseFloat(novoValorPagamento.replace(",", "."));
+                            if (!val || val <= 0) return;
+                            const labels: Record<TipoPagamento, string> = { dinheiro: "Dinheiro", credito: "Crédito", debito: "Débito", pix: "PIX", outros: "Outros" };
+                            setPagamentosMultiplos([...pagamentosMultiplos, { tipo: novoTipoPagamento, valor: val, label: labels[novoTipoPagamento] }]);
+                            setNovoValorPagamento("");
+                          }
+                        }}
+                      />
+                      <button
+                        onClick={() => {
+                          const val = parseFloat(novoValorPagamento.replace(",", "."));
+                          if (!val || val <= 0) return;
+                          const labels: Record<TipoPagamento, string> = { dinheiro: "Dinheiro", credito: "Crédito", debito: "Débito", pix: "PIX", outros: "Outros" };
+                          setPagamentosMultiplos([...pagamentosMultiplos, { tipo: novoTipoPagamento, valor: val, label: labels[novoTipoPagamento] }]);
+                          setNovoValorPagamento("");
+                        }}
+                        className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-semibold transition-all"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Troco para múltiplos (dinheiro) */}
+                {pagamentosMultiplos.reduce((s, p) => s + p.valor, 0) > total && (
+                  <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-sm text-gray-600">Troco (dinheiro):</p>
+                    <p className="text-xl font-bold text-green-600">R$ {(pagamentosMultiplos.reduce((s, p) => s + p.valor, 0) - total).toFixed(2)}</p>
+                  </div>
                 )}
               </div>
             )}
 
-            <div className="flex space-x-3">
+            <div className="flex space-x-3 mt-2">
               <button
                 onClick={finalizarVenda}
-                className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white py-3 rounded-lg font-semibold transition-all shadow-lg flex items-center justify-center space-x-2"
+                disabled={modoMultiplos && pagamentosMultiplos.reduce((s, p) => s + p.valor, 0) < total}
+                className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-lg font-semibold transition-all shadow-lg flex items-center justify-center space-x-2"
               >
                 <CheckCircle className="w-5 h-5" />
                 <span>Confirmar (Enter)</span>
@@ -2072,6 +2169,8 @@ export default function CaixaPage() {
                 onClick={() => {
                   setMostrarModalFinalizacao(false);
                   setValorRecebido("");
+                  setModoMultiplos(false);
+                  setPagamentosMultiplos([]);
                 }}
                 className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-lg font-semibold transition-all"
               >
