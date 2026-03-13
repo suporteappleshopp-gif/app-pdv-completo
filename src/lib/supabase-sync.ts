@@ -29,6 +29,7 @@ export class SupabaseSync {
         preco: p.preco,
         estoque: p.estoque,
         estoque_minimo: p.estoqueMinimo,
+        venda_por_kg: p.vendaPorKg ?? false,
         categoria: p.categoria,
         descricao: p.descricao,
       }));
@@ -76,6 +77,7 @@ export class SupabaseSync {
         preco: p.preco,
         estoque: p.estoque,
         estoqueMinimo: p.estoque_minimo,
+        vendaPorKg: p.venda_por_kg ?? false,
         categoria: p.categoria,
         descricao: p.descricao,
       }));
@@ -98,6 +100,7 @@ export class SupabaseSync {
         preco: produto.preco,
         estoque: produto.estoque,
         estoque_minimo: produto.estoqueMinimo,
+        venda_por_kg: produto.vendaPorKg ?? false,
         categoria: produto.categoria,
         descricao: produto.descricao,
       });
@@ -127,6 +130,7 @@ export class SupabaseSync {
           preco: produto.preco,
           estoque: produto.estoque,
           estoque_minimo: produto.estoqueMinimo,
+          venda_por_kg: produto.vendaPorKg ?? false,
           categoria: produto.categoria,
           descricao: produto.descricao,
         })

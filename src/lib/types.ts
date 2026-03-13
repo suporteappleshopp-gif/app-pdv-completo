@@ -38,12 +38,14 @@ export interface Produto {
   preco: number;
   estoque: number;
   estoqueMinimo: number;
+  vendaPorKg?: boolean;
   categoria?: string;
   descricao?: string;
 }
 
 export interface ItemVenda {
   produtoId: string;
+  produtoIdOriginal?: string; // ID original do produto (usado para produtos vendidos por KG)
   nome: string;
   codigoBarras?: string; // Código de barras do produto (para devolução)
   quantidade: number;

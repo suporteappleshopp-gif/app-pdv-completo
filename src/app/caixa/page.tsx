@@ -40,6 +40,7 @@ import {
   Cloud,
   HardDrive,
   Lock,
+  Scale,
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -127,6 +128,14 @@ export default function CaixaPage() {
 
   // Ref para o input de valor recebido
   const valorRecebidoInputRef = useRef<HTMLInputElement>(null);
+
+  // Ref para o input de peso KG
+  const pesoInputRef = useRef<HTMLInputElement>(null);
+
+  // Modal de peso (para produtos vendidos por KG)
+  const [mostrarModalPeso, setMostrarModalPeso] = useState(false);
+  const [produtoPeso, setProdutoPeso] = useState<Produto | null>(null);
+  const [pesoKg, setPesoKg] = useState("");
 
   // Timer para salvamento automático
   const salvamentoTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -749,6 +758,21 @@ export default function CaixaPage() {
       return;
     }
 
+    // Se produto é vendido por KG, abrir modal de peso
+    if (produto.vendaPorKg) {
+      setBusca("");
+      setMostrarProdutos(false);
+      setProdutoPeso(produto);
+      setPesoKg("");
+      setMostrarModalPeso(true);
+      setTimeout(() => pesoInputRef.current?.focus(), 100);
+      return;
+    }
+
+    await adicionarProdutoComQuantidade(produto, 1);
+  };
+
+  const adicionarProdutoComQuantidade = async (produto: Produto, quantidade: number) => {
     // Verificar se o estoque está esgotado
     if (produto.estoque <= 0) {
       const confirmar = window.confirm(
@@ -764,9 +788,9 @@ export default function CaixaPage() {
 
     const itemExistente = carrinho.find((item) => item.produtoId === produto.id);
 
-    if (itemExistente) {
-      // Verificar se a quantidade no carrinho já ultrapassou o estoque
-      const novaQuantidade = itemExistente.quantidade + 1;
+    if (itemExistente && !produto.vendaPorKg) {
+      // Para produtos normais, somar quantidade
+      const novaQuantidade = itemExistente.quantidade + quantidade;
       if (novaQuantidade > produto.estoque && produto.estoque > 0) {
         const confirmar = window.confirm(
           `⚠️ ATENÇÃO: A quantidade solicitada (${novaQuantidade}) ultrapassa o estoque disponível (${produto.estoque}) do produto "${produto.nome}".\n\nDeseja adicionar mesmo assim?`
@@ -784,22 +808,27 @@ export default function CaixaPage() {
           item.produtoId === produto.id
             ? {
                 ...item,
-                quantidade: item.quantidade + 1,
-                subtotal: (item.quantidade + 1) * item.precoUnitario,
+                quantidade: novaQuantidade,
+                subtotal: novaQuantidade * item.precoUnitario,
               }
             : item
         )
       );
     } else {
+      // Para produtos KG, cada pesagem é um item separado com id único
+      const itemId = produto.vendaPorKg ? `${produto.id}-${Date.now()}` : produto.id;
       const novoItem: ItemVenda = {
-        produtoId: produto.id,
-        nome: produto.nome,
-        codigoBarras: produto.codigoBarras, // ✅ Salvar código de barras para devolução
-        quantidade: 1,
-        precoUnitario: produto.preco,
-        subtotal: produto.preco,
+        produtoId: itemId,
+        produtoIdOriginal: produto.vendaPorKg ? produto.id : undefined,
+        nome: produto.vendaPorKg
+          ? `${produto.nome} (${quantidade.toFixed(3)}kg)`
+          : produto.nome,
+        codigoBarras: produto.codigoBarras,
+        quantidade: produto.vendaPorKg ? 1 : quantidade,
+        precoUnitario: produto.vendaPorKg ? produto.preco * quantidade : produto.preco,
+        subtotal: produto.preco * quantidade,
       };
-      setCarrinho([...carrinho, novoItem]);
+      setCarrinho((prev) => [...prev, novoItem]);
     }
 
     setBusca("");
@@ -809,6 +838,20 @@ export default function CaixaPage() {
     setTimeout(() => {
       buscaInputRef.current?.focus();
     }, 100);
+  };
+
+  const confirmarPesoKg = async () => {
+    if (!produtoPeso) return;
+    const peso = parseFloat(pesoKg.replace(",", "."));
+    if (!peso || peso <= 0) {
+      alert("Informe um peso válido maior que zero.");
+      pesoInputRef.current?.focus();
+      return;
+    }
+    setMostrarModalPeso(false);
+    await adicionarProdutoComQuantidade(produtoPeso, peso);
+    setProdutoPeso(null);
+    setPesoKg("");
   };
 
   const alterarQuantidade = async (produtoId: string, delta: number) => {
@@ -954,7 +997,8 @@ export default function CaixaPage() {
         const produtosAtualizados = [...produtos];
 
         for (const item of carrinho) {
-          const produtoIndex = produtosAtualizados.findIndex(p => p.id === item.produtoId);
+          const idParaBusca = item.produtoIdOriginal || item.produtoId;
+          const produtoIndex = produtosAtualizados.findIndex(p => p.id === idParaBusca);
           if (produtoIndex !== -1) {
             produtosAtualizados[produtoIndex] = {
               ...produtosAtualizados[produtoIndex],
@@ -1199,9 +1243,12 @@ export default function CaixaPage() {
       const produtosAtualizados = [...produtos];
 
       for (const item of carrinho) {
-        const produtoIndex = produtosAtualizados.findIndex(p => p.id === item.produtoId);
+        // Para produtos KG, usar o ID original; para produtos normais, usar o produtoId
+        const idParaBusca = item.produtoIdOriginal || item.produtoId;
+        const produtoIndex = produtosAtualizados.findIndex(p => p.id === idParaBusca);
         if (produtoIndex !== -1) {
           const estoqueAnterior = produtosAtualizados[produtoIndex].estoque;
+          // Para KG: quantidade = peso em kg (desconta o peso do estoque)
           const novoEstoque = estoqueAnterior - item.quantidade;
 
           produtosAtualizados[produtoIndex] = {
@@ -1215,7 +1262,7 @@ export default function CaixaPage() {
           const { data: estoqueAtualizado, error: errorEstoque } = await supabase
             .from("produtos")
             .update({ estoque: novoEstoque })
-            .eq("id", item.produtoId)
+            .eq("id", idParaBusca)
             .select();
 
           if (errorEstoque) {
@@ -1387,6 +1434,72 @@ export default function CaixaPage() {
               >
                 Fechar
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Peso - Para produtos vendidos por KG */}
+      {mostrarModalPeso && produtoPeso && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full">
+            <div className="bg-orange-500 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <Scale className="w-6 h-6" />
+                <span>Informar Peso</span>
+              </h3>
+              <button
+                onClick={() => { setMostrarModalPeso(false); setProdutoPeso(null); setPesoKg(""); setTimeout(() => buscaInputRef.current?.focus(), 100); }}
+                className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                <p className="font-semibold text-gray-800">{produtoPeso.nome}</p>
+                <p className="text-sm text-orange-700 font-bold">R$ {produtoPeso.preco.toFixed(2)} / kg</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Peso em KG
+                </label>
+                <input
+                  ref={pesoInputRef}
+                  type="number"
+                  step="0.001"
+                  min="0.001"
+                  value={pesoKg}
+                  onChange={(e) => setPesoKg(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") confirmarPesoKg(); }}
+                  placeholder="Ex: 1.250"
+                  className="w-full px-4 py-3 border-2 border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-2xl font-bold text-center"
+                />
+                {pesoKg && parseFloat(pesoKg.replace(",", ".")) > 0 && (
+                  <p className="text-center text-green-700 font-bold mt-2">
+                    Total: R$ {(produtoPeso.preco * parseFloat(pesoKg.replace(",", "."))).toFixed(2)}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setMostrarModalPeso(false); setProdutoPeso(null); setPesoKg(""); setTimeout(() => buscaInputRef.current?.focus(), 100); }}
+                  className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2"
+                >
+                  <X className="w-5 h-5" />
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmarPesoKg}
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2"
+                >
+                  <ShoppingCart className="w-5 h-5" />
+                  Adicionar
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1578,13 +1691,21 @@ export default function CaixaPage() {
                     >
                       <div className="flex justify-between items-center">
                         <div>
-                          <p className="font-semibold text-gray-800">{produto.nome}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold text-gray-800">{produto.nome}</p>
+                            {produto.vendaPorKg && (
+                              <span className="inline-flex items-center gap-1 bg-orange-100 text-orange-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                                <Scale className="w-3 h-3" />
+                                KG
+                              </span>
+                            )}
+                          </div>
                           <p className="text-sm text-gray-600">Cód: {produto.codigoBarras}</p>
                           <p className="text-xs text-gray-500">Estoque: {produto.estoque}</p>
                         </div>
                         <div className="text-right">
                           <p className="text-lg font-bold text-green-600">
-                            R$ {produto.preco.toFixed(2)}
+                            R$ {produto.preco.toFixed(2)}{produto.vendaPorKg ? "/kg" : ""}
                           </p>
                         </div>
                       </div>

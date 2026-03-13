@@ -20,6 +20,7 @@ import {
   ArrowDownAZ,
   CheckCircle,
   Lock,
+  Scale,
 } from "lucide-react";
 
 export default function ProdutosPage() {
@@ -48,6 +49,7 @@ export default function ProdutosPage() {
   const [preco, setPreco] = useState("");
   const [estoque, setEstoque] = useState("");
   const [estoqueMinimo, setEstoqueMinimo] = useState("");
+  const [vendaPorKg, setVendaPorKg] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -158,6 +160,7 @@ export default function ProdutosPage() {
     setPreco("");
     setEstoque("");
     setEstoqueMinimo("");
+    setVendaPorKg(false);
     setEditando(null);
   };
 
@@ -175,6 +178,7 @@ export default function ProdutosPage() {
       setPreco(produto.preco.toString());
       setEstoque(produto.estoque.toString());
       setEstoqueMinimo(produto.estoqueMinimo?.toString() || "");
+      setVendaPorKg(produto.vendaPorKg ?? false);
     } else {
       limparFormulario();
     }
@@ -209,6 +213,7 @@ export default function ProdutosPage() {
         preco: parseFloat(preco),
         estoque: parseInt(estoque),
         estoqueMinimo: estoqueMinimo ? parseInt(estoqueMinimo) : 0,
+        vendaPorKg,
       };
 
       // Atualizar lista local
@@ -443,7 +448,7 @@ export default function ProdutosPage() {
                           </div>
                         </td>
                         <td className="px-4 py-4 text-center">
-                          <div className="flex items-center justify-center space-x-2">
+                          <div className="flex items-center justify-center space-x-2 flex-wrap gap-1">
                             {estoqueAbaixoMinimo && (
                               <AlertTriangle className="w-4 h-4 text-red-500" />
                             )}
@@ -454,9 +459,15 @@ export default function ProdutosPage() {
                             >
                               {produto.estoque}
                             </span>
-                            {produto.estoqueMinimo && (
+                            {produto.estoqueMinimo ? (
                               <span className="text-xs text-gray-500">
                                 (mín: {produto.estoqueMinimo})
+                              </span>
+                            ) : null}
+                            {produto.vendaPorKg && (
+                              <span className="inline-flex items-center gap-1 bg-orange-100 text-orange-700 text-xs font-semibold px-2 py-0.5 rounded-full">
+                                <Scale className="w-3 h-3" />
+                                KG
                               </span>
                             )}
                           </div>
@@ -615,12 +626,33 @@ export default function ProdutosPage() {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Estoque Mínimo
                   </label>
-                  <input
-                    type="number"
-                    value={estoqueMinimo}
-                    onChange={(e) => setEstoqueMinimo(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={estoqueMinimo}
+                      onChange={(e) => setEstoqueMinimo(e.target.value)}
+                      className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setVendaPorKg(!vendaPorKg)}
+                      title={vendaPorKg ? "Venda por KG ativada" : "Clique para ativar venda por KG"}
+                      className={`flex items-center gap-1 px-3 py-3 rounded-lg border-2 font-semibold text-sm transition-all whitespace-nowrap ${
+                        vendaPorKg
+                          ? "bg-orange-500 border-orange-500 text-white shadow-md"
+                          : "bg-white border-gray-300 text-gray-500 hover:border-orange-400 hover:text-orange-500"
+                      }`}
+                    >
+                      <Scale className="w-4 h-4" />
+                      <span>KG</span>
+                    </button>
+                  </div>
+                  {vendaPorKg && (
+                    <p className="text-xs text-orange-600 mt-1 flex items-center gap-1">
+                      <Scale className="w-3 h-3" />
+                      Produto vendido por peso (kg)
+                    </p>
+                  )}
                 </div>
               </div>
 
