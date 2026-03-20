@@ -10,7 +10,15 @@ export class CloudSync {
 
   // Verifica se Supabase está configurado
   static isConfigured(): boolean {
-    return !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+    // Verifica se o cliente Supabase está funcional (não usa placeholder)
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    return !!(
+      url &&
+      key &&
+      url !== 'your_supabase_url_here' &&
+      !url.includes('placeholder')
+    );
   }
 
   // Sincronizar produtos COM MERGE INTELIGENTE
@@ -171,6 +179,10 @@ export class CloudSync {
           aliquota_cofins_padrao: config.aliquotaCOFINSPadrao,
           cfop_padrao: config.cfopPadrao,
           mensagem_nota: config.mensagemNota,
+          certificado_a1_base64: config.certificadoA1Base64 || null,
+          certificado_a1_senha: config.certificadoA1Senha || null,
+          cnpj_credenciadora: config.cnpjCredenciadora || null,
+          codigo_autorizacao_pagamento: config.codigoAutorizacaoPagamento || null,
           updated_at: new Date().toISOString(),
         });
 
@@ -346,6 +358,10 @@ export class CloudSync {
         aliquotaCOFINSPadrao: parseFloat(config.aliquota_cofins_padrao),
         cfopPadrao: config.cfop_padrao,
         mensagemNota: config.mensagem_nota,
+        certificadoA1Base64: config.certificado_a1_base64 || undefined,
+        certificadoA1Senha: config.certificado_a1_senha || undefined,
+        cnpjCredenciadora: config.cnpj_credenciadora || undefined,
+        codigoAutorizacaoPagamento: config.codigo_autorizacao_pagamento || undefined,
       };
     } catch (error) {
       if (error && typeof error === 'object' && 'message' in error) {
