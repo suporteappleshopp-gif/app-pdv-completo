@@ -108,6 +108,9 @@ export default function CaixaPage() {
   const [mostrarModalImpressao, setMostrarModalImpressao] = useState(false);
   const [vendaFinalizada, setVendaFinalizada] = useState<Venda | null>(null);
 
+  // Confirmação final antes de gerar a nota
+  const [mostrarConfirmacaoFinal, setMostrarConfirmacaoFinal] = useState(false);
+
   // Múltiplos pagamentos (ativado ao selecionar "Outros")
   const [modoMultiplos, setModoMultiplos] = useState(false);
   const [pagamentosMultiplos, setPagamentosMultiplos] = useState<PagamentoItem[]>([]);
@@ -587,7 +590,8 @@ export default function CaixaPage() {
         }
         if (e.key === "Enter") {
           e.preventDefault();
-          finalizarVenda();
+          if (modoMultiplos && pagamentosMultiplos.reduce((s: number, p: PagamentoItem) => s + p.valor, 0) < total) return;
+          setMostrarConfirmacaoFinal(true);
           return;
         }
       }
@@ -2158,7 +2162,10 @@ export default function CaixaPage() {
 
             <div className="flex space-x-3 mt-2">
               <button
-                onClick={finalizarVenda}
+                onClick={() => {
+                  if (modoMultiplos && pagamentosMultiplos.reduce((s, p) => s + p.valor, 0) < total) return;
+                  setMostrarConfirmacaoFinal(true);
+                }}
                 disabled={modoMultiplos && pagamentosMultiplos.reduce((s, p) => s + p.valor, 0) < total}
                 className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-lg font-semibold transition-all shadow-lg flex items-center justify-center space-x-2"
               >
@@ -2176,6 +2183,68 @@ export default function CaixaPage() {
               >
                 Cancelar (X)
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação Final */}
+      {mostrarConfirmacaoFinal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full">
+            <div className="bg-green-600 p-5 rounded-t-2xl text-center">
+              <CheckCircle className="w-12 h-12 text-white mx-auto mb-2" />
+              <h3 className="text-xl font-bold text-white">Deseja finalizar essa venda?</h3>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500 text-sm font-medium">Total da venda</span>
+                  <span className="text-2xl font-bold text-gray-900">R$ {total.toFixed(2).replace(".", ",")}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500 text-sm font-medium">Forma de pagamento</span>
+                  <span className="font-bold text-gray-800 capitalize">
+                    {modoMultiplos
+                      ? pagamentosMultiplos.map(p => p.label).join(" + ")
+                      : tipoPagamento === "dinheiro" ? "Dinheiro"
+                      : tipoPagamento === "credito" ? "Crédito"
+                      : tipoPagamento === "debito" ? "Débito"
+                      : tipoPagamento === "pix" ? "PIX"
+                      : "Outros"}
+                  </span>
+                </div>
+                {!modoMultiplos && tipoPagamento === "dinheiro" && valorRecebido && parseFloat(valorRecebido.replace(",", ".")) > total && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500 text-sm font-medium">Troco</span>
+                    <span className="font-bold text-green-700">
+                      R$ {(parseFloat(valorRecebido.replace(",", ".")) - total).toFixed(2).replace(".", ",")}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between border-t pt-2 mt-2">
+                  <span className="text-gray-500 text-sm font-medium">Itens</span>
+                  <span className="font-semibold text-gray-700">{carrinho.length} item(s)</span>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setMostrarConfirmacaoFinal(false)}
+                  className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-semibold transition-all"
+                >
+                  Voltar
+                </button>
+                <button
+                  onClick={() => {
+                    setMostrarConfirmacaoFinal(false);
+                    finalizarVenda();
+                  }}
+                  className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2"
+                >
+                  <CheckCircle className="w-5 h-5" />
+                  Finalizar
+                </button>
+              </div>
             </div>
           </div>
         </div>
