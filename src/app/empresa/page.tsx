@@ -357,6 +357,14 @@ export default function EmpresaPage() {
             </button>
 
             <button
+              onClick={() => router.push("/financeiro-gestao")}
+              className="flex items-center space-x-2 px-6 py-3 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg transition-all shadow-md font-semibold"
+            >
+              <DollarSign className="w-5 h-5" />
+              <span>Gestão Financeira</span>
+            </button>
+
+            <button
               onClick={() => router.push("/estoque")}
               className="flex items-center space-x-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all shadow-md font-semibold"
             >

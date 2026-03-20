@@ -168,6 +168,116 @@ export interface CodigoRecuperacao {
   expiracao: Date;
 }
 
+// =============================================
+// MÓDULO ESTOQUE + FINANCEIRO INTEGRADO
+// =============================================
+
+export interface Loja {
+  id: string;
+  user_id: string;
+  nome: string;
+  tipo: 'matriz' | 'filial';
+  cnpj?: string;
+  endereco?: string;
+  ativo: boolean;
+  created_at?: string;
+}
+
+export interface ItemNotaFiscal {
+  id?: string;
+  nota_fiscal_id?: string;
+  user_id?: string;
+  loja_id?: string;
+  produto_id?: string;
+  codigo_produto: string;
+  descricao: string;
+  unidade: string;
+  quantidade: number;
+  valor_unitario: number;
+  valor_total: number;
+  valor_ipi: number;
+  valor_frete_rateado: number;
+  custo_unitario_calculado: number;
+}
+
+export interface NotaFiscal {
+  id?: string;
+  user_id?: string;
+  loja_id?: string;
+  numero_nota: string;
+  serie?: string;
+  chave_acesso?: string;
+  cnpj_emitente?: string;
+  nome_emitente?: string;
+  data_emissao?: string;
+  valor_total: number;
+  valor_frete: number;
+  valor_ipi: number;
+  valor_icms: number;
+  valor_pis: number;
+  valor_cofins: number;
+  valor_desconto: number;
+  valor_outros: number;
+  xml_content?: string;
+  status: 'processada' | 'pendente' | 'erro';
+  created_at?: string;
+  itens?: ItemNotaFiscal[];
+}
+
+export interface ContaPagar {
+  id?: string;
+  user_id?: string;
+  loja_id?: string;
+  nota_fiscal_id?: string;
+  descricao: string;
+  fornecedor?: string;
+  valor: number;
+  data_vencimento: string;
+  data_pagamento?: string | null;
+  status: 'a_pagar' | 'pago' | 'vencido';
+  forma_pagamento?: string;
+  parcela_numero: number;
+  total_parcelas: number;
+  observacoes?: string;
+  created_at?: string;
+}
+
+export interface MovimentacaoEstoque {
+  id?: string;
+  user_id?: string;
+  loja_origem_id?: string;
+  loja_destino_id?: string;
+  produto_id?: string;
+  quantidade: number;
+  tipo: 'entrada' | 'saida' | 'transferencia' | 'ajuste';
+  motivo?: string;
+  operador_nome?: string;
+  nota_fiscal_id?: string;
+  created_at?: string;
+}
+
+export interface MovimentacaoCaixa {
+  id?: string;
+  user_id?: string;
+  loja_id?: string;
+  tipo: 'sangria' | 'suprimento';
+  valor: number;
+  motivo?: string;
+  operador_nome: string;
+  data_hora?: string;
+  created_at?: string;
+}
+
+// Produto enriquecido com campos de custo
+export interface ProdutoEstoque extends Produto {
+  loja_id?: string;
+  custo_unitario?: number;
+  ultimo_custo_compra?: number;
+  custo_medio?: number;
+  margem_lucro?: number;
+  preco_venda?: number;
+}
+
 // Interface para registrar ganhos do admin
 export interface GanhoAdmin {
   id: string;
