@@ -580,7 +580,10 @@ export default function CaixaPage() {
         }
         if (e.key.toLowerCase() === "o") {
           e.preventDefault();
-          setTipoPagamento("outros");
+          setModoMultiplos(true);
+          setPagamentosMultiplos([]);
+          setNovoTipoPagamento("dinheiro");
+          setNovoValorPagamento("");
           return;
         }
         if (e.key.toLowerCase() === "x") {
@@ -592,6 +595,21 @@ export default function CaixaPage() {
           e.preventDefault();
           if (modoMultiplos && pagamentosMultiplos.reduce((s: number, p: PagamentoItem) => s + p.valor, 0) < total) return;
           setMostrarConfirmacaoFinal(true);
+          return;
+        }
+      }
+
+      // Se estiver no modal de confirmação final, F finaliza e V volta
+      if (mostrarConfirmacaoFinal) {
+        if (e.key.toLowerCase() === "f") {
+          e.preventDefault();
+          setMostrarConfirmacaoFinal(false);
+          finalizarVenda();
+          return;
+        }
+        if (e.key.toLowerCase() === "v") {
+          e.preventDefault();
+          setMostrarConfirmacaoFinal(false);
           return;
         }
       }
@@ -630,7 +648,7 @@ export default function CaixaPage() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [carrinho, mostrarModalFinalizacao, mostrarModalImpressao, mostrarConfirmacaoCancelar, vendaFinalizada, podeUsarApp, usuarioSemMensalidade]);
+  }, [carrinho, mostrarModalFinalizacao, mostrarModalImpressao, mostrarConfirmacaoCancelar, mostrarConfirmacaoFinal, vendaFinalizada, podeUsarApp, usuarioSemMensalidade]);
 
   // Listener para leitor USB de código de barras
   useEffect(() => {
@@ -2232,7 +2250,7 @@ export default function CaixaPage() {
                   onClick={() => setMostrarConfirmacaoFinal(false)}
                   className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-semibold transition-all"
                 >
-                  Voltar
+                  Voltar (V)
                 </button>
                 <button
                   onClick={() => {
@@ -2242,7 +2260,7 @@ export default function CaixaPage() {
                   className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2"
                 >
                   <CheckCircle className="w-5 h-5" />
-                  Finalizar
+                  Finalizar (F)
                 </button>
               </div>
             </div>
