@@ -173,6 +173,18 @@ export default function EstoquePage() {
   const [processandoXML, setProcessandoXML] = useState(false);
   const [mostrarPreviewNota, setMostrarPreviewNota] = useState(false);
 
+  // Entrada Manual
+  const [modoEntrada, setModoEntrada] = useState<"xml" | "manual">("xml");
+  const [entradaManualForm, setEntradaManualForm] = useState({
+    numeroNota: "",
+    nomeProduto: "",
+    codigoBarras: "",
+    quantidade: 0,
+    precoCusto: 0,
+    precoVenda: 0,
+  });
+  const [salvandoManual, setSalvandoManual] = useState(false);
+
   // Transferência
   const [produtoTransf, setProdutoTransf] = useState("");
   const [qtdTransf, setQtdTransf] = useState(0);
@@ -442,6 +454,145 @@ export default function EstoquePage() {
       mostrarErro("Erro ao processar nota: " + err.message);
     } finally {
       setProcessandoXML(false);
+    }
+  };
+
+  // ---- ENTRADA MANUAL ----
+  const processarEntradaManual = async () => {
+    if (!podeUsarApp && !usuarioSemMensalidade) { setMostrarBloqueio(true); return; }
+    const { nomeProduto, codigoBarras, quantidade, precoCusto, precoVenda, numeroNota } = entradaManualForm;
+    if (!nomeProduto || !codigoBarras) { mostrarErro("Preencha Nome do Produto e Código de Barras"); return; }
+    if (quantidade <= 0) { mostrarErro("Quantidade deve ser maior que zero"); return; }
+    if (precoCusto <= 0) { mostrarErro("Preço de Custo deve ser maior que zero"); return; }
+    if (precoVenda <= 0) { mostrarErro("Preço de Venda deve ser maior que zero"); return; }
+
+    try {
+      setSalvandoManual(true);
+      const { supabase } = await import("@/lib/supabase");
+
+      // 1. Salvar nota fiscal (entrada manual)
+      const { data: notaSalva, error: errNota } = await supabase
+        .from("notas_fiscais")
+        .insert({
+          user_id: operadorId,
+          loja_id: lojaSelecionada || null,
+          numero_nota: numeroNota || "MANUAL",
+          serie: "0",
+          chave_acesso: "",
+          cnpj_emitente: "",
+          nome_emitente: "Entrada Manual",
+          data_emissao: new Date().toISOString(),
+          valor_total: precoCusto * quantidade,
+          valor_frete: 0,
+          valor_ipi: 0,
+          valor_icms: 0,
+          valor_pis: 0,
+          valor_cofins: 0,
+          valor_desconto: 0,
+          valor_outros: 0,
+          xml_content: "",
+          status: "processada",
+        })
+        .select().single();
+
+      if (errNota) { mostrarErro("Erro ao salvar entrada: " + errNota.message); return; }
+
+      const notaId = notaSalva.id;
+
+      // 2. Salvar item da nota
+      await supabase.from("itens_nota_fiscal").insert({
+        nota_fiscal_id: notaId,
+        user_id: operadorId,
+        loja_id: lojaSelecionada || null,
+        codigo_produto: codigoBarras,
+        descricao: nomeProduto,
+        unidade: "UN",
+        quantidade: quantidade,
+        valor_unitario: precoCusto,
+        valor_total: precoCusto * quantidade,
+        valor_ipi: 0,
+        valor_frete_rateado: 0,
+        custo_unitario_calculado: precoCusto,
+      });
+
+      // 3. Verificar se produto já existe pelo código de barras
+      const { data: prodExistente } = await supabase
+        .from("produtos").select("*")
+        .eq("user_id", operadorId)
+        .eq("codigo_barras", codigoBarras)
+        .maybeSingle();
+
+      if (prodExistente) {
+        // Atualizar estoque e custo médio (mesma fórmula do XML)
+        const estoqueAtual = prodExistente.estoque || 0;
+        const custoAtual = prodExistente.custo_medio || 0;
+        const novoEstoque = estoqueAtual + quantidade;
+        const novoCustoMedio = novoEstoque > 0
+          ? (estoqueAtual * custoAtual + quantidade * precoCusto) / novoEstoque
+          : precoCusto;
+
+        await supabase.from("produtos").update({
+          estoque: novoEstoque,
+          custo_medio: novoCustoMedio,
+          ultimo_custo_compra: precoCusto,
+          preco_venda: precoVenda,
+        }).eq("id", prodExistente.id);
+
+        // Registrar movimentação
+        await supabase.from("movimentacoes_estoque").insert({
+          user_id: operadorId,
+          loja_destino_id: lojaSelecionada || null,
+          produto_id: prodExistente.id,
+          quantidade: quantidade,
+          tipo: "entrada",
+          motivo: `Entrada Manual${numeroNota ? ` - NF ${numeroNota}` : ""}`,
+          operador_nome: operadorNome,
+          nota_fiscal_id: notaId,
+        });
+
+        mostrarSucesso(`Estoque atualizado! +${quantidade} unidades somadas ao produto existente.`);
+      } else {
+        // Criar novo produto
+        const { data: novoProd } = await supabase.from("produtos").insert({
+          user_id: operadorId,
+          loja_id: lojaSelecionada || null,
+          nome: nomeProduto,
+          codigo_barras: codigoBarras,
+          preco: precoVenda,
+          preco_venda: precoVenda,
+          estoque: quantidade,
+          estoque_minimo: 0,
+          venda_por_kg: false,
+          custo_unitario: precoCusto,
+          custo_medio: precoCusto,
+          ultimo_custo_compra: precoCusto,
+          margem_lucro: 0,
+        }).select().single();
+
+        if (novoProd) {
+          await supabase.from("movimentacoes_estoque").insert({
+            user_id: operadorId,
+            loja_destino_id: lojaSelecionada || null,
+            produto_id: novoProd.id,
+            quantidade: quantidade,
+            tipo: "entrada",
+            motivo: `Entrada Manual${numeroNota ? ` - NF ${numeroNota}` : ""} (produto novo)`,
+            operador_nome: operadorNome,
+            nota_fiscal_id: notaId,
+          });
+        }
+
+        mostrarSucesso(`Produto cadastrado e estoque criado com ${quantidade} unidade(s)!`);
+      }
+
+      // Limpar formulário
+      setEntradaManualForm({ numeroNota: "", nomeProduto: "", codigoBarras: "", quantidade: 0, precoCusto: 0, precoVenda: 0 });
+      await carregarProdutos(operadorId);
+      await carregarMovimentacoes(operadorId);
+    } catch (err: any) {
+      mostrarErro("Erro ao salvar entrada manual: " + err.message);
+    } finally {
+      setSalvandoManual(false);
     }
   };
 
@@ -775,6 +926,112 @@ export default function EstoquePage() {
         {/* ===== ABA XML ===== */}
         {abaAtiva === "xml" && (
           <div className="space-y-6">
+            {/* Seletor de modo de entrada */}
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-2 flex gap-2">
+              <button
+                onClick={() => setModoEntrada("xml")}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold transition-all ${modoEntrada === "xml" ? "bg-purple-600 text-white shadow-lg" : "text-purple-300 hover:text-white hover:bg-white/10"}`}
+              >
+                <Upload className="w-5 h-5" />Importar XML
+              </button>
+              <button
+                onClick={() => setModoEntrada("manual")}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold transition-all ${modoEntrada === "manual" ? "bg-green-600 text-white shadow-lg" : "text-purple-300 hover:text-white hover:bg-white/10"}`}
+              >
+                <Plus className="w-5 h-5" />Entrada Manual
+              </button>
+            </div>
+
+            {/* Formulário de Entrada Manual */}
+            {modoEntrada === "manual" && (
+              <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-6">
+                <h2 className="text-xl font-bold text-white mb-2 flex items-center"><Package className="w-6 h-6 mr-2" />Entrada Manual de Produto</h2>
+                <p className="text-purple-200 text-sm mb-6">Informe os dados do produto manualmente. Se o código de barras já existir, o estoque será somado. Caso contrário, um novo produto será criado.</p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-purple-200 text-sm font-semibold mb-2">Número da Nota (opcional)</label>
+                    <input
+                      type="text"
+                      value={entradaManualForm.numeroNota}
+                      onChange={e => setEntradaManualForm({...entradaManualForm, numeroNota: e.target.value})}
+                      placeholder="Ex: 001234"
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-purple-300 focus:outline-none focus:border-purple-400"
+                    />
+                  </div>
+                  <div className="md:col-span-1">
+                    <label className="block text-purple-200 text-sm font-semibold mb-2">Código de Barras / EAN *</label>
+                    <input
+                      type="text"
+                      value={entradaManualForm.codigoBarras}
+                      onChange={e => setEntradaManualForm({...entradaManualForm, codigoBarras: e.target.value})}
+                      placeholder="Ex: 7891234567890"
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-purple-300 focus:outline-none focus:border-purple-400"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-purple-200 text-sm font-semibold mb-2">Nome do Produto *</label>
+                    <input
+                      type="text"
+                      value={entradaManualForm.nomeProduto}
+                      onChange={e => setEntradaManualForm({...entradaManualForm, nomeProduto: e.target.value})}
+                      placeholder="Ex: Coca-Cola 2L"
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-purple-300 focus:outline-none focus:border-purple-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-purple-200 text-sm font-semibold mb-2">Quantidade *</label>
+                    <input
+                      type="number"
+                      value={entradaManualForm.quantidade || ""}
+                      onChange={e => setEntradaManualForm({...entradaManualForm, quantidade: parseInt(e.target.value) || 0})}
+                      placeholder="0"
+                      min={1}
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-purple-300 focus:outline-none focus:border-purple-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-purple-200 text-sm font-semibold mb-2">Preço de Custo (R$) *</label>
+                    <input
+                      type="number"
+                      value={entradaManualForm.precoCusto || ""}
+                      onChange={e => setEntradaManualForm({...entradaManualForm, precoCusto: parseFloat(e.target.value) || 0})}
+                      placeholder="0,00"
+                      min={0}
+                      step="0.01"
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-purple-300 focus:outline-none focus:border-purple-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-purple-200 text-sm font-semibold mb-2">Preço de Venda (R$) *</label>
+                    <input
+                      type="number"
+                      value={entradaManualForm.precoVenda || ""}
+                      onChange={e => setEntradaManualForm({...entradaManualForm, precoVenda: parseFloat(e.target.value) || 0})}
+                      placeholder="0,00"
+                      min={0}
+                      step="0.01"
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-purple-300 focus:outline-none focus:border-purple-400"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  onClick={processarEntradaManual}
+                  disabled={salvandoManual}
+                  className="mt-6 w-full px-4 py-4 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white rounded-lg font-bold flex items-center justify-center gap-2 text-lg"
+                >
+                  {salvandoManual ? (
+                    <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />Salvando...</>
+                  ) : (
+                    <><Save className="w-5 h-5" />Salvar Entrada Manual</>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {/* Painel de Importar XML */}
+            {modoEntrada === "xml" && (
             <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-6">
               <h2 className="text-xl font-bold text-white mb-2 flex items-center"><Upload className="w-6 h-6 mr-2" />Importar XML de NF-e</h2>
               <p className="text-purple-200 text-sm mb-6">Suba o arquivo XML da nota fiscal. O sistema irá cadastrar produtos novos automaticamente, somar ao estoque existente e calcular o custo médio com rateio de frete/impostos. Uma conta a pagar será gerada automaticamente no financeiro.</p>
@@ -790,6 +1047,7 @@ export default function EstoquePage() {
               </div>
               <input ref={fileInputRef} type="file" accept=".xml" className="hidden" onChange={handleXmlUpload} />
             </div>
+            )}
 
             {/* Preview da nota */}
             {notaParsed && mostrarPreviewNota && (
