@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { db } from "@/lib/db";
 import { CloudSync } from "@/lib/sync";
 import { Empresa, ConfiguracaoNFCe } from "@/lib/types";
+import GestaoCaixa from "@/components/GestaoCaixa";
 import {
   Building2,
   ArrowLeft,
@@ -37,6 +38,10 @@ export default function EmpresaPage() {
   const [online, setOnline] = useState(true);
   const [ultimoSalvamento, setUltimoSalvamento] = useState<Date>(new Date());
   const [supabaseConfigured, setSupabaseConfigured] = useState(false);
+
+  // Dados do operador atual (para módulo de caixa)
+  const [operadorId, setOperadorId] = useState("");
+  const [operadorNome, setOperadorNome] = useState("");
 
   const WHATSAPP_CONTATO = "5565981032239";
 
@@ -114,6 +119,18 @@ export default function EmpresaPage() {
     try {
       setLoading(true);
       await db.init();
+
+      // Carregar dados do operador atual (sessão salva no localStorage)
+      try {
+        const sessaoSalva = localStorage.getItem("operador_session");
+        if (sessaoSalva) {
+          const sessao = JSON.parse(sessaoSalva);
+          if (sessao.id) setOperadorId(sessao.id);
+          if (sessao.nome) setOperadorNome(sessao.nome);
+        }
+      } catch {
+        // Silenciosamente ignora erros de sessão
+      }
 
       // Verificar se Supabase está configurado
       const isConfigured = CloudSync.isConfigured();
@@ -456,6 +473,19 @@ export default function EmpresaPage() {
             </p>
           </div>
         </div>
+
+        {/* Módulo de Abertura/Fechamento de Caixa (Opcional) */}
+        {operadorId && (
+          <GestaoCaixa
+            operadorId={operadorId}
+            operadorNome={operadorNome}
+            empresaNome={empresa.nome || undefined}
+            empresaCnpj={empresa.cnpj || undefined}
+            empresaEndereco={empresa.endereco || undefined}
+            empresaTelefone={empresa.telefone || undefined}
+            temDadosFiscais={!!(empresa.cnpj && empresa.nome)}
+          />
+        )}
 
         {/* Dados da Empresa */}
         <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 p-8">

@@ -278,6 +278,40 @@ export interface ProdutoEstoque extends Produto {
   preco_venda?: number;
 }
 
+// =============================================
+// MÓDULO ABERTURA/FECHAMENTO DE CAIXA (Opcional)
+// =============================================
+
+export interface RegistroCaixa {
+  id?: string;
+  operadorId: string;
+  operadorNome: string;
+  tipo: "abertura" | "fechamento";
+  valorInicial?: number;
+  valorFinal?: number;
+  totalVendas?: number;
+  totalDinheiro?: number;
+  totalCredito?: number;
+  totalDebito?: number;
+  totalPix?: number;
+  totalOutros?: number;
+  quantidadeVendas?: number;
+  observacoes?: string;
+  dataHora?: string;
+  createdAt?: string;
+}
+
+export interface ResumoCaixa {
+  abertura?: RegistroCaixa;
+  fechamento?: RegistroCaixa;
+  vendas: {
+    total: number;
+    quantidade: number;
+    porFormaPagamento: Record<string, number>;
+  };
+  contingencias?: number; // notas NFC-e pendentes de envio
+}
+
 // Interface para registrar ganhos do admin
 export interface GanhoAdmin {
   id: string;
