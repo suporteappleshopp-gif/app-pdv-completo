@@ -113,18 +113,27 @@ rm -f /tmp/lasy-question.json
 rm -f /tmp/lasy-answer.json
 echo "[ask-user-question] ✅ Arquivos temporários removidos" >&2
 
+# Ler debug logs se o usuário enviou junto (Enviar + Logs)
+DEBUG_LOGS=""
+if [ -f /tmp/lasy-debug-logs.txt ]; then
+  DEBUG_LOGS=$(cat /tmp/lasy-debug-logs.txt)
+  rm -f /tmp/lasy-debug-logs.txt
+  echo "[ask-user-question] ✅ Debug logs incluídos no additionalContext" >&2
+fi
+
 echo "[ask-user-question] 📤 Retornando resposta para Claude (additionalContext)" >&2
 
 # Objeto { "question-0": ["React"], ... } para o modelo via additionalContext (é assim que as respostas chegam ao Claude)
 ANSWERS_OBJ=$(echo "$ANSWERS" | jq -c '.questions | map({(.id): .answer}) | add // {}')
 jq -n \
   --arg answersObj "$ANSWERS_OBJ" \
+  --arg debugLogs "$DEBUG_LOGS" \
   '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "allow",
       permissionDecisionReason: "User answered questions",
-      additionalContext: ("User answered: " + $answersObj)
+      additionalContext: ("User answered: " + $answersObj + (if ($debugLogs | length) > 0 then "\n\nDebug panel logs:\n" + $debugLogs else "" end))
     }
   }'
 

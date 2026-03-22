@@ -104,6 +104,7 @@ export default function CaixaPage() {
   const [mostrarModalFinalizacao, setMostrarModalFinalizacao] = useState(false);
   const [tipoPagamento, setTipoPagamento] = useState<TipoPagamento>("dinheiro");
   const [valorRecebido, setValorRecebido] = useState<string>("");
+  const [formasOutros, setFormasOutros] = useState<TipoPagamento[]>([]);
   const [mostrarModalImpressao, setMostrarModalImpressao] = useState(false);
   const [vendaFinalizada, setVendaFinalizada] = useState<Venda | null>(null);
 
@@ -555,12 +556,14 @@ export default function CaixaPage() {
           setTipoPagamento("outros");
           return;
         }
-        if (e.key.toLowerCase() === "x") {
+        if (e.key.toLowerCase() === "v" || e.key.toLowerCase() === "x") {
           e.preventDefault();
           setMostrarModalFinalizacao(false);
+          setValorRecebido("");
+          setFormasOutros([]);
           return;
         }
-        if (e.key === "Enter") {
+        if (e.key.toLowerCase() === "f" || e.key === "Enter") {
           e.preventDefault();
           finalizarVenda();
           return;
@@ -1038,6 +1041,7 @@ export default function CaixaPage() {
     }
     setValorRecebido("");
     setTipoPagamento("dinheiro");
+    setFormasOutros([]);
     setMostrarModalFinalizacao(true);
   };
 
@@ -1855,7 +1859,7 @@ export default function CaixaPage() {
               </button>
 
               <button
-                onClick={() => setTipoPagamento("outros")}
+                onClick={() => { setTipoPagamento("outros"); setFormasOutros([]); }}
                 className={`w-full p-4 rounded-lg border-2 transition-all flex items-center space-x-3 ${
                   tipoPagamento === "outros"
                     ? "border-gray-500 bg-gray-50"
@@ -1866,6 +1870,31 @@ export default function CaixaPage() {
                 <span className="font-semibold">Outros (O)</span>
               </button>
             </div>
+
+            {/* Sub-opções para "Outros" - selecionar formas combinadas */}
+            {tipoPagamento === "outros" && (
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg border-2 border-gray-200">
+                <p className="text-gray-700 font-semibold mb-3 text-sm">Selecione as formas usadas nesta venda:</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["dinheiro", "credito", "debito", "pix"] as TipoPagamento[]).map((forma) => {
+                    const selecionada = formasOutros.includes(forma);
+                    const labels: Record<string, string> = { dinheiro: "Dinheiro", credito: "Crédito", debito: "Débito", pix: "PIX" };
+                    return (
+                      <button
+                        key={forma}
+                        onClick={() => setFormasOutros(prev => selecionada ? prev.filter(f => f !== forma) : [...prev, forma])}
+                        className={`p-3 rounded-lg border-2 text-sm font-semibold transition-all ${selecionada ? "border-gray-600 bg-gray-200 text-gray-800" : "border-gray-300 hover:bg-gray-100 text-gray-600"}`}
+                      >
+                        {selecionada ? "✓ " : ""}{labels[forma]}
+                      </button>
+                    );
+                  })}
+                </div>
+                {formasOutros.length > 0 && (
+                  <p className="mt-2 text-xs text-gray-500">Selecionadas: {formasOutros.map(f => ({ dinheiro: "Dinheiro", credito: "Crédito", debito: "Débito", pix: "PIX" } as Record<string, string>)[f]).join(", ")}</p>
+                )}
+              </div>
+            )}
 
             {/* Campo de Valor Recebido - Apenas para Dinheiro */}
             {tipoPagamento === "dinheiro" && (
@@ -1903,16 +1932,17 @@ export default function CaixaPage() {
                 className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white py-3 rounded-lg font-semibold transition-all shadow-lg flex items-center justify-center space-x-2"
               >
                 <CheckCircle className="w-5 h-5" />
-                <span>Confirmar (Enter)</span>
+                <span>Finalizar (F)</span>
               </button>
               <button
                 onClick={() => {
                   setMostrarModalFinalizacao(false);
                   setValorRecebido("");
+                  setFormasOutros([]);
                 }}
                 className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-lg font-semibold transition-all"
               >
-                Cancelar (X)
+                Voltar (V)
               </button>
             </div>
           </div>
