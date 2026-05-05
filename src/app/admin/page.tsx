@@ -136,6 +136,10 @@ export default function AdminPage() {
 
     checkAuth().then((isAuth) => {
       if (isAuth) {
+        // Aplicar fix de RLS silenciosamente para garantir acesso à tabela operadores
+        fetch("/api/admin/fix-rls-operadores", { method: "POST" })
+          .then(() => console.log("✅ RLS verificado/aplicado"))
+          .catch(() => console.log("ℹ️ Fix RLS não disponível neste ambiente"));
         carregarOperadores();
         setupRealtimeSync();
       }

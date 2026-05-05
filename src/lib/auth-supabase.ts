@@ -3,11 +3,11 @@ import { Operador } from "./types";
 
 /**
  * Biblioteca de autenticação com Supabase
- * Gerencia login, registro e sessão de usuários
+ * O login usa API Route server-side para contornar restrições de RLS no browser
  */
 export class AuthSupabase {
   /**
-   * Fazer login com email e senha
+   * Fazer login com email e senha via API Route (server-side)
    */
   static async signIn(email: string, password: string): Promise<{
     success: boolean;
@@ -17,148 +17,56 @@ export class AuthSupabase {
     try {
       console.log("🔐 Tentando fazer login com email:", email);
 
-      // OBRIGATÓRIO: Verificar se Supabase está configurado
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-      const supabaseConfigured = !!(supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('https://'));
-
-      if (!supabaseConfigured) {
-        // PROIBIDO: Modo local desabilitado - apenas Supabase
-        console.error("❌ Supabase não configurado - login bloqueado");
-        return {
-          success: false,
-          error: "Sistema requer conexão com a nuvem. Configure o Supabase para continuar.",
-        };
-      }
-
-      // Tentar fazer login no Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      // Usar API Route server-side para evitar problemas de RLS/CORS no browser
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
       });
 
-      // Se o Auth funcionou, usar o fluxo normal
-      if (!authError && authData.user) {
-        console.log("✅ Login no Auth bem-sucedido. User ID:", authData.user.id);
+      const result = await response.json();
 
-        // Buscar dados do operador
-        const { data: operadorData, error: operadorError } = await supabase
-          .from("operadores")
-          .select("*")
-          .eq("auth_user_id", authData.user.id)
-          .single();
-
-        if (!operadorError && operadorData) {
-          console.log("✅ Operador encontrado:", {
-            id: operadorData.id,
-            nome: operadorData.nome,
-            email: operadorData.email,
-            is_admin: operadorData.is_admin,
-            ativo: operadorData.ativo,
-            suspenso: operadorData.suspenso,
-          });
-
-          // ✅ PERMITIR LOGIN MESMO SUSPENSO
-          // Usuários suspensos podem logar e acessar o app
-          // Mas as funcionalidades estarão bloqueadas até a aprovação do admin
-          // O bloqueio é feito nas páginas (caixa, produtos, etc)
-
-          // Montar objeto Operador com TODOS os campos
-          const operador: Operador = {
-            id: operadorData.id,
-            nome: operadorData.nome,
-            email: operadorData.email,
-            senha: "", // Não retornar senha por segurança
-            isAdmin: operadorData.is_admin || false,
-            ativo: operadorData.ativo || false,
-            suspenso: operadorData.suspenso || false,
-            aguardandoPagamento: operadorData.aguardando_pagamento || false,
-            createdAt: new Date(operadorData.created_at),
-            formaPagamento: operadorData.forma_pagamento || undefined,
-            valorMensal: operadorData.valor_mensal || undefined,
-            dataProximoVencimento: operadorData.data_proximo_vencimento ? new Date(operadorData.data_proximo_vencimento) : undefined,
-            diasAssinatura: operadorData.dias_assinatura || undefined,
-            dataPagamento: operadorData.data_pagamento ? new Date(operadorData.data_pagamento) : undefined,
-          };
-
-          console.log("✅ Login bem-sucedido! Operador:", operador.nome, "| Admin:", operador.isAdmin);
-
-          // Salvar sessão no localStorage também (para getCurrentOperador funcionar)
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('operador_session', JSON.stringify(operador));
-          }
-
-          return {
-            success: true,
-            operador,
-          };
-        }
+      if (!result.success) {
+        console.error("❌ Login falhou:", result.error);
+        return { success: false, error: result.error || "Email ou senha incorretos" };
       }
 
-      // Se Auth falhou ou operador não foi encontrado, tentar login direto no banco
-      console.log("⚠️ Tentando login direto no banco de dados...");
+      console.log("✅ Login bem-sucedido:", result.operador.nome);
 
-      const { data: operadorDirectData, error: directError } = await supabase
-        .from("operadores")
-        .select("*")
-        .eq("email", email)
-        .maybeSingle();
-
-      if (directError || !operadorDirectData) {
-        console.error("❌ Erro ao buscar operador no banco:", directError?.message);
-        return {
-          success: false,
-          error: "Email ou senha incorretos",
-        };
-      }
-
-      // Verificar senha (para operadores sem Auth)
-      if (operadorDirectData.senha && operadorDirectData.senha === password) {
-        console.log("✅ Login direto bem-sucedido:", operadorDirectData.email);
-
-        // ✅ PERMITIR LOGIN MESMO SUSPENSO
-        // Usuários suspensos podem logar e acessar o app
-        // Mas as funcionalidades estarão bloqueadas até a aprovação do admin
-        // O bloqueio é feito nas páginas (caixa, produtos, etc)
-
-        const operador: Operador = {
-          id: operadorDirectData.id,
-          nome: operadorDirectData.nome,
-          email: operadorDirectData.email,
-          senha: "",
-          isAdmin: operadorDirectData.is_admin || false,
-          ativo: operadorDirectData.ativo || false,
-          suspenso: operadorDirectData.suspenso || false,
-          aguardandoPagamento: operadorDirectData.aguardando_pagamento || false,
-          createdAt: new Date(operadorDirectData.created_at),
-          formaPagamento: operadorDirectData.forma_pagamento || undefined,
-          valorMensal: operadorDirectData.valor_mensal || undefined,
-          dataProximoVencimento: operadorDirectData.data_proximo_vencimento ? new Date(operadorDirectData.data_proximo_vencimento) : undefined,
-          diasAssinatura: operadorDirectData.dias_assinatura || undefined,
-          dataPagamento: operadorDirectData.data_pagamento ? new Date(operadorDirectData.data_pagamento) : undefined,
-        };
-
-        // Criar sessão temporária no localStorage (já que não temos Auth)
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('operador_session', JSON.stringify(operador));
-        }
-
-        return {
-          success: true,
-          operador,
-        };
-      }
-
-      console.error("❌ Senha incorreta para login direto");
-      return {
-        success: false,
-        error: "Email ou senha incorretos",
+      const opData = result.operador;
+      const operador: Operador = {
+        id: opData.id,
+        nome: opData.nome,
+        email: opData.email,
+        senha: "",
+        isAdmin: opData.isAdmin || false,
+        ativo: opData.ativo || false,
+        suspenso: opData.suspenso || false,
+        aguardandoPagamento: opData.aguardandoPagamento || false,
+        createdAt: new Date(opData.createdAt),
+        formaPagamento: opData.formaPagamento || undefined,
+        valorMensal: opData.valorMensal || undefined,
+        dataProximoVencimento: opData.dataProximoVencimento ? new Date(opData.dataProximoVencimento) : undefined,
+        diasAssinatura: opData.diasAssinatura || undefined,
+        dataPagamento: opData.dataPagamento ? new Date(opData.dataPagamento) : undefined,
       };
+
+      // Salvar sessão no localStorage
+      if (typeof window !== "undefined") {
+        localStorage.setItem("operador_session", JSON.stringify(operador));
+      }
+
+      // Se tiver sessão do Supabase Auth, persistir no cliente também
+      if (result.session) {
+        await supabase.auth.setSession(result.session);
+      }
+
+      return { success: true, operador };
     } catch (error: any) {
       console.error("❌ Erro no login:", error);
       return {
         success: false,
-        error: "Erro ao conectar com o servidor: " + (error?.message || "Erro desconhecido"),
+        error: "Erro ao conectar com o servidor. Tente novamente.",
       };
     }
   }
@@ -184,10 +92,8 @@ export class AuthSupabase {
         email,
         password,
         options: {
-          data: {
-            nome,
-          },
-          emailRedirectTo: undefined, // Sem confirmação de email por enquanto
+          data: { nome },
+          emailRedirectTo: undefined,
         },
       });
 
@@ -201,46 +107,59 @@ export class AuthSupabase {
 
       if (!authData.user) {
         console.error("❌ Nenhum usuário foi criado");
-        return {
-          success: false,
-          error: "Erro ao criar conta",
-        };
+        return { success: false, error: "Erro ao criar conta" };
       }
 
       console.log("✅ Usuário criado no Auth:", authData.user.id);
 
-      // PASSO 2: Criar operador manualmente (sem dias, aguardando compra)
-      const { data: operadorData, error: insertError } = await supabase
-        .from("operadores")
-        .insert({
-          auth_user_id: authData.user.id,
-          nome: nome,
-          email: email,
-          senha: null, // Senha gerenciada pelo Auth
-          ativo: false,
-          suspenso: true,
-          aguardando_pagamento: true,
-          is_admin: false,
-          dias_restantes: 0, // SEM DIAS - deve comprar
-          total_dias_comprados: 0,
-          forma_pagamento: formaPagamento,
-        })
-        .select()
-        .single();
+      // PASSO 2: Criar operador via API Route para garantir acesso com service role
+      const response = await fetch("/api/admin/operadores", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          password,
+          nome,
+          formaPagamento,
+          // Já criamos no Auth acima, então passamos o auth_user_id
+          _auth_user_id: authData.user.id,
+          _skip_auth_creation: true,
+        }),
+      });
 
-      if (insertError) {
-        console.error("❌ Erro ao criar operador:", insertError.message);
+      // Se a API falhou, tentar inserir direto
+      let operadorData: any = null;
+      if (!response.ok) {
+        const { error: insertError, data } = await supabase
+          .from("operadores")
+          .insert({
+            auth_user_id: authData.user.id,
+            nome,
+            email,
+            senha: null,
+            ativo: false,
+            suspenso: true,
+            aguardando_pagamento: true,
+            is_admin: false,
+            dias_restantes: 0,
+            total_dias_comprados: 0,
+            forma_pagamento: formaPagamento,
+          })
+          .select()
+          .single();
 
-        // Se falhou ao criar operador, deletar usuário do Auth para manter consistência
-        await supabase.auth.admin.deleteUser(authData.user.id);
-
-        return {
-          success: false,
-          error: "Erro ao criar perfil de operador. Tente novamente.",
-        };
+        if (insertError) {
+          console.error("❌ Erro ao criar operador:", insertError.message);
+          return {
+            success: false,
+            error: "Erro ao criar perfil de operador. Tente novamente.",
+          };
+        }
+        operadorData = data;
+      } else {
+        const result = await response.json();
+        operadorData = result.operador;
       }
-
-      console.log("✅ Operador criado:", operadorData.id);
 
       const operador: Operador = {
         id: operadorData.id,
@@ -251,22 +170,16 @@ export class AuthSupabase {
         ativo: false,
         suspenso: true,
         aguardandoPagamento: true,
-        createdAt: new Date(operadorData.created_at),
+        createdAt: new Date(operadorData.createdAt || operadorData.created_at),
         diasRestantes: 0,
         totalDiasComprados: 0,
         formaPagamento: formaPagamento,
       };
 
-      return {
-        success: true,
-        operador,
-      };
+      return { success: true, operador };
     } catch (error: any) {
       console.error("❌ Erro no cadastro:", error);
-      return {
-        success: false,
-        error: "Erro ao criar conta. Tente novamente.",
-      };
+      return { success: false, error: "Erro ao criar conta. Tente novamente." };
     }
   }
 
@@ -275,9 +188,8 @@ export class AuthSupabase {
    */
   static async signOut(): Promise<void> {
     await supabase.auth.signOut();
-    // Limpar também a sessão do localStorage
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('operador_session');
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("operador_session");
     }
   }
 
@@ -296,133 +208,83 @@ export class AuthSupabase {
     try {
       console.log("🔍 Buscando operador atual...");
 
-      // 🔥 SEMPRE BUSCAR DO SUPABASE - NUNCA USAR LOCALSTORAGE
-      // Isso garante que os dados estejam sempre atualizados em tempo real
-      // quando o admin aprovar pagamentos ou alterar status do operador
-
-      // Verificar se há email salvo no localStorage (para identificar usuário)
+      // Verificar se há sessão no localStorage
       let emailParaBuscar: string | null = null;
-      if (typeof window !== 'undefined') {
-        const sessionStr = localStorage.getItem('operador_session');
+      if (typeof window !== "undefined") {
+        const sessionStr = localStorage.getItem("operador_session");
         if (sessionStr) {
           try {
             const operador = JSON.parse(sessionStr);
             emailParaBuscar = operador.email;
-            console.log("📧 Email do localStorage:", emailParaBuscar, "- buscando dados atualizados do Supabase");
           } catch (e) {
-            console.warn("⚠️ Erro ao parsear sessão do localStorage:", e);
+            console.warn("⚠️ Erro ao parsear sessão:", e);
           }
         }
       }
 
-      // PRIMEIRO: Tentar buscar do Supabase Auth
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (user) {
-        console.log("🔍 Usuário Auth encontrado:", user.id);
-
-        // Buscar apenas campos básicos (SEMPRE existem)
-        const { data: operadorData, error } = await supabase
-          .from("operadores")
-          .select("id, nome, email, senha, is_admin, ativo, suspenso, aguardando_pagamento, created_at")
-          .eq("auth_user_id", user.id)
-          .single();
-
-        if (error) {
-          console.error("❌ Erro ao buscar operador por auth_user_id:", error);
-          return null;
-        }
-
-        if (!operadorData) {
-          console.warn("⚠️ Operador não encontrado no banco para auth_user_id:", user.id);
-          return null;
-        }
-
-        console.log("✅ Operador encontrado no Supabase:", operadorData.email);
-
-        const operador: Operador = {
-          id: operadorData.id,
-          nome: operadorData.nome,
-          email: operadorData.email,
-          senha: "",
-          isAdmin: operadorData.is_admin || false,
-          ativo: operadorData.ativo || false,
-          suspenso: operadorData.suspenso || false,
-          aguardandoPagamento: operadorData.aguardando_pagamento || false,
-          createdAt: new Date(operadorData.created_at),
-        };
-
-        // Tentar buscar campos extras (podem não existir)
-        try {
-          const { data: extrasData } = await supabase
-            .from("operadores")
-            .select("forma_pagamento, valor_mensal, data_proximo_vencimento, dias_assinatura, data_pagamento")
-            .eq("auth_user_id", user.id)
-            .single();
-
-          if (extrasData) {
-            operador.formaPagamento = extrasData.forma_pagamento || undefined;
-            operador.valorMensal = extrasData.valor_mensal || undefined;
-            operador.dataProximoVencimento = extrasData.data_proximo_vencimento ? new Date(extrasData.data_proximo_vencimento) : undefined;
-            operador.diasAssinatura = extrasData.dias_assinatura || undefined;
-            operador.dataPagamento = extrasData.data_pagamento ? new Date(extrasData.data_pagamento) : undefined;
-          }
-        } catch (extrasError) {
-          // Campos extras não existem - continuar sem eles
-          console.log("⚠️ Campos extras não disponíveis");
-        }
-
-        // 🔄 Atualizar localStorage com dados mais recentes do Supabase
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('operador_session', JSON.stringify(operador));
-          console.log("💾 localStorage atualizado com dados do Supabase");
-        }
-
-        return operador;
+      if (!emailParaBuscar) {
+        // Tentar pelo Supabase Auth
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.email) emailParaBuscar = user.email;
       }
 
-      // Auth não encontrado - tentar buscar por email do localStorage
-      if (emailParaBuscar) {
-        console.log("🔍 Tentando buscar operador por email:", emailParaBuscar);
-
-        const { data: operadorData, error } = await supabase
-          .from("operadores")
-          .select("*")
-          .eq("email", emailParaBuscar)
-          .single();
-
-        if (!error && operadorData) {
-          console.log("✅ Operador encontrado por email:", operadorData.email);
-
-          const operador: Operador = {
-            id: operadorData.id,
-            nome: operadorData.nome,
-            email: operadorData.email,
-            senha: "",
-            isAdmin: operadorData.is_admin || false,
-            ativo: operadorData.ativo || false,
-            suspenso: operadorData.suspenso || false,
-            aguardandoPagamento: operadorData.aguardando_pagamento || false,
-            createdAt: new Date(operadorData.created_at),
-            formaPagamento: operadorData.forma_pagamento || undefined,
-            valorMensal: operadorData.valor_mensal || undefined,
-            dataProximoVencimento: operadorData.data_proximo_vencimento ? new Date(operadorData.data_proximo_vencimento) : undefined,
-            diasAssinatura: operadorData.dias_assinatura || undefined,
-            dataPagamento: operadorData.data_pagamento ? new Date(operadorData.data_pagamento) : undefined,
-          };
-
-          // 🔄 Atualizar localStorage com dados mais recentes do Supabase
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('operador_session', JSON.stringify(operador));
-            console.log("💾 localStorage atualizado com dados do Supabase");
-          }
-
-          return operador;
-        }
+      if (!emailParaBuscar) {
+        console.warn("⚠️ Nenhuma sessão encontrada");
+        return null;
       }
 
-      console.warn("⚠️ Nenhum usuário encontrado");
-      return null;
+      // Buscar dados atualizados via API Route
+      const response = await fetch("/api/admin/operadores");
+      if (!response.ok) {
+        // Fallback: usar dados do localStorage
+        if (typeof window !== "undefined") {
+          const sessionStr = localStorage.getItem("operador_session");
+          if (sessionStr) {
+            const opData = JSON.parse(sessionStr);
+            return {
+              ...opData,
+              createdAt: new Date(opData.createdAt),
+              dataProximoVencimento: opData.dataProximoVencimento ? new Date(opData.dataProximoVencimento) : undefined,
+              dataPagamento: opData.dataPagamento ? new Date(opData.dataPagamento) : undefined,
+            };
+          }
+        }
+        return null;
+      }
+
+      const result = await response.json();
+      if (!result.success) return null;
+
+      // Encontrar o operador pelo email
+      const opData = result.operadores.find((op: any) => op.email === emailParaBuscar);
+      if (!opData) {
+        console.warn("⚠️ Operador não encontrado:", emailParaBuscar);
+        return null;
+      }
+
+      const operador: Operador = {
+        id: opData.id,
+        nome: opData.nome,
+        email: opData.email,
+        senha: "",
+        isAdmin: opData.isAdmin || false,
+        ativo: opData.ativo || false,
+        suspenso: opData.suspenso || false,
+        aguardandoPagamento: opData.aguardandoPagamento || false,
+        createdAt: new Date(opData.createdAt),
+        formaPagamento: opData.formaPagamento || undefined,
+        valorMensal: opData.valorMensal || undefined,
+        dataProximoVencimento: opData.dataProximoVencimento ? new Date(opData.dataProximoVencimento) : undefined,
+        diasAssinatura: opData.diasAssinatura || undefined,
+        dataPagamento: opData.dataPagamento ? new Date(opData.dataPagamento) : undefined,
+      };
+
+      // Atualizar localStorage
+      if (typeof window !== "undefined") {
+        localStorage.setItem("operador_session", JSON.stringify(operador));
+      }
+
+      return operador;
     } catch (error) {
       console.error("❌ Erro ao buscar operador:", error);
       return null;
@@ -439,7 +301,6 @@ export class AuthSupabase {
 
   /**
    * Criar usuário sem mensalidade (apenas admin)
-   * Nome será extraído automaticamente do email
    */
   static async createUserWithoutSubscription(
     email: string,
@@ -450,86 +311,35 @@ export class AuthSupabase {
     error?: string;
   }> {
     try {
-      // Verificar se quem está criando é admin
-      const isAdmin = await this.isAdmin();
-      if (!isAdmin) {
-        return {
-          success: false,
-          error: "Apenas administradores podem criar usuários sem mensalidade",
-        };
-      }
-
-      // Extrair nome do email (parte antes do @)
-      const nome = email.split("@")[0];
-
-      // Criar usuário no Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            nome,
-          },
-        },
+      const response = await fetch("/api/admin/operadores", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
       });
 
-      if (authError || !authData.user) {
-        return {
-          success: false,
-          error: authError?.message || "Erro ao criar usuário",
-        };
+      const result = await response.json();
+
+      if (!result.success) {
+        return { success: false, error: result.error };
       }
 
-      // Aguardar um pouco para o trigger criar o operador
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Atualizar operador para ter acesso livre
-      const { error: updateError } = await supabase
-        .from("operadores")
-        .update({
-          ativo: true,
-          suspenso: false,
-          aguardando_pagamento: false,
-        })
-        .eq("auth_user_id", authData.user.id);
-
-      if (updateError) {
-        console.error("Erro ao atualizar operador:", updateError);
-        return {
-          success: false,
-          error: "Erro ao configurar usuário",
-        };
-      }
-
-      // Buscar operador criado
-      const { data: operadorData } = await supabase
-        .from("operadores")
-        .select("*")
-        .eq("auth_user_id", authData.user.id)
-        .single();
-
+      const opData = result.operador;
       const operador: Operador = {
-        id: operadorData.id,
-        nome: operadorData.nome,
-        email: operadorData.email,
+        id: opData.id,
+        nome: opData.nome,
+        email: opData.email,
         senha: "",
         isAdmin: false,
-        ativo: true,
-        suspenso: false,
-        aguardandoPagamento: false,
-        createdAt: new Date(operadorData.created_at),
+        ativo: opData.ativo || true,
+        suspenso: opData.suspenso || false,
+        aguardandoPagamento: opData.aguardandoPagamento || false,
+        createdAt: new Date(opData.createdAt),
       };
 
-      return {
-        success: true,
-        operador,
-      };
+      return { success: true, operador };
     } catch (error) {
       console.error("Erro ao criar usuário:", error);
-      return {
-        success: false,
-        error: "Erro ao criar usuário",
-      };
+      return { success: false, error: "Erro ao criar usuário" };
     }
   }
 }

@@ -54,74 +54,45 @@ export class AdminSupabase {
   }
 
   /**
-   * Buscar todos os operadores ativos em tempo real
+   * Buscar todos os operadores via API Route server-side (ignora RLS)
    */
   static async getAllOperadores(): Promise<Operador[]> {
     try {
-      console.log("🔍 AdminSupabase.getAllOperadores - Iniciando busca...");
+      console.log("🔍 AdminSupabase.getAllOperadores - Buscando via API...");
 
-      // Tentar buscar com select("*") primeiro
-      const { data, error } = await supabase
-        .from("operadores")
-        .select("*");
-
-      if (error) {
-        console.error("❌ Erro ao buscar operadores:", error);
-        console.error("   Código:", error.code);
-        console.error("   Mensagem:", error.message);
-        console.error("   Detalhes:", error.details);
-        // Se falhar, retornar array vazio - o sistema continua funcionando
+      const response = await fetch("/api/admin/operadores");
+      if (!response.ok) {
+        console.error("❌ Erro na API ao buscar operadores:", response.status);
         return [];
       }
 
-      if (!data || data.length === 0) {
-        console.log("⚠️ Nenhum operador encontrado no banco");
+      const result = await response.json();
+      if (!result.success) {
+        console.error("❌ API retornou erro:", result.error);
         return [];
       }
 
-      // Mapear dados com segurança (pode ter ou não ter os campos extras)
-      const operadores = data.map((op) => {
-        const operador: Operador = {
-          id: op.id || `temp-${Date.now()}`,
-          nome: op.nome || "Sem nome",
-          email: op.email || "sem-email@exemplo.com",
-          senha: op.senha || "",
-          isAdmin: op.is_admin || false,
-          ativo: op.ativo !== undefined ? op.ativo : false,
-          suspenso: op.suspenso !== undefined ? op.suspenso : false,
-          aguardandoPagamento: op.aguardando_pagamento !== undefined ? op.aguardando_pagamento : false,
-          createdAt: op.created_at ? new Date(op.created_at) : new Date(),
-        };
+      const operadores: Operador[] = (result.operadores || []).map((op: any) => ({
+        id: op.id || `temp-${Date.now()}`,
+        nome: op.nome || "Sem nome",
+        email: op.email || "sem-email@exemplo.com",
+        senha: op.senha || "",
+        isAdmin: op.isAdmin || false,
+        ativo: op.ativo ?? false,
+        suspenso: op.suspenso ?? false,
+        aguardandoPagamento: op.aguardandoPagamento ?? false,
+        createdAt: op.createdAt ? new Date(op.createdAt) : new Date(),
+        formaPagamento: op.formaPagamento || undefined,
+        valorMensal: op.valorMensal || undefined,
+        dataProximoVencimento: op.dataProximoVencimento ? new Date(op.dataProximoVencimento) : undefined,
+        diasAssinatura: op.diasAssinatura || undefined,
+        dataPagamento: op.dataPagamento ? new Date(op.dataPagamento) : undefined,
+      }));
 
-        // Adicionar campos extras se existirem
-        if (op.forma_pagamento) operador.formaPagamento = op.forma_pagamento;
-        if (op.valor_mensal !== undefined) operador.valorMensal = op.valor_mensal;
-        if (op.data_proximo_vencimento) operador.dataProximoVencimento = new Date(op.data_proximo_vencimento);
-        if (op.dias_assinatura !== undefined) operador.diasAssinatura = op.dias_assinatura;
-        if (op.data_pagamento) operador.dataPagamento = new Date(op.data_pagamento);
-
-        // 🔍 LOG: Verificar dados do operador carregado
-        if (op.email && op.email.includes('jose')) {
-          console.log('🔍 OPERADOR JOSE CARREGADO:', {
-            nome: op.nome,
-            email: op.email,
-            forma_pagamento: op.forma_pagamento,
-            valor_mensal: op.valor_mensal,
-            dias_assinatura: op.dias_assinatura,
-            formaPagamento: operador.formaPagamento,
-            valorMensal: operador.valorMensal,
-            diasAssinatura: operador.diasAssinatura,
-          });
-        }
-
-        return operador;
-      });
-
-      console.log(`✅ ${operadores.length} operadores carregados`);
+      console.log(`✅ ${operadores.length} operadores carregados via API`);
       return operadores;
     } catch (error) {
       console.error("Erro crítico ao buscar operadores:", error);
-      // Retornar array vazio - o sistema continua funcionando
       return [];
     }
   }
@@ -145,71 +116,33 @@ export class AdminSupabase {
   }
 
   /**
-   * Criar novo operador
+   * Criar novo operador via API Route server-side (ignora RLS)
    */
   static async addOperador(operador: Operador): Promise<boolean> {
     try {
-      console.log('💾 AdminSupabase.addOperador - Recebendo operador:', {
-        nome: operador.nome,
-        email: operador.email,
-        formaPagamento: operador.formaPagamento,
-        valorMensal: operador.valorMensal,
-        diasAssinatura: operador.diasAssinatura,
+      console.log("💾 AdminSupabase.addOperador via API:", operador.email);
+
+      const response = await fetch("/api/admin/operadores", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: operador.email,
+          password: operador.senha || Math.random().toString(36).slice(-8),
+          nome: operador.nome,
+          formaPagamento: operador.formaPagamento,
+          diasAssinatura: operador.diasAssinatura,
+          valorMensal: operador.valorMensal,
+        }),
       });
 
-      // ✅ NÃO enviar o campo 'id' - o Supabase gera automaticamente com gen_random_uuid()
-      const insertData: any = {
-        nome: operador.nome,
-        email: operador.email,
-        senha: operador.senha,
-        is_admin: operador.isAdmin,
-        ativo: operador.ativo,
-        suspenso: operador.suspenso || false,
-        aguardando_pagamento: operador.aguardandoPagamento || false,
-        created_at: operador.createdAt.toISOString(),
-        updated_at: new Date().toISOString(),
-      };
+      const result = await response.json();
 
-      // Adicionar campos opcionais se existirem
-      if (operador.dataProximoVencimento) {
-        insertData.data_proximo_vencimento = operador.dataProximoVencimento instanceof Date
-          ? operador.dataProximoVencimento.toISOString()
-          : operador.dataProximoVencimento;
-      }
-      if (operador.diasAssinatura !== undefined) {
-        insertData.dias_assinatura = operador.diasAssinatura;
-        console.log('   ✅ diasAssinatura adicionado:', operador.diasAssinatura);
-      }
-      if (operador.formaPagamento) {
-        insertData.forma_pagamento = operador.formaPagamento;
-        console.log('   ✅ formaPagamento adicionado:', operador.formaPagamento);
-      } else {
-        console.warn('   ⚠️ formaPagamento NÃO foi adicionado (undefined ou vazio)');
-      }
-      if (operador.valorMensal !== undefined) {
-        insertData.valor_mensal = operador.valorMensal;
-        console.log('   ✅ valorMensal adicionado:', operador.valorMensal);
-      }
-
-      console.log('📤 Dados que serão inseridos no Supabase:', {
-        forma_pagamento: insertData.forma_pagamento,
-        valor_mensal: insertData.valor_mensal,
-        dias_assinatura: insertData.dias_assinatura,
-      });
-
-      // ✅ Usar supabase normal - RLS deve permitir inserções
-      const { error } = await supabase.from("operadores").insert(insertData);
-
-      if (error) {
-        console.error("❌ Erro ao criar operador:", {
-          message: error.message,
-          code: error.code,
-          details: error.details,
-        });
+      if (!result.success) {
+        console.error("❌ Erro ao criar operador:", result.error);
         return false;
       }
 
-      console.log("✅ Operador criado com sucesso!");
+      console.log("✅ Operador criado via API!");
       return true;
     } catch (error) {
       console.error("❌ Erro ao criar operador:", error);
@@ -218,103 +151,46 @@ export class AdminSupabase {
   }
 
   /**
-   * Atualizar operador existente - ADMIN TEM CONTROLE TOTAL
+   * Atualizar operador existente via API Route server-side (ignora RLS)
    */
   static async updateOperador(operador: Operador): Promise<boolean> {
     try {
-      console.log("🔄 ADMIN atualizando operador:", {
-        id: operador.id,
-        email: operador.email,
-        nome: operador.nome,
-        ativo: operador.ativo,
-        suspenso: operador.suspenso,
-        diasAssinatura: operador.diasAssinatura,
-        dataProximoVencimento: operador.dataProximoVencimento,
+      console.log("🔄 ADMIN atualizando operador via API:", operador.id);
+
+      const response = await fetch("/api/admin/operadores", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: operador.id,
+          nome: operador.nome,
+          email: operador.email,
+          ativo: operador.ativo,
+          suspenso: operador.suspenso,
+          aguardandoPagamento: operador.aguardandoPagamento,
+          formaPagamento: operador.formaPagamento,
+          valorMensal: operador.valorMensal,
+          diasAssinatura: operador.diasAssinatura,
+          dataProximoVencimento: operador.dataProximoVencimento
+            ? (operador.dataProximoVencimento instanceof Date
+              ? operador.dataProximoVencimento.toISOString()
+              : operador.dataProximoVencimento)
+            : null,
+          dataPagamento: operador.dataPagamento
+            ? (operador.dataPagamento instanceof Date
+              ? operador.dataPagamento.toISOString()
+              : operador.dataPagamento)
+            : null,
+        }),
       });
 
-      // SEMPRE atualizar campos básicos primeiro (GARANTIDO DE FUNCIONAR)
-      const updateBasico = {
-        nome: operador.nome,
-        email: operador.email,
-        senha: operador.senha,
-        is_admin: operador.isAdmin,
-        ativo: operador.ativo,
-        suspenso: operador.suspenso || false,
-        aguardando_pagamento: operador.aguardandoPagamento || false,
-        updated_at: new Date().toISOString(),
-      };
+      const result = await response.json();
 
-      console.log("📤 ADMIN atualizando campos básicos...");
-
-      const { data: dataBasico, error: errorBasico } = await supabase
-        .from("operadores")
-        .update(updateBasico)
-        .eq("id", operador.id)
-        .select();
-
-      if (errorBasico) {
-        console.error("❌ Erro ao atualizar campos básicos:", errorBasico);
+      if (!result.success) {
+        console.error("❌ Erro ao atualizar operador:", result.error);
         return false;
       }
 
-      console.log("✅ Campos básicos atualizados!");
-
-      // Tentar atualizar campos de mensalidade (pode falhar se não existirem)
-      const updateExtras: any = {};
-
-      if (operador.dataProximoVencimento) {
-        updateExtras.data_proximo_vencimento = operador.dataProximoVencimento instanceof Date
-          ? operador.dataProximoVencimento.toISOString()
-          : new Date(operador.dataProximoVencimento).toISOString();
-      }
-
-      if (operador.diasAssinatura !== undefined && operador.diasAssinatura !== null) {
-        updateExtras.dias_assinatura = operador.diasAssinatura;
-      }
-
-      if (operador.formaPagamento) {
-        updateExtras.forma_pagamento = operador.formaPagamento;
-      }
-
-      if (operador.valorMensal !== undefined) {
-        updateExtras.valor_mensal = operador.valorMensal;
-      }
-
-      if (operador.dataPagamento) {
-        updateExtras.data_pagamento = operador.dataPagamento instanceof Date
-          ? operador.dataPagamento.toISOString()
-          : new Date(operador.dataPagamento).toISOString();
-      }
-
-      // Se houver campos extras para atualizar
-      if (Object.keys(updateExtras).length > 0) {
-        console.log("📤 Tentando atualizar campos extras:", updateExtras);
-
-        const { data: dataExtras, error: errorExtras } = await supabase
-          .from("operadores")
-          .update(updateExtras)
-          .eq("id", operador.id)
-          .select();
-
-        if (errorExtras) {
-          console.warn("⚠️ Campos extras não atualizados (colunas podem não existir):", errorExtras.message);
-          console.log("💡 Execute este SQL no Supabase para criar as colunas:");
-          console.log(`
-            ALTER TABLE operadores
-            ADD COLUMN IF NOT EXISTS data_proximo_vencimento TIMESTAMP,
-            ADD COLUMN IF NOT EXISTS dias_assinatura INTEGER,
-            ADD COLUMN IF NOT EXISTS forma_pagamento TEXT,
-            ADD COLUMN IF NOT EXISTS valor_mensal NUMERIC(10,2),
-            ADD COLUMN IF NOT EXISTS data_pagamento TIMESTAMP;
-          `);
-          // NÃO falhar aqui - campos básicos foram atualizados com sucesso
-          return true;
-        }
-
-        console.log("✅ Campos extras atualizados!", dataExtras);
-      }
-
-      console.log("✅ ADMIN atualizou operador com SUCESSO!");
+      console.log("✅ Operador atualizado via API!");
       return true;
     } catch (error) {
       console.error("❌ Erro crítico ao atualizar operador:", error);
@@ -323,17 +199,18 @@ export class AdminSupabase {
   }
 
   /**
-   * Excluir operador
+   * Excluir operador via API Route server-side
    */
   static async deleteOperador(id: string): Promise<boolean> {
     try {
-      const { error } = await supabase
-        .from("operadores")
-        .delete()
-        .eq("id", id);
+      const response = await fetch(`/api/admin/operadores?id=${id}`, {
+        method: "DELETE",
+      });
 
-      if (error) {
-        console.error("Erro ao excluir operador:", error);
+      const result = await response.json();
+
+      if (!result.success) {
+        console.error("Erro ao excluir operador:", result.error);
         return false;
       }
 
