@@ -45,3 +45,7 @@ Thumbs.db
 # NOTE: .env files are NOT ignored - they are important for the project
 .lasy/
 .vercel
+
+# Lasy internal
+.claude
+.lasy
