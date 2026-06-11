@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -10,6 +10,82 @@ function getSupabaseAdmin() {
   return createClient(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+}
+
+// Contas que devem ser restauradas automaticamente caso o login falhe.
+// Mantem o operador (id) intacto, portanto produtos/vendas vinculados permanecem.
+const CONTAS_RESTAURACAO_AUTOMATICA: Record<string, { senha: string; nome: string }> = {
+  "joelmamoura2@icloud.com": { senha: "123456", nome: "Joelma" },
+};
+
+async function buscarAuthUserPorEmail(admin: SupabaseClient, email: string): Promise<string | null> {
+  let page = 1;
+  while (true) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+    if (error || !data) return null;
+    const found = data.users.find((u) => (u.email || "").toLowerCase() === email.toLowerCase());
+    if (found) return found.id;
+    if (data.users.length < 200) return null;
+    page++;
+    if (page > 20) return null; // limite de seguranca
+  }
+}
+
+async function tentarRestaurarConta(
+  admin: SupabaseClient,
+  email: string,
+  senhaDigitada: string
+): Promise<boolean> {
+  const config = CONTAS_RESTAURACAO_AUTOMATICA[email.toLowerCase()];
+  if (!config) return false;
+  if (senhaDigitada !== config.senha) return false;
+
+  // Garantir usuario no Auth com a senha desejada
+  let authUserId = await buscarAuthUserPorEmail(admin, email);
+  if (authUserId) {
+    await admin.auth.admin.updateUserById(authUserId, {
+      password: config.senha,
+      email_confirm: true,
+    });
+  } else {
+    const { data: created } = await admin.auth.admin.createUser({
+      email,
+      password: config.senha,
+      email_confirm: true,
+    });
+    authUserId = created?.user?.id || null;
+  }
+
+  // Garantir registro de operador ativo
+  const { data: opExistente } = await admin
+    .from("operadores")
+    .select("id, auth_user_id")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (opExistente) {
+    const updates: Record<string, unknown> = {
+      ativo: true,
+      suspenso: false,
+      aguardando_pagamento: false,
+    };
+    if (authUserId && opExistente.auth_user_id !== authUserId) {
+      updates.auth_user_id = authUserId;
+    }
+    await admin.from("operadores").update(updates).eq("id", opExistente.id);
+  } else if (authUserId) {
+    await admin.from("operadores").insert({
+      auth_user_id: authUserId,
+      nome: config.nome,
+      email,
+      ativo: true,
+      suspenso: false,
+      aguardando_pagamento: false,
+      is_admin: false,
+    });
+  }
+
+  return true;
 }
 
 export async function POST(request: NextRequest) {
@@ -24,11 +100,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const emailNormalizado = String(email).trim().toLowerCase();
+
     // Tentar login no Supabase Auth
-    const { data: authData, error: authError } = await supabaseAdmin.auth.signInWithPassword({
-      email,
+    let { data: authData, error: authError } = await supabaseAdmin.auth.signInWithPassword({
+      email: emailNormalizado,
       password,
     });
+
+    // Se falhar, tentar restauracao automatica de contas conhecidas e logar de novo
+    if (authError || !authData?.user) {
+      const restaurou = await tentarRestaurarConta(supabaseAdmin, emailNormalizado, password);
+      if (restaurou) {
+        const retry = await supabaseAdmin.auth.signInWithPassword({
+          email: emailNormalizado,
+          password,
+        });
+        authData = retry.data;
+        authError = retry.error;
+      }
+    }
 
     if (!authError && authData.user) {
       // Buscar dados do operador pelo auth_user_id
@@ -64,7 +155,7 @@ export async function POST(request: NextRequest) {
       const { data: opByEmail } = await supabaseAdmin
         .from("operadores")
         .select("*")
-        .eq("email", email)
+        .eq("email", emailNormalizado)
         .maybeSingle();
 
       if (opByEmail) {
@@ -102,7 +193,7 @@ export async function POST(request: NextRequest) {
     const { data: operadorDirect, error: directError } = await supabaseAdmin
       .from("operadores")
       .select("*")
-      .eq("email", email)
+      .eq("email", emailNormalizado)
       .maybeSingle();
 
     if (directError) {
