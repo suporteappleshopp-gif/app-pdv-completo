@@ -21,8 +21,9 @@ export class SupabaseSync {
       await supabase.from("produtos").delete().eq("user_id", userId);
 
       // Inserir produtos atualizados
-      // NÃO passar id - deixar Supabase gerar UUID automaticamente
+      // Usar o id gerado no cliente (tabela produtos.id é TEXT PRIMARY KEY)
       const produtosParaInserir = produtos.map((p) => ({
+        id: p.id || `produto-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         user_id: userId,
         nome: p.nome,
         codigo_barras: p.codigoBarras,
@@ -92,8 +93,9 @@ export class SupabaseSync {
    */
   static async addProduto(userId: string, produto: Produto): Promise<boolean> {
     try {
-      // NÃO passar id - deixar Supabase gerar UUID automaticamente
+      // Usar id gerado no cliente (tabela produtos.id e TEXT PRIMARY KEY)
       const { error } = await supabase.from("produtos").insert({
+        id: produto.id || `produto-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         user_id: userId,
         nome: produto.nome,
         codigo_barras: produto.codigoBarras,

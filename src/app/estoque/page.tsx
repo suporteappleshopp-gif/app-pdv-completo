@@ -766,7 +766,7 @@ export default function EstoquePage() {
               </h1>
               <p className="text-purple-200 text-sm">Controle de produtos, XML e multiloja</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap justify-end">
               {lojas.length > 0 && (
                 <select value={lojaSelecionada} onChange={e => setLojaSelecionada(e.target.value)}
                   className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm">
@@ -774,6 +774,20 @@ export default function EstoquePage() {
                   {lojas.map(l => <option key={l.id} value={l.id}>{l.nome}</option>)}
                 </select>
               )}
+              <button
+                onClick={() => { setAbaAtiva("xml"); setModoEntrada("xml"); }}
+                className="flex items-center space-x-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold"
+                title="Importar Nota Fiscal Eletrônica (XML)"
+              >
+                <Upload className="w-5 h-5" /><span>Entrada XML</span>
+              </button>
+              <button
+                onClick={() => { setAbaAtiva("xml"); setModoEntrada("manual"); }}
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold"
+                title="Entrada manual de produto"
+              >
+                <Plus className="w-5 h-5" /><span>Entrada Manual</span>
+              </button>
               <button onClick={abrirModalNovo} className="flex items-center space-x-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold">
                 <Plus className="w-5 h-5" /><span>Novo</span>
               </button>

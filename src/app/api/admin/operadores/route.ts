@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-// Cliente server-side com service role (ignora RLS)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error("Supabase nao configurado: NEXT_PUBLIC_SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY ausente");
+  }
+  return createClient(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
 
 // GET - Listar todos os operadores
 export async function GET() {
   try {
+    const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
       .from("operadores")
       .select("*")
@@ -53,6 +59,7 @@ export async function GET() {
 // POST - Criar novo operador
 export async function POST(request: NextRequest) {
   try {
+    const supabaseAdmin = getSupabaseAdmin();
     const body = await request.json();
     const { email, password, nome, formaPagamento, diasAssinatura, valorMensal } = body;
 
@@ -165,6 +172,7 @@ export async function POST(request: NextRequest) {
 // PATCH - Atualizar operador
 export async function PATCH(request: NextRequest) {
   try {
+    const supabaseAdmin = getSupabaseAdmin();
     const body = await request.json();
     const { id, ...updates } = body;
 
@@ -213,6 +221,7 @@ export async function PATCH(request: NextRequest) {
 // DELETE - Remover operador
 export async function DELETE(request: NextRequest) {
   try {
+    const supabaseAdmin = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
