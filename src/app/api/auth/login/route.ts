@@ -13,9 +13,19 @@ function getSupabaseAdmin() {
 }
 
 // Contas que devem ser restauradas automaticamente caso o login falhe.
-// Mantem o operador (id) intacto, portanto produtos/vendas vinculados permanecem.
-const CONTAS_RESTAURACAO_AUTOMATICA: Record<string, { senha: string; nome: string }> = {
-  "joelmamoura2@icloud.com": { senha: "123456", nome: "Joelma" },
+// Restauradas como SUSPENSAS aguardando aprovacao do admin (operador.id preservado
+// para que produtos/vendas vinculados continuem aparecendo apos aprovacao).
+const CONTAS_RESTAURACAO_AUTOMATICA: Record<
+  string,
+  { senha: string; nome: string; formaPagamento: "pix" | "cartao"; valor: number; dias: number }
+> = {
+  "joelmamoura2@icloud.com": {
+    senha: "123456",
+    nome: "Joelma",
+    formaPagamento: "pix",
+    valor: 59.9,
+    dias: 60,
+  },
 };
 
 async function buscarAuthUserPorEmail(admin: SupabaseClient, email: string): Promise<string | null> {
@@ -40,7 +50,7 @@ async function tentarRestaurarConta(
   if (!config) return false;
   if (senhaDigitada !== config.senha) return false;
 
-  // Garantir usuario no Auth com a senha desejada
+  // Garantir usuario no Auth com a senha desejada (so para conseguir logar)
   let authUserId = await buscarAuthUserPorEmail(admin, email);
   if (authUserId) {
     await admin.auth.admin.updateUserById(authUserId, {
@@ -56,18 +66,21 @@ async function tentarRestaurarConta(
     authUserId = created?.user?.id || null;
   }
 
-  // Garantir registro de operador ativo
+  // Garantir registro de operador SUSPENSO aguardando aprovacao do admin
   const { data: opExistente } = await admin
     .from("operadores")
-    .select("id, auth_user_id")
+    .select("id, auth_user_id, suspenso, aguardando_pagamento")
     .eq("email", email)
     .maybeSingle();
 
   if (opExistente) {
     const updates: Record<string, unknown> = {
+      suspenso: true,
+      aguardando_pagamento: true,
       ativo: true,
-      suspenso: false,
-      aguardando_pagamento: false,
+      forma_pagamento: config.formaPagamento,
+      valor_mensal: config.valor,
+      dias_assinatura: config.dias,
     };
     if (authUserId && opExistente.auth_user_id !== authUserId) {
       updates.auth_user_id = authUserId;
@@ -79,9 +92,12 @@ async function tentarRestaurarConta(
       nome: config.nome,
       email,
       ativo: true,
-      suspenso: false,
-      aguardando_pagamento: false,
+      suspenso: true,
+      aguardando_pagamento: true,
       is_admin: false,
+      forma_pagamento: config.formaPagamento,
+      valor_mensal: config.valor,
+      dias_assinatura: config.dias,
     });
   }
 
