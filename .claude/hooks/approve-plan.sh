@@ -57,26 +57,32 @@ PLAN_CONTENT=$(echo "$TOOL_INPUT" | jq -r '.plan // .content // ""' 2>/dev/null 
 echo "[approve-plan] PLAN_TITLE: $PLAN_TITLE" >&2
 echo "[approve-plan] SUMMARY (primeiros 100 chars): $(echo "$SUMMARY" | head -c 100)" >&2
 
-# Descobrir o .md mais recente em docs/plans/ (para referencia no insights panel)
-PLAN_PATH=""
+# Salvar plano em docs/plans/ como .md (para o usuario visualizar no painel de arquivos)
 PLAN_NAME="$PLAN_TITLE"
-
-if [ -d /workspace/docs/plans ]; then
-  LATEST_PLAN=$(ls -t /workspace/docs/plans/*.md 2>/dev/null | head -1 || echo "")
-  if [ -n "$LATEST_PLAN" ] && [ -f "$LATEST_PLAN" ]; then
-    PLAN_PATH="docs/plans/$(basename "$LATEST_PLAN")"
-    PLAN_NAME=$(basename "$LATEST_PLAN" .md)
-    # Se nao temos resumo do tool_input, extrair do arquivo
-    if [ -z "$SUMMARY" ]; then
-      SUMMARY=$(awk '/^## Resumo/{found=1; next} found && /^## /{exit} found && NF{print; exit}' "$LATEST_PLAN" 2>/dev/null || echo "")
-    fi
-    echo "[approve-plan] Arquivo .md encontrado: $PLAN_PATH" >&2
-  else
-    echo "[approve-plan] Nenhum .md em docs/plans/, usando dados do tool_input" >&2
-  fi
-else
-  echo "[approve-plan] Diretorio docs/plans nao existe, usando dados do tool_input" >&2
+PLAN_FILENAME=$(echo "$PLAN_TITLE" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//')
+if [ -z "$PLAN_FILENAME" ]; then
+  PLAN_FILENAME="plan-$(date +%s)"
 fi
+
+mkdir -p /workspace/docs/plans
+PLAN_FILE="/workspace/docs/plans/$PLAN_FILENAME.md"
+
+# Montar conteudo do .md a partir do tool_input
+{
+  echo "# $PLAN_TITLE"
+  echo ""
+  if [ -n "$SUMMARY" ]; then
+    echo "## Resumo"
+    echo "$SUMMARY"
+    echo ""
+  fi
+  if [ -n "$PLAN_CONTENT" ]; then
+    echo "$PLAN_CONTENT"
+  fi
+} > "$PLAN_FILE"
+
+PLAN_PATH="docs/plans/$PLAN_FILENAME.md"
+echo "[approve-plan] Plano salvo em: $PLAN_PATH" >&2
 
 # Salvar info do plano em arquivo temporario
 echo "[approve-plan] Salvando plano em /tmp/lasy-plan.json..." >&2
