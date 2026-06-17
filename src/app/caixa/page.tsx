@@ -1211,8 +1211,8 @@ export default function CaixaPage() {
 
       const { supabase } = await import("@/lib/supabase");
 
-      // NÃO passar id - deixar Supabase gerar UUID automaticamente
       const dadosVenda = {
+        id: crypto.randomUUID(),
         numero: venda.numero,
         operador_id: venda.operadorId,
         operador_nome: venda.operadorNome,
@@ -1221,7 +1221,7 @@ export default function CaixaPage() {
         forma_pagamento: venda.tipoPagamento,
         pagamentos: venda.pagamentos || null,
         status: venda.status,
-        data_hora: venda.dataHora.toISOString(),
+        created_at: venda.dataHora.toISOString(),
       };
 
       console.log("📤 Enviando para Supabase:", dadosVenda);
@@ -1249,11 +1249,11 @@ export default function CaixaPage() {
       if (!vendaInserida || !vendaInserida.id) {
         console.error("❌ Venda não foi inserida corretamente - não há ID para vincular itens");
       } else {
-        // NÃO passar id - deixar Supabase gerar UUID automaticamente
-        // Usar o ID da venda gerado pelo Supabase
+        const isValidUuid = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
         const itensParaInserir = carrinho.map((item) => ({
-          venda_id: vendaInserida.id, // Usar ID gerado pelo Supabase
-          produto_id: item.produtoId,
+          id: crypto.randomUUID(),
+          venda_id: vendaInserida.id,
+          produto_id: item.produtoId && isValidUuid(item.produtoId) ? item.produtoId : null,
           nome: item.nome,
           quantidade: item.quantidade,
           preco_unitario: item.precoUnitario,
