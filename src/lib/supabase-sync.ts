@@ -11,36 +11,53 @@ export class SupabaseSync {
    */
   static async syncProdutos(userId: string, produtos: Produto[]): Promise<boolean> {
     try {
-      // Se não há produtos, não sincronizar (evita erros)
       if (!produtos || produtos.length === 0) {
         console.log("⚠️ Nenhum produto para sincronizar");
         return true;
       }
 
-      // Deletar produtos antigos do usuário
-      await supabase.from("produtos").delete().eq("user_id", userId);
+      // Buscar produtos existentes para decidir entre upsert e insert
+      const { data: existentes } = await supabase
+        .from("produtos")
+        .select("id")
+        .eq("user_id", userId);
 
-      // Inserir produtos atualizados
-      // Usar o id gerado no cliente (tabela produtos.id é TEXT PRIMARY KEY)
-      const produtosParaInserir = produtos.map((p) => ({
-        id: p.id || `produto-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        user_id: userId,
-        nome: p.nome,
-        codigo_barras: p.codigoBarras,
-        preco: p.preco,
-        estoque: p.estoque,
-        estoque_minimo: p.estoqueMinimo,
-        venda_por_kg: p.vendaPorKg ?? false,
-        categoria: p.categoria,
-        descricao: p.descricao,
-      }));
+      const idsExistentes = new Set((existentes || []).map((p: any) => p.id));
 
-      const { error } = await supabase.from("produtos").insert(produtosParaInserir);
+      const isValidUuid = (id: string) =>
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
-      if (error) {
-        console.error("Erro ao sincronizar produtos:", error.message || error.code || "Erro desconhecido");
-        console.error("Detalhes do erro:", JSON.stringify(error));
-        return false;
+      for (const p of produtos) {
+        const payload = {
+          user_id: userId,
+          nome: p.nome,
+          codigo_barras: p.codigoBarras,
+          preco: p.preco,
+          estoque: p.estoque,
+          estoque_minimo: p.estoqueMinimo,
+          venda_por_kg: p.vendaPorKg ?? false,
+          categoria: p.categoria,
+          descricao: p.descricao,
+        };
+
+        // Se o produto já existe no banco (uuid válido), atualizar
+        if (p.id && isValidUuid(p.id) && idsExistentes.has(p.id)) {
+          const { error } = await supabase
+            .from("produtos")
+            .update(payload)
+            .eq("id", p.id);
+          if (error) {
+            console.error("Erro ao atualizar produto:", error.message);
+            return false;
+          }
+        } else {
+          // Novo produto: deixar o banco gerar o UUID
+          const { error } = await supabase.from("produtos").insert(payload);
+          if (error) {
+            console.error("Erro ao inserir produto:", error.message);
+            return false;
+          }
+        }
       }
 
       console.log(`✅ ${produtos.length} produto(s) sincronizado(s) com sucesso para usuário ${userId}`);
@@ -93,9 +110,8 @@ export class SupabaseSync {
    */
   static async addProduto(userId: string, produto: Produto): Promise<boolean> {
     try {
-      // Usar id gerado no cliente (tabela produtos.id e TEXT PRIMARY KEY)
+      // Não passar o id — deixar o banco gerar o UUID automaticamente
       const { error } = await supabase.from("produtos").insert({
-        id: produto.id || `produto-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         user_id: userId,
         nome: produto.nome,
         codigo_barras: produto.codigoBarras,
