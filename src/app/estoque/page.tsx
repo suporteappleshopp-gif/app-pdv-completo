@@ -387,6 +387,7 @@ export default function EstoquePage() {
         } else {
           // Criar novo produto
           const { data: novoProd } = await supabase.from("produtos").insert({
+            id: crypto.randomUUID(),
             user_id: operadorId,
             loja_id: lojaSelecionada || null,
             nome: item.descricao,
@@ -554,6 +555,7 @@ export default function EstoquePage() {
       } else {
         // Criar novo produto
         const { data: novoProd, error: errNovoProd } = await supabase.from("produtos").insert({
+          id: crypto.randomUUID(),
           user_id: operadorId,
           loja_id: lojaSelecionada || null,
           nome: nomeProduto,
@@ -691,7 +693,7 @@ export default function EstoquePage() {
         }
         mostrarSucesso("Produto atualizado!");
       } else {
-        const { error: errIns } = await supabase.from("produtos").insert(payload);
+        const { error: errIns } = await supabase.from("produtos").insert({ id: crypto.randomUUID(), ...payload });
         if (errIns) {
           console.error("Erro insert produto:", errIns);
           mostrarErro("Erro ao adicionar: " + (errIns.message || errIns.code || JSON.stringify(errIns)));

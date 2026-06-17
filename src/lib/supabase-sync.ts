@@ -51,8 +51,8 @@ export class SupabaseSync {
             return false;
           }
         } else {
-          // Novo produto: deixar o banco gerar o UUID
-          const { error } = await supabase.from("produtos").insert(payload);
+          // Novo produto: gerar UUID no cliente para garantir compatibilidade
+          const { error } = await supabase.from("produtos").insert({ id: crypto.randomUUID(), ...payload });
           if (error) {
             console.error("Erro ao inserir produto:", error.message);
             return false;
@@ -110,8 +110,9 @@ export class SupabaseSync {
    */
   static async addProduto(userId: string, produto: Produto): Promise<boolean> {
     try {
-      // Não passar o id — deixar o banco gerar o UUID automaticamente
+      // Gerar UUID no cliente para garantir compatibilidade
       const { error } = await supabase.from("produtos").insert({
+        id: crypto.randomUUID(),
         user_id: userId,
         nome: produto.nome,
         codigo_barras: produto.codigoBarras,
