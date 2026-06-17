@@ -302,7 +302,7 @@ export default function GestaoCaixa({
         totalPix: resumoFechamento.totalPix,
         totalOutros: resumoFechamento.totalOutros,
         quantidadeVendas: resumoFechamento.quantidade,
-        observacoes: observacoesFechamento || null,
+        observacoes: observacoesFechamento || undefined,
         dataHora: dataHora,
       };
 
