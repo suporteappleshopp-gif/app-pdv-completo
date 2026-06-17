@@ -93,7 +93,6 @@ export interface Database {
           numero: number;
           operador_id: string | null;
           operador_nome: string;
-          itens: any[] | null;
           total: number;
           data_hora: string | null;
           forma_pagamento: string | null;
