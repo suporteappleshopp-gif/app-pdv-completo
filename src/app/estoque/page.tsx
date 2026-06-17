@@ -553,21 +553,27 @@ export default function EstoquePage() {
         mostrarSucesso(`Estoque atualizado! +${quantidade} unidades somadas ao produto existente.`);
       } else {
         // Criar novo produto
-        const { data: novoProd } = await supabase.from("produtos").insert({
+        const { data: novoProd, error: errNovoProd } = await supabase.from("produtos").insert({
           user_id: operadorId,
           loja_id: lojaSelecionada || null,
           nome: nomeProduto,
           codigo_barras: codigoBarras,
-          preco: precoVenda,
-          preco_venda: precoVenda,
-          estoque: quantidade,
+          preco: Number(precoVenda) || 0,
+          preco_venda: Number(precoVenda) || 0,
+          estoque: Number(quantidade) || 0,
           estoque_minimo: 0,
           venda_por_kg: false,
-          custo_unitario: precoCusto,
-          custo_medio: precoCusto,
-          ultimo_custo_compra: precoCusto,
+          custo_unitario: Number(precoCusto) || 0,
+          custo_medio: Number(precoCusto) || 0,
+          ultimo_custo_compra: Number(precoCusto) || 0,
           margem_lucro: 0,
         }).select().single();
+
+        if (errNovoProd) {
+          console.error("Erro ao criar produto (entrada manual):", errNovoProd);
+          mostrarErro("Erro ao criar produto: " + (errNovoProd.message || errNovoProd.code || JSON.stringify(errNovoProd)));
+          return;
+        }
 
         if (novoProd) {
           await supabase.from("movimentacoes_estoque").insert({
@@ -590,6 +596,7 @@ export default function EstoquePage() {
       await carregarProdutos(operadorId);
       await carregarMovimentacoes(operadorId);
     } catch (err: any) {
+      console.error("Erro na entrada manual:", err);
       mostrarErro("Erro ao salvar entrada manual: " + err.message);
     } finally {
       setSalvandoManual(false);
@@ -658,31 +665,44 @@ export default function EstoquePage() {
 
     try {
       const { supabase } = await import("@/lib/supabase");
+      const precoNum = Number(produtoForm.preco) || 0;
+      const precoVendaNum = Number(produtoForm.preco_venda) || precoNum;
       const payload = {
         user_id: operadorId,
         nome: produtoForm.nome,
         codigo_barras: produtoForm.codigoBarras,
-        preco: produtoForm.preco,
-        estoque: produtoForm.estoque,
-        estoque_minimo: produtoForm.estoqueMinimo,
+        preco: precoNum,
+        estoque: Number(produtoForm.estoque) || 0,
+        estoque_minimo: Number(produtoForm.estoqueMinimo) || 0,
         venda_por_kg: produtoForm.vendaPorKg ?? false,
-        categoria: produtoForm.categoria,
-        descricao: produtoForm.descricao,
-        margem_lucro: produtoForm.margem_lucro ?? 0,
-        preco_venda: produtoForm.preco_venda ?? produtoForm.preco,
+        categoria: produtoForm.categoria || null,
+        descricao: produtoForm.descricao || null,
+        margem_lucro: Number(produtoForm.margem_lucro) || 0,
+        preco_venda: precoVendaNum,
         loja_id: lojaSelecionada || null,
       };
 
       if (modoEdicao && produtoForm.id) {
-        await supabase.from("produtos").update(payload).eq("id", produtoForm.id);
+        const { error: errUpd } = await supabase.from("produtos").update(payload).eq("id", produtoForm.id);
+        if (errUpd) {
+          console.error("Erro update produto:", errUpd);
+          mostrarErro("Erro ao atualizar: " + (errUpd.message || errUpd.code || JSON.stringify(errUpd)));
+          return;
+        }
         mostrarSucesso("Produto atualizado!");
       } else {
-        await supabase.from("produtos").insert(payload);
+        const { error: errIns } = await supabase.from("produtos").insert(payload);
+        if (errIns) {
+          console.error("Erro insert produto:", errIns);
+          mostrarErro("Erro ao adicionar: " + (errIns.message || errIns.code || JSON.stringify(errIns)));
+          return;
+        }
         mostrarSucesso("Produto adicionado!");
       }
       setShowModal(false);
       await carregarProdutos(operadorId);
     } catch (err: any) {
+      console.error("Erro ao salvar produto:", err);
       mostrarErro("Erro ao salvar: " + err.message);
     }
   };
