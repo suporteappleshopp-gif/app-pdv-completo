@@ -262,7 +262,10 @@ export default function GestaoCaixa({
     if (!operadorId || !resumoFechamento) return;
     setProcessando(true);
     try {
+      const registroId = crypto.randomUUID();
+      const dataHora = new Date().toISOString();
       const registro: Record<string, unknown> = {
+        id: registroId,
         operador_id: operadorId,
         operador_nome: operadorNome,
         tipo: "fechamento",
@@ -276,33 +279,31 @@ export default function GestaoCaixa({
         total_outros: resumoFechamento.totalOutros,
         quantidade_vendas: resumoFechamento.quantidade,
         observacoes: observacoesFechamento || null,
-        data_hora: new Date().toISOString(),
+        data_hora: dataHora,
       };
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("registros_caixa")
-        .insert([registro])
-        .select()
-        .single();
+        .insert([registro]);
 
       if (error) throw error;
 
       const registroFechado: RegistroCaixa = {
-        id: data.id,
-        operadorId: data.operador_id,
-        operadorNome: data.operador_nome,
+        id: registroId,
+        operadorId: operadorId,
+        operadorNome: operadorNome,
         tipo: "fechamento",
-        valorInicial: data.valor_inicial,
-        valorFinal: data.valor_final,
-        totalVendas: data.total_vendas,
-        totalDinheiro: data.total_dinheiro,
-        totalCredito: data.total_credito,
-        totalDebito: data.total_debito,
-        totalPix: data.total_pix,
-        totalOutros: data.total_outros,
-        quantidadeVendas: data.quantidade_vendas,
-        observacoes: data.observacoes,
-        dataHora: data.data_hora,
+        valorInicial: ultimaAbertura?.valorInicial || 0,
+        valorFinal: (ultimaAbertura?.valorInicial || 0) + resumoFechamento.totalDinheiro,
+        totalVendas: resumoFechamento.total,
+        totalDinheiro: resumoFechamento.totalDinheiro,
+        totalCredito: resumoFechamento.totalCredito,
+        totalDebito: resumoFechamento.totalDebito,
+        totalPix: resumoFechamento.totalPix,
+        totalOutros: resumoFechamento.totalOutros,
+        quantidadeVendas: resumoFechamento.quantidade,
+        observacoes: observacoesFechamento || null,
+        dataHora: dataHora,
       };
 
       setDadosFechamentoFinal(registroFechado);

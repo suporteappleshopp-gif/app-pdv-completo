@@ -296,9 +296,11 @@ export default function EstoquePage() {
       const { supabase } = await import("@/lib/supabase");
 
       // 1. Salvar nota fiscal
-      const { data: notaSalva, error: errNota } = await supabase
+      const notaId = crypto.randomUUID();
+      const { error: errNota } = await supabase
         .from("notas_fiscais")
         .insert({
+          id: notaId,
           user_id: operadorId,
           loja_id: lojaSelecionada || null,
           numero_nota: notaParsed.numero_nota,
@@ -317,12 +319,9 @@ export default function EstoquePage() {
           valor_outros: notaParsed.valor_outros,
           xml_content: notaParsed.xml_content,
           status: "processada",
-        })
-        .select().single();
+        });
 
       if (errNota) { mostrarErro("Erro ao salvar nota: " + errNota.message); return; }
-
-      const notaId = notaSalva.id;
       const itens = notaParsed.itens || [];
       let produtosNovos = 0;
       let produtosAtualizados = 0;
@@ -386,8 +385,9 @@ export default function EstoquePage() {
           produtosAtualizados++;
         } else {
           // Criar novo produto
-          const { data: novoProd } = await supabase.from("produtos").insert({
-            id: crypto.randomUUID(),
+          const novoProdId = crypto.randomUUID();
+          const { error: errNovoProdNF } = await supabase.from("produtos").insert({
+            id: novoProdId,
             user_id: operadorId,
             loja_id: lojaSelecionada || null,
             nome: item.descricao,
@@ -401,13 +401,13 @@ export default function EstoquePage() {
             custo_medio: item.custo_unitario_calculado,
             ultimo_custo_compra: item.custo_unitario_calculado,
             margem_lucro: 0,
-          }).select().single();
+          });
 
-          if (novoProd) {
+          if (!errNovoProdNF) {
             await supabase.from("movimentacoes_estoque").insert({
               user_id: operadorId,
               loja_destino_id: lojaSelecionada || null,
-              produto_id: novoProd.id,
+              produto_id: novoProdId,
               quantidade: item.quantidade,
               tipo: "entrada",
               motivo: `NF ${notaParsed.numero_nota} - ${notaParsed.nome_emitente} (produto novo)`,
@@ -554,8 +554,9 @@ export default function EstoquePage() {
         mostrarSucesso(`Estoque atualizado! +${quantidade} unidades somadas ao produto existente.`);
       } else {
         // Criar novo produto
-        const { data: novoProd, error: errNovoProd } = await supabase.from("produtos").insert({
-          id: crypto.randomUUID(),
+        const novoProdId = crypto.randomUUID();
+        const { error: errNovoProd } = await supabase.from("produtos").insert({
+          id: novoProdId,
           user_id: operadorId,
           loja_id: lojaSelecionada || null,
           nome: nomeProduto,
@@ -569,7 +570,7 @@ export default function EstoquePage() {
           custo_medio: Number(precoCusto) || 0,
           ultimo_custo_compra: Number(precoCusto) || 0,
           margem_lucro: 0,
-        }).select().single();
+        });
 
         if (errNovoProd) {
           console.error("Erro ao criar produto (entrada manual):", errNovoProd);
@@ -577,18 +578,16 @@ export default function EstoquePage() {
           return;
         }
 
-        if (novoProd) {
-          await supabase.from("movimentacoes_estoque").insert({
-            user_id: operadorId,
-            loja_destino_id: lojaSelecionada || null,
-            produto_id: novoProd.id,
-            quantidade: quantidade,
-            tipo: "entrada",
-            motivo: `Entrada Manual${numeroNota ? ` - NF ${numeroNota}` : ""} (produto novo)`,
-            operador_nome: operadorNome,
-            nota_fiscal_id: notaId,
-          });
-        }
+        await supabase.from("movimentacoes_estoque").insert({
+          user_id: operadorId,
+          loja_destino_id: lojaSelecionada || null,
+          produto_id: novoProdId,
+          quantidade: quantidade,
+          tipo: "entrada",
+          motivo: `Entrada Manual${numeroNota ? ` - NF ${numeroNota}` : ""} (produto novo)`,
+          operador_nome: operadorNome,
+          nota_fiscal_id: notaId,
+        });
 
         mostrarSucesso(`Produto cadastrado e estoque criado com ${quantidade} unidade(s)!`);
       }

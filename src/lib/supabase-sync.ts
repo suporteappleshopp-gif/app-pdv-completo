@@ -205,7 +205,7 @@ export class SupabaseSync {
       }
 
       const vendasParaInserir = vendasNovas.map((v) => ({
-        // NÃO passar id - deixar Supabase gerar UUID
+        id: crypto.randomUUID(),
         numero: v.numero,
         operador_id: v.operadorId,
         operador_nome: v.operadorNome,
@@ -215,11 +215,12 @@ export class SupabaseSync {
         created_at: v.dataHora instanceof Date ? v.dataHora.toISOString() : new Date(v.dataHora).toISOString(),
       }));
 
-      // Inserir e retornar os IDs gerados pelo Supabase
-      const { data: vendasInseridas, error } = await supabase
+      // Inserir SEM .select() — usamos os IDs gerados no cliente
+      const { error } = await supabase
         .from("vendas")
-        .insert(vendasParaInserir)
-        .select('id, numero');
+        .insert(vendasParaInserir);
+
+      const vendasInseridas = vendasParaInserir.map(v => ({ id: v.id, numero: v.numero }));
 
       if (error) {
         console.error("Erro ao sincronizar vendas:", error.message || error.code || "Erro desconhecido");

@@ -1211,8 +1211,9 @@ export default function CaixaPage() {
 
       const { supabase } = await import("@/lib/supabase");
 
+      const vendaSupabaseId = crypto.randomUUID();
       const dadosVenda = {
-        id: crypto.randomUUID(),
+        id: vendaSupabaseId,
         numero: venda.numero,
         operador_id: venda.operadorId,
         operador_nome: venda.operadorNome,
@@ -1225,33 +1226,28 @@ export default function CaixaPage() {
 
       console.log("📤 Enviando para Supabase:", dadosVenda);
 
-      const { data: vendaInserida, error: errorVenda } = await supabase
+      // Inserir SEM .select() para evitar validação de schema cache desatualizado
+      const { error: errorVenda } = await supabase
         .from("vendas")
-        .insert(dadosVenda)
-        .select()
-        .single(); // Retornar a venda inserida com o ID gerado
+        .insert(dadosVenda);
 
       if (errorVenda) {
         console.error("❌ ERRO ao salvar venda no Supabase:");
         console.error("   Mensagem:", errorVenda.message);
         console.error("   Código:", errorVenda.code);
         console.error("   Detalhes:", errorVenda.details);
-        alert(`ERRO ao salvar venda:\n${errorVenda.message}\n\nVerifique o console (F12) para detalhes.`);
       } else {
-        console.log("✅ Venda salva no Supabase com SUCESSO!");
-        console.log("   Dados inseridos:", vendaInserida);
+        console.log("✅ Venda salva no Supabase com SUCESSO! ID:", vendaSupabaseId);
       }
 
       // 🔥 SALVAR ITENS DA VENDA NO SUPABASE
       console.log("☁️ Salvando itens da venda no Supabase...");
 
-      if (!vendaInserida || !vendaInserida.id) {
-        console.error("❌ Venda não foi inserida corretamente - não há ID para vincular itens");
-      } else {
+      if (!errorVenda) {
         const isValidUuid = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
         const itensParaInserir = carrinho.map((item) => ({
           id: crypto.randomUUID(),
-          venda_id: vendaInserida.id,
+          venda_id: vendaSupabaseId,
           produto_id: item.produtoId && isValidUuid(item.produtoId) ? item.produtoId : null,
           nome: item.nome,
           quantidade: item.quantidade,
@@ -1260,12 +1256,10 @@ export default function CaixaPage() {
         }));
 
         console.log(`   Inserindo ${itensParaInserir.length} itens...`);
-        console.log(`   Venda ID (Supabase): ${vendaInserida.id}`);
 
-        const { data: itensInseridos, error: errorItens } = await supabase
+        const { error: errorItens } = await supabase
           .from("itens_venda")
-          .insert(itensParaInserir)
-          .select();
+          .insert(itensParaInserir);
 
         if (errorItens) {
           console.error("❌ ERRO ao salvar itens da venda:");
@@ -1273,7 +1267,6 @@ export default function CaixaPage() {
           console.error("   Código:", errorItens.code);
         } else {
           console.log("✅ Itens da venda salvos no Supabase!");
-          console.log("   Total inserido:", itensInseridos?.length || 0);
         }
       }
 
