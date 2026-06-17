@@ -65,30 +65,52 @@ export interface Database {
       produtos: {
         Row: {
           id: string;
+          user_id: string | null;
           nome: string;
           codigo_barras: string;
           preco: number;
           estoque: number;
+          estoque_minimo: number | null;
+          categoria: string | null;
+          descricao: string | null;
+          venda_por_kg: boolean | null;
+          vendido_por_peso: boolean | null;
+          custo_unitario: number | null;
+          ultimo_custo_compra: number | null;
+          custo_medio: number | null;
+          margem_lucro: number | null;
+          preco_venda: number | null;
+          loja_id: string | null;
           created_at: string;
-          updated_at: string;
+          updated_at: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['produtos']['Row'], 'created_at' | 'updated_at'>;
-        Update: Partial<Database['public']['Tables']['produtos']['Insert']>;
+        Insert: Partial<Database['public']['Tables']['produtos']['Row']> & { nome: string; codigo_barras: string; preco: number };
+        Update: Partial<Database['public']['Tables']['produtos']['Row']>;
       };
       vendas: {
         Row: {
           id: string;
           numero: number;
-          operador_id: string;
+          operador_id: string | null;
           operador_nome: string;
+          itens: any[] | null;
           total: number;
+          data_hora: string | null;
           forma_pagamento: string | null;
-          status: string;
+          tipo_pagamento: string | null;
+          pagamentos: any[] | null;
+          status: string | null;
           motivo_cancelamento: string | null;
+          valor_recebido: number | null;
+          troco: number | null;
+          exclusoes: any[] | null;
+          devolucoes: any[] | null;
+          loja_id: string | null;
           created_at: string;
+          updated_at: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['vendas']['Row'], 'created_at'>;
-        Update: Partial<Database['public']['Tables']['vendas']['Insert']>;
+        Insert: Partial<Database['public']['Tables']['vendas']['Row']> & { numero: number; operador_nome: string; total: number };
+        Update: Partial<Database['public']['Tables']['vendas']['Row']>;
       };
       operadores: {
         Row: {
