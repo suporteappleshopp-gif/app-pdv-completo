@@ -478,7 +478,7 @@ export default function EstoquePage() {
           loja_id: lojaSelecionada || null,
           numero_nota: numeroNota || "MANUAL",
           serie: "0",
-          chave_acesso: "",
+          chave_acesso: null,
           cnpj_emitente: "",
           nome_emitente: "Entrada Manual",
           data_emissao: new Date().toISOString(),
