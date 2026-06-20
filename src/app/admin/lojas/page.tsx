@@ -85,14 +85,13 @@ export default function AnaliseLojasPage() {
           itens_venda (
             produto_id,
             nome,
-            codigo_barras,
             quantidade,
             preco_unitario,
             subtotal
           )
         `)
         .eq("operador_id", targetId)
-        .order("data_hora", { ascending: false });
+        .order("created_at", { ascending: false });
 
       if (error) {
         console.error("❌ Erro ao carregar vendas (Supabase):", {
