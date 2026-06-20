@@ -1218,7 +1218,6 @@ export default function CaixaPage() {
         operador_id: venda.operadorId,
         operador_nome: venda.operadorNome,
         total: venda.total,
-        tipo_pagamento: venda.tipoPagamento,
         forma_pagamento: venda.tipoPagamento,
         pagamentos: venda.pagamentos || null,
         valor_recebido: venda.valorRecebido || null,
