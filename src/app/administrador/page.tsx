@@ -321,31 +321,28 @@ export default function AdministradorPage() {
         throw new Error(data?.message || "Erro ao aprovar renovação");
       }
 
-      // ✅ ATUALIZAR operador: REMOVER SUSPENSÃO e AGUARDANDO_PAGAMENTO
+      // ✅ ATUALIZAR operador: REMOVER SUSPENSÃO
       await supabase
         .from("operadores")
         .update({
           ativo: true,
           suspenso: false,
-          aguardando_pagamento: false,
+          updated_at: new Date().toISOString(),
         })
         .eq("id", solicitacao.usuarioId);
 
       console.log("✅ Status do operador atualizado: ATIVO, NÃO SUSPENSO, NÃO AGUARDANDO");
 
       // Registrar ganho do admin
-      const ganhoId = `ganho_${solicitacao.id}_${Date.now()}`;
       await supabase
         .from("ganhos_admin")
         .insert({
-          id: ganhoId,
           tipo: "mensalidade-paga",
           usuario_id: solicitacao.usuarioId,
           usuario_nome: nomeUsuario,
           valor: solicitacao.valor,
-          forma_pagamento: solicitacao.formaPagamento,
-          dias_comprados: solicitacao.diasComprados,
-          descricao: `Pagamento aprovado: R$ ${solicitacao.valor.toFixed(2)} - ${solicitacao.diasComprados} dias via ${solicitacao.formaPagamento.toUpperCase()}`,
+          forma_pagamento: solicitacao.formaPagamento || "pix",
+          dias_assinatura: solicitacao.diasComprados,
           created_at: new Date().toISOString(),
         });
 
