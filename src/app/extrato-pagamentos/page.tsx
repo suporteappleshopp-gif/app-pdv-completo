@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, CreditCard, Clock, CheckCircle, XCircle, Calendar, DollarSign, ExternalLink } from "lucide-react";
+import { ArrowLeft, CreditCard, Clock, CheckCircle, XCircle, Calendar, DollarSign, ExternalLink, X } from "lucide-react";
 
 type SolicitacaoRenovacao = {
   id: string;
@@ -24,10 +24,11 @@ export default function ExtratoPagamentosPage() {
   const [operadorNome, setOperadorNome] = useState("");
   const [mostrarModal, setMostrarModal] = useState(false);
   const [formaPagamento, setFormaPagamento] = useState<"pix" | "cartao">("pix");
+  const [linkAtivo, setLinkAtivo] = useState<{ url: string; tipo: "pix" | "cartao"; dias: number; valor: number } | null>(null);
 
   const WHATSAPP_CONTATO = "5565981032239";
-  const LINK_PIX = "https://mpago.la/24Hxr1X"; // Link atualizado - R$ 59,90
-  const LINK_CARTAO = "https://mpago.li/12S6mJE"; // Link atualizado - R$ 149,70
+  const LINK_PIX = "https://mpago.la/24Hxr1X"; // R$ 59,90 - 60 dias
+  const LINK_CARTAO = "https://mpago.li/12S6mJE"; // R$ 149,70 - 180 dias
 
   useEffect(() => {
     const init = async () => {
@@ -240,28 +241,19 @@ export default function ExtratoPagamentosPage() {
       console.log(`   Dias: ${data.dias_solicitados}`);
       console.log(`   Valor: R$ ${data.valor}`);
 
-      // ✅ ABRIR LINK DE PAGAMENTO (garantir que não seja bloqueado)
+      // ✅ SETAR LINK ATIVO E ABRIR PAGAMENTO
       const link = formaPagamento === "pix" ? LINK_PIX : LINK_CARTAO;
-      console.log(`🔗 Abrindo link de pagamento: ${link}`);
+      const diasSol = formaPagamento === "pix" ? 60 : 180;
+      const valorSol = formaPagamento === "pix" ? 59.90 : 149.70;
 
-      // Tentar abrir de 2 formas para evitar bloqueio
-      const janelaAberta = window.open(link, "_blank", "noopener,noreferrer");
-
-      if (!janelaAberta) {
-        console.warn("⚠️ Popup bloqueado, tentando abrir na mesma aba...");
-        window.location.href = link;
-      }
+      setLinkAtivo({ url: link, tipo: formaPagamento, dias: diasSol, valor: valorSol });
+      window.open(link, "_blank", "noopener,noreferrer");
 
       // ✅ FECHAR MODAL E RECARREGAR
       setMostrarModal(false);
 
       // Recarregar solicitações imediatamente
       await carregarSolicitacoes(operadorId);
-
-      // ✅ MOSTRAR MENSAGEM DE SUCESSO
-      setTimeout(() => {
-        alert(`✅ Solicitação registrada!\n\n📋 Detalhes:\n• ${data.dias_solicitados} dias\n• R$ ${data.valor.toFixed(2)}\n• Status: PENDENTE\n\n💳 Complete o pagamento no Mercado Pago e aguarde a aprovação do administrador.\n\n✨ Sua solicitação já aparece no topo do extrato!`);
-      }, 500);
 
     } catch (err: any) {
       console.error("❌ Erro ao criar solicitação:", err);
@@ -363,6 +355,34 @@ export default function ExtratoPagamentosPage() {
             <CreditCard className="w-5 h-5" />
             <span>Solicitar Renovação</span>
           </button>
+
+          {/* Banner de link ativo - permanece visível até fechar */}
+          {linkAtivo && (
+            <div className="mt-4 bg-green-50 border-2 border-green-400 rounded-xl p-4">
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex items-center space-x-2">
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  <p className="text-green-800 font-bold">Solicitação Registrada!</p>
+                </div>
+                <button onClick={() => setLinkAtivo(null)} className="text-gray-400 hover:text-gray-600">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <p className="text-gray-700 text-sm mb-3">
+                <strong>{linkAtivo.dias} dias</strong> por <strong>R$ {linkAtivo.valor.toFixed(2)}</strong> registrado como <span className="text-yellow-600 font-bold">PENDENTE</span>. Clique para pagar e aguarde aprovação.
+              </p>
+              <a
+                href={linkAtivo.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`w-full flex items-center justify-center space-x-2 py-3 rounded-lg font-bold text-white transition-all ${linkAtivo.tipo === "pix" ? "bg-green-500 hover:bg-green-600" : "bg-blue-500 hover:bg-blue-600"}`}
+              >
+                <ExternalLink className="w-4 h-4" />
+                <span>{linkAtivo.tipo === "pix" ? "Pagar com PIX" : "Pagar com Cartão"} — R$ {linkAtivo.valor.toFixed(2)}</span>
+              </a>
+              <p className="text-gray-400 text-xs text-center mt-1">Feche com (X) quando terminar</p>
+            </div>
+          )}
         </div>
 
         {/* Total de Dias Comprados */}

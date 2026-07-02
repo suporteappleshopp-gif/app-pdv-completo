@@ -47,6 +47,13 @@ export default function FinanceiroPage() {
   const [novaMeta, setNovaMeta] = useState("");
   const [novoGanho, setNovoGanho] = useState("");
 
+  // Links diretos de pagamento
+  const LINK_PIX_RENOVACAO = "https://mpago.la/24Hxr1X"; // R$ 59,90 - 60 dias
+  const LINK_CARTAO_RENOVACAO = "https://mpago.li/12S6mJE"; // R$ 149,70 - 180 dias
+
+  // Link de pagamento ativo (fica visível até o usuário fechar)
+  const [linkPagamentoAtivo, setLinkPagamentoAtivo] = useState<{ url: string; tipo: "pix" | "cartao"; dias: number; valor: number } | null>(null);
+
   // Modal de pagamento
   const [showModalPagamento, setShowModalPagamento] = useState(false);
   const [pagamentoSelecionado, setPagamentoSelecionado] = useState<Pagamento | null>(null);
@@ -1392,77 +1399,25 @@ export default function FinanceiroPage() {
                 <button
                   onClick={async () => {
                     try {
-                      // Buscar operador atual
-                      console.log("🔄 Buscando operador atual...");
                       const { AuthSupabase } = await import("@/lib/auth-supabase");
                       const operador = await AuthSupabase.getCurrentOperador();
+                      if (!operador) { alert("Usuário não encontrado. Faça login novamente."); return; }
 
-                      if (!operador) {
-                        alert("Erro: usuário não encontrado. Por favor, faça login novamente.");
-                        return;
-                      }
-
-                      console.log("✅ Operador encontrado:", operador.id, operador.nome);
-                      console.log("🔄 Criando preferência de pagamento...");
-
-                      // Criar preferência de pagamento usando a API
-                      const response = await fetch("/api/create-payment-preference", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          usuario_id: operador.id,
-                          forma_pagamento: "pix",
-                        }),
+                      const { supabase } = await import("@/lib/supabase");
+                      await supabase.from("solicitacoes_renovacao").insert({
+                        operador_id: operador.id,
+                        forma_pagamento: "pix",
+                        dias_solicitados: 60,
+                        valor: 59.90,
+                        status: "pendente",
+                        data_solicitacao: new Date().toISOString(),
                       });
 
-                      console.log("📡 Resposta recebida:", response.status, response.statusText);
-                      console.log("📋 Headers:", Object.fromEntries(response.headers.entries()));
-
-                      // Verificar se a resposta é JSON válido
-                      let data: any = {};
-                      const responseText = await response.text();
-
-                      console.log("📄 Tamanho da resposta:", responseText.length, "bytes");
-                      console.log("📄 Resposta completa:", responseText);
-
-                      if (!responseText || responseText.trim() === '') {
-                        alert("❌ Servidor retornou resposta vazia.\n\nStatus HTTP: " + response.status + "\n\nO servidor pode não estar processando a requisição corretamente.\n\nAbra o Console (F12) para mais detalhes.");
-                        return;
-                      }
-
-                      try {
-                        data = JSON.parse(responseText);
-                        console.log("📦 JSON parseado com sucesso:", data);
-                      } catch (parseError: any) {
-                        console.error("❌ Erro ao parsear JSON:", parseError);
-                        console.error("📄 Texto que falhou ao parsear:", responseText);
-                        alert("❌ Erro: Resposta do servidor não é JSON válido.\n\nO servidor retornou: " + responseText.substring(0, 200) + "\n\nAbra o Console (F12) para ver a resposta completa.");
-                        return;
-                      }
-
-                      if (!response.ok || !data.success) {
-                        const errorMessage = data.error || "Erro ao gerar link de pagamento";
-                        const errorDetails = data.details ? `\n\nDetalhes técnicos: ${data.details}` : "";
-                        alert(`❌ ${errorMessage}${errorDetails}\n\nStatus HTTP: ${response.status}\n\nTente novamente ou contate o suporte.`);
-                        console.error("❌ Erro na API:", data);
-                        return;
-                      }
-
-                      console.log("✅ Link gerado com sucesso:", data.init_point);
-
-                      // Abrir link de pagamento ANTES de atualizar os dados
-                      window.open(data.init_point, "_blank");
-
-                      // Aguardar um pouco para garantir que o link abriu
-                      await new Promise(resolve => setTimeout(resolve, 500));
-
-                      // Atualizar lista para mostrar solicitação pendente
+                      setLinkPagamentoAtivo({ url: LINK_PIX_RENOVACAO, tipo: "pix", dias: 60, valor: 59.90 });
+                      window.open(LINK_PIX_RENOVACAO, "_blank", "noopener,noreferrer");
                       await carregarDados();
-
-                      alert(`✅ Link de pagamento gerado!\n\n⏳ Sua solicitação foi criada e aparecerá como PENDENTE no seu extrato.\n\n💳 Após efetuar o pagamento, aguarde a aprovação do administrador para que os dias sejam creditados.`);
                     } catch (error: any) {
-                      console.error("❌ Erro ao criar pagamento:", error);
-                      alert(`❌ Erro ao gerar link de pagamento.\n\n${error.message || "Erro desconhecido"}\n\nTente novamente ou contate o suporte.`);
+                      alert(`Erro ao registrar solicitação: ${error.message || "Erro desconhecido"}`);
                     }
                   }}
                   className="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
@@ -1514,47 +1469,26 @@ export default function FinanceiroPage() {
 
                 <button
                   onClick={async () => {
-                    // Buscar operador atual
-                    const { AuthSupabase } = await import("@/lib/auth-supabase");
-                    const operador = await AuthSupabase.getCurrentOperador();
-
-                    if (!operador) {
-                      alert("Erro: usuário não encontrado");
-                      return;
-                    }
-
-                    // Criar preferência de pagamento usando a API
                     try {
-                      const response = await fetch("/api/create-payment-preference", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          usuario_id: operador.id,
-                          forma_pagamento: "cartao",
-                        }),
+                      const { AuthSupabase } = await import("@/lib/auth-supabase");
+                      const operador = await AuthSupabase.getCurrentOperador();
+                      if (!operador) { alert("Usuário não encontrado. Faça login novamente."); return; }
+
+                      const { supabase } = await import("@/lib/supabase");
+                      await supabase.from("solicitacoes_renovacao").insert({
+                        operador_id: operador.id,
+                        forma_pagamento: "cartao",
+                        dias_solicitados: 180,
+                        valor: 149.70,
+                        status: "pendente",
+                        data_solicitacao: new Date().toISOString(),
                       });
 
-                      const data = await response.json();
-
-                      if (!response.ok || !data.success) {
-                        alert("Erro ao gerar link de pagamento. Tente novamente.");
-                        console.error("Erro na API:", data);
-                        return;
-                      }
-
-                      // Abrir link de pagamento ANTES de atualizar os dados
-                      window.open(data.init_point, "_blank");
-
-                      // Aguardar um pouco para garantir que o link abriu
-                      await new Promise(resolve => setTimeout(resolve, 500));
-
-                      // Atualizar lista para mostrar solicitação pendente
+                      setLinkPagamentoAtivo({ url: LINK_CARTAO_RENOVACAO, tipo: "cartao", dias: 180, valor: 149.70 });
+                      window.open(LINK_CARTAO_RENOVACAO, "_blank", "noopener,noreferrer");
                       await carregarDados();
-
-                      alert(`✅ Link de pagamento gerado!\n\n⏳ Sua solicitação foi criada e aparecerá como PENDENTE no seu extrato.\n\n💳 Após efetuar o pagamento, aguarde a aprovação do administrador para que os dias sejam creditados.`);
-                    } catch (error) {
-                      console.error("Erro ao criar pagamento:", error);
-                      alert("Erro ao gerar link de pagamento. Tente novamente.");
+                    } catch (error: any) {
+                      alert(`Erro ao registrar solicitação: ${error.message || "Erro desconhecido"}`);
                     }
                   }}
                   className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-4 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
@@ -1570,6 +1504,46 @@ export default function FinanceiroPage() {
                 )}
               </div>
             </div>
+
+            {/* Banner de link ativo - fica visível até o usuário fechar */}
+            {linkPagamentoAtivo && (
+              <div className="mt-6 bg-green-500/20 border-2 border-green-400 rounded-xl p-5 animate-pulse-once">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="w-6 h-6 text-green-300" />
+                    <p className="text-green-100 font-bold text-lg">Solicitação Registrada!</p>
+                  </div>
+                  <button
+                    onClick={() => setLinkPagamentoAtivo(null)}
+                    className="text-white/60 hover:text-white transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <p className="text-white/90 text-sm mb-4">
+                  Sua solicitação de <strong>{linkPagamentoAtivo.dias} dias</strong> (R$ {linkPagamentoAtivo.valor.toFixed(2)}) foi registrada como <span className="text-yellow-300 font-bold">PENDENTE</span>. Clique abaixo para pagar e aguarde a aprovação do administrador.
+                </p>
+                <a
+                  href={linkPagamentoAtivo.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`w-full flex items-center justify-center space-x-2 py-4 rounded-xl font-bold text-lg transition-all shadow-lg ${linkPagamentoAtivo.tipo === "pix" ? "bg-green-500 hover:bg-green-400" : "bg-blue-500 hover:bg-blue-400"} text-white`}
+                >
+                  {linkPagamentoAtivo.tipo === "pix" ? (
+                    <>
+                      <DollarSign className="w-6 h-6" />
+                      <span>Pagar com PIX — R$ {linkPagamentoAtivo.valor.toFixed(2)}</span>
+                    </>
+                  ) : (
+                    <>
+                      <CreditCard className="w-6 h-6" />
+                      <span>Pagar com Cartão — R$ {linkPagamentoAtivo.valor.toFixed(2)}</span>
+                    </>
+                  )}
+                </a>
+                <p className="text-white/60 text-xs text-center mt-2">Este botão ficará visível até você fechar (X)</p>
+              </div>
+            )}
 
             <div className="mt-6 bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
               <div className="flex items-start space-x-3">
