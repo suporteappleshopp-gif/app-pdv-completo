@@ -52,12 +52,25 @@ export default function AdministradorPage() {
     carregarUsuarios();
     carregarSolicitacoesPendentes();
 
-    // Atualizar solicitações em tempo real a cada 10 segundos
-    const interval = setInterval(() => {
-      carregarSolicitacoesPendentes();
-    }, 10000);
+    let channelSolicitacoes: any = null;
 
-    return () => clearInterval(interval);
+    const setupRealtime = async () => {
+      const { supabase } = await import("@/lib/supabase");
+      channelSolicitacoes = supabase
+        .channel("solicitacoes_admin_realtime")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "solicitacoes_renovacao" },
+          () => { carregarSolicitacoesPendentes(); }
+        )
+        .subscribe();
+    };
+
+    setupRealtime();
+
+    return () => {
+      if (channelSolicitacoes) channelSolicitacoes.unsubscribe();
+    };
   }, [router]);
 
   const carregarSolicitacoesPendentes = async () => {

@@ -100,7 +100,7 @@ export default function HistoricoPage() {
               table: 'vendas',
               filter: `operador_id=eq.${operador.id}`,
             },
-            () => { carregarVendas(); }
+            () => { carregarVendas(true); }
           )
           .subscribe((status) => {
             if (status === 'SUBSCRIBED') console.log('✅ Realtime CONECTADO para histórico');
@@ -112,7 +112,7 @@ export default function HistoricoPage() {
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'itens_venda' },
-            () => { carregarVendas(); }
+            () => { carregarVendas(true); }
           )
           .subscribe();
       }
@@ -120,20 +120,15 @@ export default function HistoricoPage() {
 
     init();
 
-    const intervaloFallback = setInterval(() => {
-      carregarVendas();
-    }, 15000);
-
     return () => {
-      clearInterval(intervaloFallback);
       if (channel) channel.unsubscribe();
       if (channelItens) channelItens.unsubscribe();
     };
   }, []);
 
-  const carregarVendas = async () => {
+  const carregarVendas = async (silencioso = false) => {
     try {
-      setLoading(true);
+      if (!silencioso) setLoading(true);
 
       const { AuthSupabase } = await import("@/lib/auth-supabase");
       const operador = await AuthSupabase.getCurrentOperador();
@@ -428,7 +423,7 @@ export default function HistoricoPage() {
             </div>
 
             <button
-              onClick={carregarVendas}
+              onClick={() => carregarVendas()}
               className="flex items-center space-x-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all"
             >
               <RefreshCw className="w-5 h-5" />

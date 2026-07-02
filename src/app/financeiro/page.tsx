@@ -183,14 +183,6 @@ export default function FinanceiroPage() {
 
     setupRealtimeGanhos();
 
-    // ✅ FALLBACK: Atualizar a cada 10 segundos caso realtime não funcione
-    intervaloFallback = setInterval(() => {
-      if (operadorId) {
-        console.log("🔄 Atualizando ganhos (polling a cada 10s)...");
-        calcularGanhos();
-      }
-    }, 10000);
-
     // Cleanup
     return () => {
       if (intervaloFallback) {
