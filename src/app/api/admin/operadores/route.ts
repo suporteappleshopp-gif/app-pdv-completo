@@ -183,6 +183,35 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    // Buscar auth_user_id do operador para atualizar no Auth
+    const { data: opAtual } = await supabaseAdmin
+      .from("operadores")
+      .select("auth_user_id, email")
+      .eq("id", id)
+      .single();
+
+    // Se senha ou email foram enviados, atualizar no Supabase Auth primeiro
+    if (opAtual?.auth_user_id && (updates.senha || updates.email)) {
+      const authUpdates: Record<string, string> = {};
+      if (updates.senha) authUpdates.password = updates.senha;
+      if (updates.email) authUpdates.email = updates.email;
+
+      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
+        opAtual.auth_user_id,
+        authUpdates
+      );
+
+      if (authError) {
+        console.error("❌ Erro ao atualizar Auth:", authError);
+        return NextResponse.json(
+          { success: false, error: "Erro ao atualizar credenciais: " + authError.message },
+          { status: 500 }
+        );
+      }
+
+      console.log("✅ Auth atualizado para operador:", id);
+    }
+
     // Mapear campos do frontend para o banco
     const dbUpdates: any = {};
     if (updates.ativo !== undefined) dbUpdates.ativo = updates.ativo;
@@ -194,6 +223,9 @@ export async function PATCH(request: NextRequest) {
     if (updates.dataProximoVencimento !== undefined) dbUpdates.data_proximo_vencimento = updates.dataProximoVencimento;
     if (updates.dataPagamento !== undefined) dbUpdates.data_pagamento = updates.dataPagamento;
     if (updates.nome !== undefined) dbUpdates.nome = updates.nome;
+    // Atualizar email na tabela e limpar senha em texto plano ao trocar credenciais
+    if (updates.email !== undefined) dbUpdates.email = updates.email;
+    if (updates.senha !== undefined) dbUpdates.senha = null; // Apagar senha texto plano ao usar Auth
 
     const { data, error } = await supabaseAdmin
       .from("operadores")

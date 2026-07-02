@@ -157,30 +157,34 @@ export class AdminSupabase {
     try {
       console.log("🔄 ADMIN atualizando operador via API:", operador.id);
 
+      const payload: Record<string, unknown> = {
+        id: operador.id,
+        nome: operador.nome,
+        email: operador.email,
+        ativo: operador.ativo,
+        suspenso: operador.suspenso,
+        aguardandoPagamento: operador.aguardandoPagamento,
+        formaPagamento: operador.formaPagamento,
+        valorMensal: operador.valorMensal,
+        diasAssinatura: operador.diasAssinatura,
+        dataProximoVencimento: operador.dataProximoVencimento
+          ? (operador.dataProximoVencimento instanceof Date
+            ? operador.dataProximoVencimento.toISOString()
+            : operador.dataProximoVencimento)
+          : null,
+        dataPagamento: operador.dataPagamento
+          ? (operador.dataPagamento instanceof Date
+            ? operador.dataPagamento.toISOString()
+            : operador.dataPagamento)
+          : null,
+      };
+      // Enviar senha apenas se foi informada (para atualizar o Auth)
+      if (operador.senha) payload.senha = operador.senha;
+
       const response = await fetch("/api/admin/operadores", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: operador.id,
-          nome: operador.nome,
-          email: operador.email,
-          ativo: operador.ativo,
-          suspenso: operador.suspenso,
-          aguardandoPagamento: operador.aguardandoPagamento,
-          formaPagamento: operador.formaPagamento,
-          valorMensal: operador.valorMensal,
-          diasAssinatura: operador.diasAssinatura,
-          dataProximoVencimento: operador.dataProximoVencimento
-            ? (operador.dataProximoVencimento instanceof Date
-              ? operador.dataProximoVencimento.toISOString()
-              : operador.dataProximoVencimento)
-            : null,
-          dataPagamento: operador.dataPagamento
-            ? (operador.dataPagamento instanceof Date
-              ? operador.dataPagamento.toISOString()
-              : operador.dataPagamento)
-            : null,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const result = await response.json();
