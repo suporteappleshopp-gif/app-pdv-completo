@@ -305,8 +305,8 @@ export default function HistoricoPage() {
 
       // 2. Registrar na tabela avarias (para controle de estoque se necessário)
       for (const itemSel of itensSel) {
-        // Tenta inserir na tabela de avarias, ignorando erro se falhar
         await supabase.from("avarias").insert({
+          user_id: operador.id,
           produto_nome: itemSel.item.nome,
           codigo_barras: itemSel.item.codigoBarras || null,
           quantidade: itemSel.quantidade,
