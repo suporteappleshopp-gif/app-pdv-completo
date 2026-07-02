@@ -252,15 +252,13 @@ export default function SolicitacoesRenovacao() {
 
       console.log("📅 Nova data de vencimento:", novaDataVencimento);
 
-      // 1. ATUALIZAR TODOS OS PAGAMENTOS PENDENTES DO USUÁRIO
-      console.log("🔍 Buscando pagamentos pendentes para usuario_id:", solicitacaoSelecionada.operador_id);
+      // 1. ATUALIZAR PAGAMENTOS PENDENTES DO USUÁRIO (não-bloqueante)
+      console.log("🔍 Atualizando pagamentos pendentes para operador_id:", solicitacaoSelecionada.operador_id);
 
-      // Primeiro, atualizar TODOS os pagamentos pendentes para "pago"
       const { data: pagamentosAtualizados, error: updateAllError } = await supabase
         .from("historico_pagamentos")
         .update({
           status: "aprovado",
-          dias_comprados: diasAprovacao,
           aprovado_por: adminOperador.id,
           data_aprovacao: new Date().toISOString(),
         })
@@ -269,21 +267,12 @@ export default function SolicitacoesRenovacao() {
         .select();
 
       if (updateAllError) {
-        console.error("❌ Erro ao atualizar pagamentos pendentes:", updateAllError);
-        alert(`Erro ao atualizar pagamentos pendentes: ${updateAllError.message}`);
-        return;
-      }
-
-      if (pagamentosAtualizados && pagamentosAtualizados.length > 0) {
-        console.log(`✅ ${pagamentosAtualizados.length} pagamento(s) pendente(s) atualizado(s) para 'pago'`);
-        pagamentosAtualizados.forEach(pag => {
-          console.log(`   - ${pag.mes_referencia} (ID: ${pag.id})`);
-        });
+        // Não bloquear — pode ser que não exista registro pendente (fluxo novo usa solicitacoes_renovacao)
+        console.warn("⚠️ Aviso ao atualizar historico_pagamentos pendentes:", updateAllError.message);
+      } else if (pagamentosAtualizados && pagamentosAtualizados.length > 0) {
+        console.log(`✅ ${pagamentosAtualizados.length} pagamento(s) pendente(s) atualizado(s)`);
       } else {
-        // CRIAR novo registro no histórico (caso não tenha pendente)
-        console.log("➕ Nenhum pagamento pendente encontrado. Criando novo registro...");
-
-        console.log("➕ Nenhum pagamento pendente encontrado no histórico.");
+        console.log("ℹ️ Nenhum pagamento pendente em historico_pagamentos (normal para fluxo novo).");
       }
 
       // 🔥 MÉTODO DIRETO: Aprovar renovação sem função SQL (mais confiável)
@@ -327,11 +316,9 @@ export default function SolicitacoesRenovacao() {
         .from("operadores")
         .update({
           data_proximo_vencimento: novaDataVencimentoCalc.toISOString(),
-          dias_assinatura: diasAtuais + diasAprovacao, // ✅ SOMA os dias
+          dias_assinatura: diasAtuais + diasAprovacao,
           ativo: true,
           suspenso: false,
-          aguardando_pagamento: false,
-          data_pagamento: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq("id", solicitacaoSelecionada.operador_id);
