@@ -117,6 +117,20 @@ export default function CaixaPage() {
   const [novoTipoPagamento, setNovoTipoPagamento] = useState<TipoPagamento>("dinheiro");
   const [novoValorPagamento, setNovoValorPagamento] = useState<string>("");
 
+  // CPF na nota
+  const [mostrarModalCpf, setMostrarModalCpf] = useState(false);
+  const [cpfInput, setCpfInput] = useState("");
+  const [clienteCpf, setClienteCpf] = useState<string | null>(null);
+  const [clienteNome, setClienteNome] = useState<string | null>(null);
+  const [clienteEncontrado, setClienteEncontrado] = useState<boolean | null>(null);
+  const [mostrarCadastroCompleto, setMostrarCadastroCompleto] = useState(false);
+  const [clienteForm, setClienteForm] = useState({
+    nome: "", email: "", telefone: "", dataNascimento: "",
+    cep: "", endereco: "", numero: "", complemento: "", bairro: "", cidade: "", estado: ""
+  });
+  const [salvandoCliente, setSalvandoCliente] = useState(false);
+  const cpfInputRef = useRef<HTMLInputElement>(null);
+
   // Lembrete de vencimento
   const [mostrarLembrete, setMostrarLembrete] = useState(false);
   const [diasAteVencimento, setDiasAteVencimento] = useState(0);
@@ -1155,7 +1169,97 @@ export default function CaixaPage() {
     setPagamentosMultiplos([]);
     setNovoTipoPagamento("dinheiro");
     setNovoValorPagamento("");
+    setClienteCpf(null);
+    setClienteNome(null);
     setMostrarModalFinalizacao(true);
+  };
+
+  const formatarCpf = (valor: string) => {
+    const numeros = valor.replace(/\D/g, "").slice(0, 11);
+    if (numeros.length <= 3) return numeros;
+    if (numeros.length <= 6) return `${numeros.slice(0, 3)}.${numeros.slice(3)}`;
+    if (numeros.length <= 9) return `${numeros.slice(0, 3)}.${numeros.slice(3, 6)}.${numeros.slice(6)}`;
+    return `${numeros.slice(0, 3)}.${numeros.slice(3, 6)}.${numeros.slice(6, 9)}-${numeros.slice(9)}`;
+  };
+
+  const validarCpf = (cpf: string) => {
+    const numeros = cpf.replace(/\D/g, "");
+    if (numeros.length !== 11) return false;
+    if (/^(\d)\1+$/.test(numeros)) return false;
+    let soma = 0;
+    for (let i = 0; i < 9; i++) soma += parseInt(numeros[i]) * (10 - i);
+    let resto = (soma * 10) % 11;
+    if (resto === 10 || resto === 11) resto = 0;
+    if (resto !== parseInt(numeros[9])) return false;
+    soma = 0;
+    for (let i = 0; i < 10; i++) soma += parseInt(numeros[i]) * (11 - i);
+    resto = (soma * 10) % 11;
+    if (resto === 10 || resto === 11) resto = 0;
+    return resto === parseInt(numeros[10]);
+  };
+
+  const buscarClientePorCpf = async (cpf: string) => {
+    const { supabase } = await import("@/lib/supabase");
+    const cpfNumeros = cpf.replace(/\D/g, "");
+    const { data } = await supabase
+      .from("clientes")
+      .select("*")
+      .eq("user_id", operadorId)
+      .eq("cpf", cpfNumeros)
+      .maybeSingle();
+    return data;
+  };
+
+  const handleCpfEnter = async () => {
+    const cpfNumeros = cpfInput.replace(/\D/g, "");
+    if (cpfNumeros.length !== 11) return;
+    if (!validarCpf(cpfInput)) {
+      alert("CPF inválido. Verifique e tente novamente.");
+      return;
+    }
+    const cliente = await buscarClientePorCpf(cpfInput);
+    if (cliente) {
+      setClienteCpf(cpfNumeros);
+      setClienteNome(cliente.nome || null);
+      setClienteEncontrado(true);
+      setMostrarModalCpf(false);
+      setMostrarModalFinalizacao(true);
+    } else {
+      setClienteEncontrado(false);
+      setMostrarCadastroCompleto(false);
+      setClienteForm({ nome: "", email: "", telefone: "", dataNascimento: "", cep: "", endereco: "", numero: "", complemento: "", bairro: "", cidade: "", estado: "" });
+    }
+  };
+
+  const salvarClienteEContinuar = async () => {
+    const cpfNumeros = cpfInput.replace(/\D/g, "");
+    setSalvandoCliente(true);
+    try {
+      const { supabase } = await import("@/lib/supabase");
+      await supabase.from("clientes").upsert({
+        user_id: operadorId,
+        cpf: cpfNumeros,
+        nome: clienteForm.nome || null,
+        email: clienteForm.email || null,
+        telefone: clienteForm.telefone || null,
+        data_nascimento: clienteForm.dataNascimento || null,
+        cep: clienteForm.cep || null,
+        endereco: clienteForm.endereco || null,
+        numero: clienteForm.numero || null,
+        complemento: clienteForm.complemento || null,
+        bairro: clienteForm.bairro || null,
+        cidade: clienteForm.cidade || null,
+        estado: clienteForm.estado || null,
+      }, { onConflict: "user_id,cpf" });
+      setClienteCpf(cpfNumeros);
+      setClienteNome(clienteForm.nome || null);
+      setMostrarModalCpf(false);
+      setMostrarModalFinalizacao(true);
+    } catch (e) {
+      console.error("Erro ao salvar cliente:", e);
+    } finally {
+      setSalvandoCliente(false);
+    }
   };
 
   const finalizarVenda = async () => {
@@ -1197,6 +1301,8 @@ export default function CaixaPage() {
         troco: !modoMultiplos && tipoPagamento === "dinheiro" && valorRecebido && parseFloat(valorRecebido) > total
           ? parseFloat(valorRecebido) - total
           : undefined,
+        clienteCpf: clienteCpf || undefined,
+        clienteNome: clienteNome || undefined,
       };
 
       console.log("💾 Salvando venda no IndexedDB...");
@@ -1224,6 +1330,8 @@ export default function CaixaPage() {
         troco: venda.troco || null,
         status: venda.status,
         created_at: venda.dataHora.toISOString(),
+        cliente_cpf: venda.clienteCpf || null,
+        cliente_nome: venda.clienteNome || null,
       };
 
       console.log("📤 Enviando para Supabase:", dadosVenda);
@@ -1986,6 +2094,159 @@ export default function CaixaPage() {
         </div>
       )}
 
+      {/* Modal de CPF na Nota */}
+      {mostrarModalCpf && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6">
+            <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center space-x-2">
+              <User className="w-6 h-6 text-blue-600" />
+              <span>CPF na Nota</span>
+            </h3>
+
+            {/* Campo de CPF com autofoco e Enter para buscar */}
+            {!clienteEncontrado || clienteEncontrado === true ? (
+              <div className="mb-4">
+                <label className="block text-gray-700 font-semibold mb-2">Digite o CPF do cliente</label>
+                <input
+                  ref={cpfInputRef}
+                  type="text"
+                  value={cpfInput}
+                  onChange={(e) => setCpfInput(formatarCpf(e.target.value))}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleCpfEnter(); }}
+                  placeholder="000.000.000-00"
+                  maxLength={14}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xl tracking-widest font-mono"
+                  autoComplete="off"
+                />
+                <p className="text-xs text-gray-500 mt-1">Pressione <strong>Enter</strong> para continuar</p>
+              </div>
+            ) : null}
+
+            {/* Cliente não encontrado: perguntar se quer cadastrar */}
+            {clienteEncontrado === false && !mostrarCadastroCompleto && (
+              <div className="mb-4">
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                  <p className="text-yellow-800 font-semibold">CPF não cadastrado</p>
+                  <p className="text-yellow-700 text-sm mt-1">{cpfInput}</p>
+                </div>
+                <div className="space-y-2">
+                  <button
+                    onClick={salvarClienteEContinuar}
+                    className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all"
+                  >
+                    Usar apenas o CPF e continuar
+                  </button>
+                  <button
+                    onClick={() => setMostrarCadastroCompleto(true)}
+                    className="w-full py-3 bg-white border-2 border-blue-300 hover:bg-blue-50 text-blue-700 rounded-lg font-semibold transition-all"
+                  >
+                    Cadastrar dados completos do cliente
+                  </button>
+                  <button
+                    onClick={() => setCpfInput("")}
+                    className="w-full py-2 text-gray-500 hover:text-gray-700 text-sm underline"
+                  >
+                    Digitar outro CPF
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Cadastro completo */}
+            {mostrarCadastroCompleto && (
+              <div className="mb-4 space-y-3">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 mb-2">
+                  <p className="text-xs text-blue-500">CPF</p>
+                  <p className="font-bold text-blue-800">{cpfInput}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nome completo <span className="text-gray-400">(opcional)</span></label>
+                  <input type="text" value={clienteForm.nome} onChange={(e) => setClienteForm(f => ({ ...f, nome: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Nome do cliente" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Telefone <span className="text-gray-400">(opcional)</span></label>
+                    <input type="text" value={clienteForm.telefone} onChange={(e) => setClienteForm(f => ({ ...f, telefone: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="(00) 00000-0000" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Data de nasc. <span className="text-gray-400">(opcional)</span></label>
+                    <input type="date" value={clienteForm.dataNascimento} onChange={(e) => setClienteForm(f => ({ ...f, dataNascimento: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">E-mail <span className="text-gray-400">(opcional)</span></label>
+                  <input type="email" value={clienteForm.email} onChange={(e) => setClienteForm(f => ({ ...f, email: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="email@exemplo.com" />
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">CEP <span className="text-gray-400">(opc.)</span></label>
+                    <input type="text" value={clienteForm.cep} onChange={(e) => setClienteForm(f => ({ ...f, cep: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="00000-000" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Endereço <span className="text-gray-400">(opcional)</span></label>
+                    <input type="text" value={clienteForm.endereco} onChange={(e) => setClienteForm(f => ({ ...f, endereco: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Rua, Av..." />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Número</label>
+                    <input type="text" value={clienteForm.numero} onChange={(e) => setClienteForm(f => ({ ...f, numero: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Complemento</label>
+                    <input type="text" value={clienteForm.complemento} onChange={(e) => setClienteForm(f => ({ ...f, complemento: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="Apto, Bloco..." />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Bairro</label>
+                    <input type="text" value={clienteForm.bairro} onChange={(e) => setClienteForm(f => ({ ...f, bairro: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Cidade</label>
+                    <input type="text" value={clienteForm.cidade} onChange={(e) => setClienteForm(f => ({ ...f, cidade: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+                    <input type="text" value={clienteForm.estado} onChange={(e) => setClienteForm(f => ({ ...f, estado: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400" placeholder="SP" maxLength={2} />
+                  </div>
+                </div>
+                <button
+                  onClick={salvarClienteEContinuar}
+                  disabled={salvandoCliente}
+                  className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-semibold transition-all flex items-center justify-center space-x-2"
+                >
+                  <CheckCircle className="w-5 h-5" />
+                  <span>{salvandoCliente ? "Salvando..." : "Salvar e Continuar"}</span>
+                </button>
+              </div>
+            )}
+
+            {/* Botão de voltar sem CPF */}
+            <button
+              onClick={() => {
+                setMostrarModalCpf(false);
+                setMostrarModalFinalizacao(true);
+              }}
+              className="w-full py-2 mt-2 text-gray-500 hover:text-gray-700 text-sm underline"
+            >
+              Continuar sem CPF na nota
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Modal de Finalização com Tipo de Pagamento */}
       {mostrarModalFinalizacao && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -1998,6 +2259,44 @@ export default function CaixaPage() {
             <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
               <p className="text-sm text-gray-600 mb-1">Total da Venda:</p>
               <p className="text-3xl font-bold text-green-600">R$ {total.toFixed(2)}</p>
+            </div>
+
+            {/* Botão CPF na Nota */}
+            <div className="mb-4">
+              {clienteCpf ? (
+                <div className="flex items-center justify-between bg-blue-50 border-2 border-blue-400 rounded-lg p-3">
+                  <div className="flex items-center space-x-2">
+                    <User className="w-5 h-5 text-blue-600" />
+                    <div>
+                      <p className="text-xs text-blue-500 font-medium">CPF na nota</p>
+                      <p className="font-bold text-blue-800 text-sm">{clienteCpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}</p>
+                      {clienteNome && <p className="text-xs text-blue-600">{clienteNome}</p>}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => { setClienteCpf(null); setClienteNome(null); }}
+                    className="text-blue-400 hover:text-blue-600 p-1"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    setCpfInput("");
+                    setClienteEncontrado(null);
+                    setMostrarCadastroCompleto(false);
+                    setClienteForm({ nome: "", email: "", telefone: "", dataNascimento: "", cep: "", endereco: "", numero: "", complemento: "", bairro: "", cidade: "", estado: "" });
+                    setMostrarModalFinalizacao(false);
+                    setMostrarModalCpf(true);
+                    setTimeout(() => cpfInputRef.current?.focus(), 150);
+                  }}
+                  className="w-full p-3 rounded-lg border-2 border-blue-300 hover:bg-blue-50 transition-all flex items-center space-x-3"
+                >
+                  <User className="w-5 h-5 text-blue-600" />
+                  <span className="font-semibold text-blue-700">CPF na Nota (opcional)</span>
+                </button>
+              )}
             </div>
 
             {/* Modo normal: selecionar forma única */}
@@ -2233,6 +2532,12 @@ export default function CaixaPage() {
                     <span className="font-bold text-green-700">
                       R$ {(parseFloat(valorRecebido.replace(",", ".")) - total).toFixed(2).replace(".", ",")}
                     </span>
+                  </div>
+                )}
+                {clienteCpf && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500 text-sm font-medium">CPF na nota</span>
+                    <span className="font-semibold text-blue-700 text-sm">{clienteCpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}</span>
                   </div>
                 )}
                 <div className="flex items-center justify-between border-t pt-2 mt-2">

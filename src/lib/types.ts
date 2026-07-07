@@ -111,6 +111,8 @@ export interface Venda {
   pagamentos?: PagamentoItem[]; // Para pagamentos mistos (múltiplas formas)
   valorRecebido?: number;
   troco?: number;
+  clienteCpf?: string;
+  clienteNome?: string;
 }
 
 export interface Empresa {
