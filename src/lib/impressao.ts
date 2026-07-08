@@ -172,6 +172,11 @@ function gerarTextoWhatsApp(venda: Venda, tipo: "cupom" | "nfce" | "completa"): 
   texto += `Data: ${format(venda.dataHora, "dd/MM/yyyy", { locale: ptBR })}\n`;
   texto += `Hora: ${format(venda.dataHora, "HH:mm:ss", { locale: ptBR })}\n`;
   texto += `Operador: ${venda.operadorNome}\n`;
+  if (venda.clienteNome || venda.clienteCpf) {
+    texto += `\n*Consumidor*\n`;
+    if (venda.clienteNome) texto += `Nome: ${venda.clienteNome}\n`;
+    if (venda.clienteCpf) texto += `CPF: ${venda.clienteCpf}\n`;
+  }
   if (venda.pagamentos && venda.pagamentos.length > 0) {
     texto += `Pagamento: ${venda.pagamentos.map(p => `${p.label} R$${p.valor.toFixed(2)}`).join(" + ")}\n`;
     const totalPago = venda.pagamentos.reduce((s, p) => s + p.valor, 0);
@@ -370,6 +375,11 @@ export function imprimirCupomFiscal(venda: Venda) {
         <p><strong>Data:</strong> ${format(venda.dataHora, "dd/MM/yyyy", { locale: ptBR })}</p>
         <p><strong>Hora:</strong> ${format(venda.dataHora, "HH:mm:ss", { locale: ptBR })}</p>
         <p><strong>Operador:</strong> ${venda.operadorNome}</p>
+        ${venda.clienteNome || venda.clienteCpf ? `
+          <p style="margin-top:6px;border-top:1px dashed #000;padding-top:6px;"><strong>CONSUMIDOR</strong></p>
+          ${venda.clienteNome ? `<p><strong>Nome:</strong> ${venda.clienteNome}</p>` : ""}
+          ${venda.clienteCpf ? `<p><strong>CPF:</strong> ${venda.clienteCpf}</p>` : ""}
+        ` : ""}
       </div>
 
       <div class="items">
@@ -612,6 +622,11 @@ export function imprimirNFCe(venda: Venda) {
         <p><strong>Operador:</strong> ${venda.operadorNome}</p>
         <p><strong>Pagamento:</strong> ${formatarPagamentoTexto(venda)}</p>
         <p><strong>CFOP:</strong> ${config.cfopPadrao} - Venda de mercadoria</p>
+        ${venda.clienteNome || venda.clienteCpf ? `
+          <p style="margin-top:6px;border-top:1px dashed #000;padding-top:6px;font-weight:bold;">CONSUMIDOR IDENTIFICADO</p>
+          ${venda.clienteNome ? `<p><strong>Nome:</strong> ${venda.clienteNome}</p>` : ""}
+          ${venda.clienteCpf ? `<p><strong>CPF:</strong> ${venda.clienteCpf}</p>` : ""}
+        ` : `<p style="margin-top:4px;font-size:9px;color:#666;">Consumidor não identificado</p>`}
       </div>
       
       <div class="items">
@@ -880,7 +895,7 @@ export function imprimirNotaFiscalCompleta(venda: Venda) {
           <p><strong>Operador:</strong> ${venda.operadorNome}</p>
           <p><strong>Pagamento:</strong> ${formatarPagamentoTexto(venda)}</p>
         </div>
-        
+
         <div class="info-box">
           <h3>INFORMAÇÕES FISCAIS</h3>
           <p><strong>CFOP:</strong> ${config.cfopPadrao}</p>
@@ -888,6 +903,14 @@ export function imprimirNotaFiscalCompleta(venda: Venda) {
           <p><strong>Ambiente:</strong> ${config.ambiente === "producao" ? "PRODUÇÃO" : "HOMOLOGAÇÃO"}</p>
         </div>
       </div>
+
+      ${venda.clienteNome || venda.clienteCpf ? `
+      <div class="info-box" style="margin-bottom:20px;">
+        <h3>DADOS DO CONSUMIDOR</h3>
+        ${venda.clienteNome ? `<p><strong>Nome:</strong> ${venda.clienteNome}</p>` : ""}
+        ${venda.clienteCpf ? `<p><strong>CPF:</strong> ${venda.clienteCpf}</p>` : ""}
+      </div>
+      ` : ""}
       
       <table class="table">
         <thead>

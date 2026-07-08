@@ -190,6 +190,8 @@ export default function HistoricoPage() {
             motivoCancelamento: v.motivo_cancelamento,
             devolucoes: v.devolucoes || [],
             exclusoes: v.exclusoes || [],
+            clienteCpf: v.cliente_cpf || undefined,
+            clienteNome: v.cliente_nome || undefined,
           } as Venda;
         })
       );
@@ -371,7 +373,9 @@ export default function HistoricoPage() {
       const matchBusca =
         venda.numero.toString().includes(busca) ||
         venda.operadorNome.toLowerCase().includes(buscaLower) ||
-        venda.itens.some((item) => item.nome.toLowerCase().includes(buscaLower));
+        venda.itens.some((item) => item.nome.toLowerCase().includes(buscaLower)) ||
+        (venda.clienteNome && venda.clienteNome.toLowerCase().includes(buscaLower)) ||
+        (venda.clienteCpf && venda.clienteCpf.replace(/\D/g, "").includes(busca.replace(/\D/g, "")));
       if (!matchBusca) return false;
     }
 
@@ -668,6 +672,26 @@ export default function HistoricoPage() {
                         </div>
                       ))}
                     </div>
+
+                    {/* Dados do Cliente (CPF/Nome) */}
+                    {(venda.clienteCpf || venda.clienteNome) && (
+                      <div className="mb-4 bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+                        <p className="text-blue-300 font-semibold mb-1 flex items-center text-sm">
+                          <User className="w-4 h-4 mr-2" />
+                          Dados do Cliente
+                        </p>
+                        {venda.clienteNome && (
+                          <p className="text-blue-100 text-sm ml-6">
+                            <strong>Nome:</strong> {venda.clienteNome}
+                          </p>
+                        )}
+                        {venda.clienteCpf && (
+                          <p className="text-blue-100 text-sm ml-6">
+                            <strong>CPF:</strong> {venda.clienteCpf}
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     {/* Histórico de Trocas/Extornos */}
                     {venda.devolucoes && venda.devolucoes.length > 0 && (
