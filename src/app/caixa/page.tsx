@@ -149,6 +149,9 @@ export default function CaixaPage() {
   // Ref para o input de busca
   const buscaInputRef = useRef<HTMLInputElement>(null);
 
+  // Ref para salvarClienteEContinuar (usado no handler de teclado antes da declaração da função)
+  const salvarClienteEContinuarRef = useRef<() => Promise<void>>(() => Promise.resolve());
+
   // Ref para o input de valor recebido
   const valorRecebidoInputRef = useRef<HTMLInputElement>(null);
 
@@ -574,6 +577,20 @@ export default function CaixaPage() {
         }
       }
 
+      // Se estiver no modal de CPF, Enter confirma uso só do CPF, T abre cadastro completo
+      if (mostrarModalCpf && clienteEncontrado === false && !mostrarCadastroCompleto) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          salvarClienteEContinuarRef.current();
+          return;
+        }
+        if (e.key.toLowerCase() === "t") {
+          e.preventDefault();
+          setMostrarCadastroCompleto(true);
+          return;
+        }
+      }
+
       // Se estiver em modal de finalização, permite atalhos de pagamento e Enter
       if (mostrarModalFinalizacao) {
         if (e.key.toLowerCase() === "c") {
@@ -607,6 +624,17 @@ export default function CaixaPage() {
         if (e.key.toLowerCase() === "x") {
           e.preventDefault();
           setMostrarModalFinalizacao(false);
+          return;
+        }
+        if (e.key.toLowerCase() === "n") {
+          e.preventDefault();
+          setCpfInput("");
+          setClienteEncontrado(null);
+          setMostrarCadastroCompleto(false);
+          setClienteForm({ nome: "", email: "", telefone: "", dataNascimento: "", cep: "", endereco: "", numero: "", complemento: "", bairro: "", cidade: "", estado: "" });
+          setMostrarModalFinalizacao(false);
+          setMostrarModalCpf(true);
+          setTimeout(() => cpfInputRef.current?.focus(), 150);
           return;
         }
         if (e.key === "Enter") {
@@ -666,7 +694,7 @@ export default function CaixaPage() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [carrinho, mostrarModalFinalizacao, mostrarModalImpressao, mostrarConfirmacaoCancelar, mostrarConfirmacaoFinal, vendaFinalizada, podeUsarApp, usuarioSemMensalidade]);
+  }, [carrinho, mostrarModalFinalizacao, mostrarModalImpressao, mostrarConfirmacaoCancelar, mostrarConfirmacaoFinal, vendaFinalizada, podeUsarApp, usuarioSemMensalidade, mostrarModalCpf, clienteEncontrado, mostrarCadastroCompleto]);
 
   // Listener para leitor USB de código de barras
   useEffect(() => {
@@ -1307,6 +1335,7 @@ export default function CaixaPage() {
       setSalvandoCliente(false);
     }
   };
+  salvarClienteEContinuarRef.current = salvarClienteEContinuar;
 
   const finalizarVenda = async () => {
     // 🔒🔒🔒 BLOQUEIO CRÍTICO E DEFINITIVO 🔒🔒🔒
@@ -2203,15 +2232,17 @@ export default function CaixaPage() {
                 <div className="space-y-2">
                   <button
                     onClick={salvarClienteEContinuar}
-                    className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all"
+                    className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all flex items-center justify-between px-4"
                   >
-                    Usar apenas o CPF e continuar
+                    <span>Usar apenas o CPF e continuar</span>
+                    <span className="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded border border-blue-400">Enter</span>
                   </button>
                   <button
                     onClick={() => setMostrarCadastroCompleto(true)}
-                    className="w-full py-3 bg-white border-2 border-blue-300 hover:bg-blue-50 text-blue-700 rounded-lg font-semibold transition-all"
+                    className="w-full py-3 bg-white border-2 border-blue-300 hover:bg-blue-50 text-blue-700 rounded-lg font-semibold transition-all flex items-center justify-between px-4"
                   >
-                    Cadastrar dados completos do cliente
+                    <span>Cadastrar dados completos do cliente</span>
+                    <span className="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded border border-blue-300">T</span>
                   </button>
                   <button
                     onClick={() => setCpfInput("")}
@@ -2365,7 +2396,8 @@ export default function CaixaPage() {
                   className="w-full p-3 rounded-lg border-2 border-blue-300 hover:bg-blue-50 transition-all flex items-center space-x-3"
                 >
                   <User className="w-5 h-5 text-blue-600" />
-                  <span className="font-semibold text-blue-700">CPF na Nota (opcional)</span>
+                  <span className="font-semibold text-blue-700 flex-1 text-left">CPF na Nota (opcional)</span>
+                  <span className="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded border border-blue-300">N</span>
                 </button>
               )}
             </div>
