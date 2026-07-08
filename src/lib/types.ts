@@ -157,7 +157,7 @@ export interface Pagamento {
   status: "pendente" | "pago" | "vencido" | "cancelado";
   formaPagamento: "pix" | "cartao";
   diasComprados: number; // Dias adicionados à conta (60, 100, 180, 365, etc)
-  tipoCompra: "60-dias" | "180-dias" | "renovacao-60" | "renovacao-100" | "renovacao-180" | "renovacao-365" | "renovacao-solicitada" | "personalizado";
+  tipoCompra: "30-dias" | "60-dias" | "90-dias" | "180-dias" | "renovacao-30" | "renovacao-60" | "renovacao-90" | "renovacao-100" | "renovacao-180" | "renovacao-365" | "renovacao-solicitada" | "personalizado";
   // Campos para aprovação do admin
   observacao_admin?: string;
   aprovado_por?: string;

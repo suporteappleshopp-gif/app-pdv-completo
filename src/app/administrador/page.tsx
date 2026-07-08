@@ -106,7 +106,7 @@ export default function AdministradorPage() {
           status: sol.status,
           formaPagamento: sol.forma_pagamento,
           diasComprados: sol.dias_solicitados,
-          tipoCompra: sol.dias_solicitados === 60 ? "renovacao-60" : "renovacao-180",
+          tipoCompra: sol.dias_solicitados === 30 ? "renovacao-30" : sol.dias_solicitados === 90 ? "renovacao-90" : sol.dias_solicitados === 60 ? "renovacao-60" : "renovacao-180",
           observacao_admin: sol.observacoes,
           aprovado_por: sol.aprovado_por,
           data_aprovacao: sol.data_aprovacao ? new Date(sol.data_aprovacao) : undefined,
@@ -741,7 +741,9 @@ export default function AdministradorPage() {
                           <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl p-4 border-2 border-orange-200">
                             <p className="text-xs text-orange-700 font-semibold mb-1">📦 Tipo</p>
                             <p className="text-sm font-bold text-orange-700">
+                              {solicitacao.tipoCompra === "renovacao-30" && "Plano 30 dias"}
                               {solicitacao.tipoCompra === "renovacao-60" && "Plano 60 dias"}
+                              {solicitacao.tipoCompra === "renovacao-90" && "Plano 90 dias"}
                               {solicitacao.tipoCompra === "renovacao-180" && "Plano Semestral"}
                               {solicitacao.tipoCompra === "renovacao-365" && "Plano Anual"}
                               {!solicitacao.tipoCompra?.startsWith("renovacao") && "Personalizado"}

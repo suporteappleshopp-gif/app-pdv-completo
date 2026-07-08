@@ -201,14 +201,14 @@ export default function AdminPage() {
     try {
       // ✅ GARANTIR QUE O VALOR SEJA CORRETO
       let valorCorreto = valor;
-      let diasCorretos = diasAssinatura || 100;
+      let diasCorretos = diasAssinatura || 30;
 
       if (formaPagamento === "pix") {
         valorCorreto = 59.90;
-        diasCorretos = 60; // ✅ CORRIGIDO: PIX = 60 dias
+        diasCorretos = 30; // PIX = 30 dias
       } else if (formaPagamento === "cartao") {
         valorCorreto = 149.70;
-        diasCorretos = diasAssinatura || 180; // ✅ CORRIGIDO: Padrão cartão = 180 dias
+        diasCorretos = diasAssinatura || 90; // Cartão = 90 dias
       }
 
       // Determinar descrição baseada na forma de pagamento e dias
@@ -300,14 +300,14 @@ export default function AdminPage() {
 
       if (novoUsuario.formaPagamento === "cartao") {
         valorPagamento = 149.70;
-        diasAssinatura = 180; // ✅ CORRIGIDO: Cartão = 180 dias
+        diasAssinatura = 90; // Cartão = 90 dias
         dataProximoVencimento = addDays(new Date(), diasAssinatura);
-        console.log('   ✅ CARTÃO → R$ 149,70 | 180 dias');
+        console.log('   ✅ CARTÃO → R$ 149,70 | 90 dias');
       } else if (novoUsuario.formaPagamento === "pix") {
         valorPagamento = 59.90;
-        diasAssinatura = 60; // ✅ CORRIGIDO: PIX = 60 dias
+        diasAssinatura = 30; // PIX = 30 dias
         dataProximoVencimento = addDays(new Date(), diasAssinatura);
-        console.log('   ✅ PIX → R$ 59,90 | 60 dias');
+        console.log('   ✅ PIX → R$ 59,90 | 30 dias');
       } else {
         console.error('   ❌ ERRO: formaPagamento INVÁLIDA:', novoUsuario.formaPagamento);
       }
@@ -390,12 +390,12 @@ export default function AdminPage() {
         console.log('   ✅ Detectado CARTÃO pelo valorMensal (149.70)');
       }
       // Tentar detectar pelos dias
-      else if (operador.diasAssinatura === 60) {
+      else if (operador.diasAssinatura === 30) {
         formaPagamentoDetectada = "pix";
-        console.log('   ✅ Detectado PIX pelos diasAssinatura (60)');
-      } else if (operador.diasAssinatura === 180) {
+        console.log('   ✅ Detectado PIX pelos diasAssinatura (30)');
+      } else if (operador.diasAssinatura === 90) {
         formaPagamentoDetectada = "cartao";
-        console.log('   ✅ Detectado CARTÃO pelos diasAssinatura (180)');
+        console.log('   ✅ Detectado CARTÃO pelos diasAssinatura (90)');
       }
       // Default: PIX
       else {
@@ -1182,7 +1182,7 @@ export default function AdminPage() {
                                 }
                                 {operador.formaPagamento && (
                                   <span>
-                                    {operador.formaPagamento === "pix" ? " (60 dias)" : " (180 dias)"}
+                                    {operador.formaPagamento === "pix" ? " (30 dias)" : " (90 dias)"}
                                   </span>
                                 )}
                               </span>
@@ -1424,7 +1424,7 @@ export default function AdminPage() {
                         <div className="text-left">
                           <p className="text-white font-bold text-lg">PIX</p>
                           <p className="text-green-300 font-semibold">R$ 59,90</p>
-                          <p className="text-purple-200 text-xs">60 dias de acesso</p>
+                          <p className="text-purple-200 text-xs">30 dias de acesso</p>
                         </div>
                       </div>
                       <div className="flex flex-col items-end">
@@ -1458,7 +1458,7 @@ export default function AdminPage() {
                         <div className="text-left">
                           <p className="text-white font-bold text-lg">Cartão de Crédito</p>
                           <p className="text-blue-300 font-semibold">R$ 149,70</p>
-                          <p className="text-purple-200 text-xs">180 dias | Até 3x sem juros</p>
+                          <p className="text-purple-200 text-xs">90 dias | Até 3x sem juros</p>
                         </div>
                       </div>
                       <div className="flex flex-col items-end">
@@ -1491,8 +1491,8 @@ export default function AdminPage() {
                       </p>
                       <p className="text-purple-200 text-sm">
                         {novoUsuario.formaPagamento === "pix"
-                          ? "60 dias de acesso"
-                          : "180 dias de acesso | Até 3x sem juros"}
+                          ? "30 dias de acesso"
+                          : "90 dias de acesso | Até 3x sem juros"}
                       </p>
                     </div>
 
@@ -1561,7 +1561,7 @@ export default function AdminPage() {
                   <div className="space-y-1 text-xs text-blue-100">
                     <p>• <strong>Forma de Pagamento:</strong> {operadorParaConfirmar.formaPagamento === "pix" ? "PIX" : "Cartão de Crédito"}</p>
                     <p>• <strong>Valor:</strong> R$ {operadorParaConfirmar.valorMensal?.toFixed(2) || (operadorParaConfirmar.formaPagamento === "pix" ? "59,90" : "149,70")}</p>
-                    <p>• <strong>Dias Padrão:</strong> {operadorParaConfirmar.formaPagamento === "pix" ? "60 dias" : "180 dias"}</p>
+                    <p>• <strong>Dias Padrão:</strong> {operadorParaConfirmar.formaPagamento === "pix" ? "30 dias" : "90 dias"}</p>
                   </div>
                 </div>
 
@@ -1573,14 +1573,14 @@ export default function AdminPage() {
                   <input
                     type="number"
                     value={diasAtivacao}
-                    onChange={(e) => setDiasAtivacao(parseInt(e.target.value) || 60)}
+                    onChange={(e) => setDiasAtivacao(parseInt(e.target.value) || 30)}
                     className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-purple-300 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-                    placeholder="60"
+                    placeholder="30"
                     min="1"
                   />
                 </div>
                 <p className="text-purple-300 text-xs mt-2">
-                  ✅ Dias detectados automaticamente: {operadorParaConfirmar.formaPagamento === "pix" ? "60 dias (PIX)" : "180 dias (Cartão)"}. Você pode alterar se necessário.
+                  ✅ Dias detectados automaticamente: {operadorParaConfirmar.formaPagamento === "pix" ? "30 dias (PIX)" : "90 dias (Cartão)"}. Você pode alterar se necessário.
                 </p>
               </div>
 
@@ -1835,7 +1835,7 @@ export default function AdminPage() {
                           <strong className="text-white">
                             {operadorParaDetalhes.formaPagamento === "pix" ? "PIX" : "Cartão"} - R$ {operadorParaDetalhes.valorMensal?.toFixed(2)}
                           </strong>
-                          {" "}({operadorParaDetalhes.diasAssinatura || (operadorParaDetalhes.formaPagamento === "pix" ? "60" : "180")} dias)
+                          {" "}({operadorParaDetalhes.diasAssinatura || (operadorParaDetalhes.formaPagamento === "pix" ? "30" : "90")} dias)
                           {operadorParaDetalhes.dataProximoVencimento && (
                             <span> | Vence em: {format(new Date(operadorParaDetalhes.dataProximoVencimento), "dd/MM/yyyy", { locale: ptBR })}</span>
                           )}

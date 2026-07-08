@@ -123,9 +123,9 @@ export default function SolicitacoesRenovacao() {
 
     // ✅ CORREÇÃO: Usar dias corretos conforme forma de pagamento
     if (solicitacao.forma_pagamento === "pix" || solicitacao.valor === 59.90) {
-      diasCalculados = 60; // PIX = 60 dias
+      diasCalculados = 30; // PIX = 30 dias
     } else if (solicitacao.forma_pagamento === "cartao" || solicitacao.valor === 149.70) {
-      diasCalculados = 180; // Cartão = 180 dias
+      diasCalculados = 90; // Cartão = 90 dias
     }
 
     setDiasAprovacao(diasCalculados);
@@ -339,7 +339,7 @@ export default function SolicitacoesRenovacao() {
         .from("historico_pagamentos")
         .insert({
           operador_id: solicitacaoSelecionada.operador_id,
-          tipo_pagamento: diasAprovacao === 60 ? "renovacao-60" : diasAprovacao === 180 ? "renovacao-180" : "renovacao",
+          tipo_pagamento: diasAprovacao === 30 ? "renovacao-30" : diasAprovacao === 90 ? "renovacao-90" : "renovacao",
           forma_pagamento: solicitacaoSelecionada.forma_pagamento,
           valor: solicitacaoSelecionada.valor,
           dias_comprados: diasAprovacao,

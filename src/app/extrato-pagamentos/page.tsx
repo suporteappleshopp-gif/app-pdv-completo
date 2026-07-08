@@ -203,8 +203,8 @@ export default function ExtratoPagamentosPage() {
 
   const criarSolicitacao = async () => {
     try {
-      // ✅ VALORES CORRETOS: PIX = 60 dias | CARTÃO = 180 dias
-      const dias = formaPagamento === "pix" ? 60 : 180;
+      // ✅ VALORES CORRETOS: PIX = 30 dias | CARTÃO = 90 dias
+      const dias = formaPagamento === "pix" ? 30 : 90;
       const valor = formaPagamento === "pix" ? 59.9 : 149.7;
 
       console.log("📝 Criando solicitação de renovação...");
@@ -556,7 +556,7 @@ export default function ExtratoPagamentosPage() {
                     </div>
                     <div className="text-left">
                       <p className="font-semibold text-gray-800">PIX - R$ 59,90</p>
-                      <p className="text-sm text-gray-600">60 dias de acesso</p>
+                      <p className="text-sm text-gray-600">30 dias de acesso</p>
                     </div>
                   </div>
                   {formaPagamento === "pix" && (
@@ -578,7 +578,7 @@ export default function ExtratoPagamentosPage() {
                     <CreditCard className="w-10 h-10 text-blue-600" />
                     <div className="text-left">
                       <p className="font-semibold text-gray-800">Cartão - R$ 149,70</p>
-                      <p className="text-sm text-gray-600">180 dias de acesso</p>
+                      <p className="text-sm text-gray-600">90 dias de acesso</p>
                     </div>
                   </div>
                   {formaPagamento === "cartao" && (

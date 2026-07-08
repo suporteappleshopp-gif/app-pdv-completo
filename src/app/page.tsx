@@ -401,8 +401,8 @@ export default function LoginPage() {
 
       // Definir valores com base na forma de pagamento escolhida
       const valorCompra = novoCadastro.formaPagamento === "pix" ? 59.90 : 149.70;
-      const diasComprados = novoCadastro.formaPagamento === "pix" ? 60 : 180;
-      const tipoCompra = novoCadastro.formaPagamento === "pix" ? "renovacao-60" : "renovacao-180";
+      const diasComprados = novoCadastro.formaPagamento === "pix" ? 30 : 90;
+      const tipoCompra = novoCadastro.formaPagamento === "pix" ? "renovacao-30" : "renovacao-90";
 
       let usuarioIdCriado = "";
 
@@ -553,8 +553,8 @@ export default function LoginPage() {
   if (mostrarPagamento && cadastroSucesso) {
     const isPix = novoCadastro.formaPagamento === "pix";
     const valor = isPix ? "59,90" : "149,70";
-    const dias = isPix ? 60 : 180;
-    const periodo = isPix ? "60 dias" : "180 dias";
+    const dias = isPix ? 30 : 90;
+    const periodo = isPix ? "30 dias" : "90 dias";
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -737,7 +737,7 @@ export default function LoginPage() {
                       </div>
                       <div className="text-left">
                         <p className="font-semibold text-gray-800">PIX - R$ 59,90</p>
-                        <p className="text-sm text-gray-600">60 dias de acesso</p>
+                        <p className="text-sm text-gray-600">30 dias de acesso</p>
                       </div>
                     </div>
                     {novoCadastro.formaPagamento === "pix" && (
@@ -760,7 +760,7 @@ export default function LoginPage() {
                       <CreditCard className="w-10 h-10 text-blue-600" />
                       <div className="text-left">
                         <p className="font-semibold text-gray-800">Cartão - R$ 149,70</p>
-                        <p className="text-sm text-gray-600">180 dias de acesso</p>
+                        <p className="text-sm text-gray-600">90 dias de acesso</p>
                       </div>
                     </div>
                     {novoCadastro.formaPagamento === "cartao" && (

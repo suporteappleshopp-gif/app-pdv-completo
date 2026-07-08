@@ -43,16 +43,16 @@ export async function POST(request: NextRequest) {
 
     if (forma_pagamento === "pix") {
       valor = 59.90;
-      dias_comprados = 60;
-      tipo_compra = "renovacao-60";
-      titulo = "Renovação 60 dias - PIX";
-      descricao = "Renovação de assinatura por 60 dias com pagamento via PIX";
+      dias_comprados = 30;
+      tipo_compra = "renovacao-30";
+      titulo = "Renovação 30 dias - PIX";
+      descricao = "Renovação de assinatura por 30 dias com pagamento via PIX";
     } else if (forma_pagamento === "cartao") {
       valor = 149.70;
-      dias_comprados = 180;
-      tipo_compra = "renovacao-180";
-      titulo = "Renovação 180 dias (6 meses) - Cartão";
-      descricao = "Renovação de assinatura semestral (180 dias) com pagamento via Cartão";
+      dias_comprados = 90;
+      tipo_compra = "renovacao-90";
+      titulo = "Renovação 90 dias (3 meses) - Cartão";
+      descricao = "Renovação de assinatura trimestral (90 dias) com pagamento via Cartão";
     } else {
       return NextResponse.json(
         { success: false, error: "Forma de pagamento inválida" },

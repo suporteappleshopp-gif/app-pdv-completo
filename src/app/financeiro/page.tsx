@@ -1290,7 +1290,9 @@ export default function FinanceiroPage() {
                             {pagamento.tipoCompra && (
                               <div className="mt-3">
                                 <span className="inline-block px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-xs font-semibold border border-blue-500/30">
+                                  {pagamento.tipoCompra === "renovacao-30" && "Renovação 30 dias"}
                                   {pagamento.tipoCompra === "renovacao-60" && "Renovação 60 dias"}
+                                  {pagamento.tipoCompra === "renovacao-90" && "Renovação 90 dias"}
                                   {pagamento.tipoCompra === "renovacao-100" && "Renovação 100 dias"}
                                   {pagamento.tipoCompra === "renovacao-180" && "Renovação Semestral"}
                                   {pagamento.tipoCompra === "renovacao-365" && "Renovação Anual"}
@@ -1367,14 +1369,14 @@ export default function FinanceiroPage() {
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">
-              {/* Plano PIX - 60 dias */}
+              {/* Plano PIX - 30 dias */}
               <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border-2 border-white/30 hover:border-green-400 transition-all">
                 <div className="text-center mb-4">
                   <div className="inline-block bg-green-500 text-white px-4 py-2 rounded-full font-bold text-lg mb-3">
                     PIX
                   </div>
                   <h3 className="text-4xl font-bold text-white mb-2">R$ 59,90</h3>
-                  <p className="text-white/80">60 dias de acesso</p>
+                  <p className="text-white/80">30 dias de acesso</p>
                 </div>
 
                 <div className="space-y-2 mb-6">
@@ -1407,13 +1409,13 @@ export default function FinanceiroPage() {
                       await supabase.from("solicitacoes_renovacao").insert({
                         operador_id: operador.id,
                         forma_pagamento: "pix",
-                        dias_solicitados: 60,
+                        dias_solicitados: 30,
                         valor: 59.90,
                         status: "pendente",
                         data_solicitacao: new Date().toISOString(),
                       });
 
-                      setLinkPagamentoAtivo({ url: LINK_PIX_RENOVACAO, tipo: "pix", dias: 60, valor: 59.90 });
+                      setLinkPagamentoAtivo({ url: LINK_PIX_RENOVACAO, tipo: "pix", dias: 30, valor: 59.90 });
                       window.open(LINK_PIX_RENOVACAO, "_blank", "noopener,noreferrer");
                       await carregarDados();
                     } catch (error: any) {
@@ -1428,12 +1430,12 @@ export default function FinanceiroPage() {
 
                 {diasRestantes > 0 && (
                   <p className="text-xs text-white/70 text-center mt-3">
-                    Novo vencimento: {format(new Date(Date.now() + (diasRestantes + 60) * 24 * 60 * 60 * 1000), "dd/MM/yyyy")}
+                    Novo vencimento: {format(new Date(Date.now() + (diasRestantes + 30) * 24 * 60 * 60 * 1000), "dd/MM/yyyy")}
                   </p>
                 )}
               </div>
 
-              {/* Plano Cartão - 180 dias */}
+              {/* Plano Cartão - 90 dias */}
               <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border-2 border-yellow-400 hover:border-yellow-300 transition-all relative">
                 <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-yellow-400 text-gray-900 px-4 py-1 rounded-full font-bold text-sm">
                   MAIS VANTAJOSO
@@ -1444,7 +1446,7 @@ export default function FinanceiroPage() {
                     CARTÃO
                   </div>
                   <h3 className="text-4xl font-bold text-white mb-2">R$ 149,70</h3>
-                  <p className="text-white/80">180 dias de acesso</p>
+                  <p className="text-white/80">90 dias de acesso</p>
                   <p className="text-yellow-300 font-semibold text-sm mt-1">Parcele em até 3x sem juros</p>
                 </div>
 
@@ -1455,11 +1457,11 @@ export default function FinanceiroPage() {
                   </div>
                   <div className="flex items-center space-x-2 text-white/90">
                     <CheckCircle className="w-4 h-4 text-yellow-400" />
-                    <span className="text-sm">180 dias completos de acesso</span>
+                    <span className="text-sm">90 dias completos de acesso</span>
                   </div>
                   <div className="flex items-center space-x-2 text-white/90">
                     <CheckCircle className="w-4 h-4 text-yellow-400" />
-                    <span className="text-sm">120 dias a mais que PIX</span>
+                    <span className="text-sm">60 dias a mais que PIX</span>
                   </div>
                   <div className="flex items-center space-x-2 text-white/90">
                     <CheckCircle className="w-4 h-4 text-yellow-400" />
@@ -1478,13 +1480,13 @@ export default function FinanceiroPage() {
                       await supabase.from("solicitacoes_renovacao").insert({
                         operador_id: operador.id,
                         forma_pagamento: "cartao",
-                        dias_solicitados: 180,
+                        dias_solicitados: 90,
                         valor: 149.70,
                         status: "pendente",
                         data_solicitacao: new Date().toISOString(),
                       });
 
-                      setLinkPagamentoAtivo({ url: LINK_CARTAO_RENOVACAO, tipo: "cartao", dias: 180, valor: 149.70 });
+                      setLinkPagamentoAtivo({ url: LINK_CARTAO_RENOVACAO, tipo: "cartao", dias: 90, valor: 149.70 });
                       window.open(LINK_CARTAO_RENOVACAO, "_blank", "noopener,noreferrer");
                       await carregarDados();
                     } catch (error: any) {
@@ -1499,7 +1501,7 @@ export default function FinanceiroPage() {
 
                 {diasRestantes > 0 && (
                   <p className="text-xs text-white/70 text-center mt-3">
-                    Novo vencimento: {format(new Date(Date.now() + (diasRestantes + 180) * 24 * 60 * 60 * 1000), "dd/MM/yyyy")}
+                    Novo vencimento: {format(new Date(Date.now() + (diasRestantes + 90) * 24 * 60 * 60 * 1000), "dd/MM/yyyy")}
                   </p>
                 )}
               </div>
