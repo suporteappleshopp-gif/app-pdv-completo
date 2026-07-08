@@ -163,6 +163,10 @@ export default function CaixaPage() {
   // Timer para salvamento automático
   const salvamentoTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Edição direta de quantidade no carrinho
+  const [quantidadeEditando, setQuantidadeEditando] = useState<string | null>(null);
+  const [quantidadeInputTemp, setQuantidadeInputTemp] = useState<string>("");
+
   // Detectar retorno do pagamento via URL
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -957,6 +961,48 @@ export default function CaixaPage() {
     setTimeout(() => {
       buscaInputRef.current?.focus();
     }, 100);
+  };
+
+  const alterarQuantidadeDireta = async (produtoId: string, novaQtd: number) => {
+    if (isNaN(novaQtd) || novaQtd < 0) return;
+
+    if (novaQtd === 0) {
+      abrirConfirmacaoExcluirItem(produtoId);
+      return;
+    }
+
+    const resultadoAcesso = await GerenciadorAssinatura.verificarAcesso(operadorId);
+    if (!resultadoAcesso.podeUsar) {
+      setMostrarBloqueio(true);
+      return;
+    }
+
+    const produto = produtos.find(p => p.id === produtoId);
+    if (produto) {
+      if (novaQtd > produto.estoque && produto.estoque > 0) {
+        const confirmar = window.confirm(
+          `⚠️ ATENÇÃO: A quantidade solicitada (${novaQtd}) ultrapassa o estoque disponível (${produto.estoque}) do produto "${produto.nome}".\n\nDeseja continuar mesmo assim?`
+        );
+        if (!confirmar) return;
+      }
+      if (produto.estoque <= 0) {
+        const confirmar = window.confirm(
+          `⚠️ ATENÇÃO: O produto "${produto.nome}" está ESGOTADO (estoque: ${produto.estoque}).\n\nDeseja continuar mesmo assim?`
+        );
+        if (!confirmar) return;
+      }
+    }
+
+    setCarrinho(
+      carrinho.map((item) => {
+        if (item.produtoId === produtoId) {
+          return { ...item, quantidade: novaQtd, subtotal: novaQtd * item.precoUnitario };
+        }
+        return item;
+      })
+    );
+
+    setTimeout(() => { buscaInputRef.current?.focus(); }, 100);
   };
 
   const abrirConfirmacaoExcluirItem = async (produtoId: string) => {
@@ -1893,9 +1939,34 @@ export default function CaixaPage() {
                           <Minus className="w-4 h-4" />
                         </button>
 
-                        <span className="font-bold text-lg w-12 text-center">
-                          {item.quantidade}
-                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={quantidadeEditando === item.produtoId ? quantidadeInputTemp : item.quantidade}
+                          onFocus={() => {
+                            setQuantidadeEditando(item.produtoId);
+                            setQuantidadeInputTemp(String(item.quantidade));
+                          }}
+                          onChange={(e) => setQuantidadeInputTemp(e.target.value)}
+                          onBlur={() => {
+                            const qtd = parseInt(quantidadeInputTemp, 10);
+                            setQuantidadeEditando(null);
+                            if (!isNaN(qtd) && qtd !== item.quantidade) {
+                              alterarQuantidadeDireta(item.produtoId, qtd);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              const qtd = parseInt(quantidadeInputTemp, 10);
+                              setQuantidadeEditando(null);
+                              if (!isNaN(qtd) && qtd !== item.quantidade) {
+                                alterarQuantidadeDireta(item.produtoId, qtd);
+                              }
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          className="font-bold text-lg w-14 text-center border border-gray-300 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                        />
 
                         <button
                           onClick={() => alterarQuantidade(item.produtoId, 1)}
