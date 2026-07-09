@@ -23,6 +23,15 @@ import {
   FileText,
   Receipt,
   Info,
+  Hash,
+  Clock,
+  Banknote,
+  CreditCard,
+  Smartphone,
+  Tag,
+  MessageSquare,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -75,6 +84,7 @@ export default function HistoricoPage() {
   const [notaReferenciada, setNotaReferenciada] = useState("");
   const [formaPagamentoDevolucao, setFormaPagamentoDevolucao] = useState<"dinheiro" | "credito" | "debito" | "pix" | "troca">("dinheiro");
   const [processando, setProcessando] = useState(false);
+  const [devolucaoExpandida, setDevolucaoExpandida] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let channel: any = null;
@@ -693,54 +703,245 @@ export default function HistoricoPage() {
                       </div>
                     )}
 
-                    {/* Histórico de Trocas/Extornos */}
+                    {/* Histórico de Trocas/Extornos — completo */}
                     {venda.devolucoes && venda.devolucoes.length > 0 && (
-                      <div className="mb-4 bg-orange-500/10 border border-orange-500/30 rounded-lg p-3">
-                        <p className="text-orange-300 font-semibold mb-2 flex items-center">
-                          <RotateCcw className="w-4 h-4 mr-2" />
-                          Histórico de Trocas/Extornos:
-                        </p>
-                        <div className="space-y-2">
-                          {venda.devolucoes.map((dev: any, idx: number) => (
-                            <div key={idx} className="ml-2 bg-white/5 rounded-lg p-2 border border-orange-500/20">
-                              <div className="flex items-center space-x-2 mb-1">
-                                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                                  dev.tipo === "extorno" ? "bg-red-500/20 text-red-300" : "bg-amber-500/20 text-amber-300"
-                                }`}>
-                                  {dev.tipo === "extorno" ? "EXTORNO" : "TROCA"}
-                                </span>
-                                {dev.numero && (
-                                  <span className="text-white/50 text-xs">#{dev.numero}</span>
-                                )}
-                              </div>
-                              {dev.itens ? (
-                                dev.itens.map((i: any, iIdx: number) => (
-                                  <p key={iIdx} className="text-orange-200 text-sm">
-                                    • {i.quantidade}x {i.nomeProduto}
-                                  </p>
-                                ))
-                              ) : dev.nomeProduto ? (
-                                <p className="text-orange-200 text-sm">
-                                  • {dev.quantidade}x {dev.nomeProduto}
-                                </p>
-                              ) : null}
-                              {dev.motivoFiscal && (
-                                <p className="text-orange-300/70 text-xs mt-1">
-                                  Motivo: {dev.motivoFiscal}
-                                </p>
+                      <div className="mb-4">
+                        {venda.devolucoes.map((dev: any, idx: number) => {
+                          const isExtorno = dev.tipo === "extorno";
+                          const chave = `${venda.id}-${idx}`;
+                          const expandido = devolucaoExpandida[chave] ?? true;
+                          const itensDev: any[] = dev.itens || (dev.nomeProduto ? [{ nomeProduto: dev.nomeProduto, quantidade: dev.quantidade, valorUnitario: dev.valorUnitario || dev.precoUnitario }] : []);
+                          const valorTotal = dev.valorTotal ?? itensDev.reduce((s: number, i: any) => s + ((i.valorUnitario || i.precoUnitario || 0) * (i.quantidade || 1)), 0);
+                          const formaPgto = dev.formaPagamentoDevolucao;
+                          const dataHoraStr = dev.dataHora ? new Date(dev.dataHora).toLocaleString("pt-BR") : null;
+
+                          const labelFormaPgto = (f: string) => {
+                            const map: Record<string, string> = {
+                              dinheiro: "Dinheiro",
+                              credito: "Cartão de Crédito",
+                              debito: "Cartão de Débito",
+                              pix: "PIX",
+                              troca: "Crédito na Loja",
+                            };
+                            return map[f] || f;
+                          };
+
+                          const IconeFormaPgto = ({ forma }: { forma: string }) => {
+                            if (forma === "pix") return <Smartphone className="w-3.5 h-3.5 inline mr-1" />;
+                            if (forma === "dinheiro") return <Banknote className="w-3.5 h-3.5 inline mr-1" />;
+                            return <CreditCard className="w-3.5 h-3.5 inline mr-1" />;
+                          };
+
+                          return (
+                            <div
+                              key={idx}
+                              className={`rounded-xl border overflow-hidden mb-2 ${
+                                isExtorno
+                                  ? "bg-red-950/30 border-red-500/40"
+                                  : "bg-amber-950/30 border-amber-500/40"
+                              }`}
+                            >
+                              {/* Cabeçalho clicável */}
+                              <button
+                                type="button"
+                                className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors ${
+                                  isExtorno ? "hover:bg-red-500/10" : "hover:bg-amber-500/10"
+                                }`}
+                                onClick={() => setDevolucaoExpandida(prev => ({ ...prev, [chave]: !expandido }))}
+                              >
+                                <div className="flex items-center space-x-3">
+                                  <span className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
+                                    isExtorno ? "bg-red-500/25 text-red-300" : "bg-amber-500/25 text-amber-300"
+                                  }`}>
+                                    {isExtorno ? <RotateCcw className="w-3.5 h-3.5" /> : <ArrowLeftRight className="w-3.5 h-3.5" />}
+                                    <span>{isExtorno ? "EXTORNO" : "TROCA"}</span>
+                                  </span>
+
+                                  {dev.numero && (
+                                    <span className="flex items-center text-white/50 text-xs">
+                                      <Hash className="w-3 h-3 mr-0.5" />
+                                      {dev.numero}
+                                    </span>
+                                  )}
+
+                                  {valorTotal > 0 && (
+                                    <span className={`text-sm font-bold ${isExtorno ? "text-red-300" : "text-amber-300"}`}>
+                                      R$ {Number(valorTotal).toFixed(2)}
+                                    </span>
+                                  )}
+
+                                  {isExtorno && formaPgto && (
+                                    <span className="text-white/50 text-xs flex items-center">
+                                      <IconeFormaPgto forma={formaPgto} />
+                                      {labelFormaPgto(formaPgto)}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center space-x-2">
+                                  {dataHoraStr && (
+                                    <span className="text-white/40 text-xs hidden sm:flex items-center">
+                                      <Clock className="w-3 h-3 mr-1" />
+                                      {dataHoraStr}
+                                    </span>
+                                  )}
+                                  {expandido
+                                    ? <ChevronUp className="w-4 h-4 text-white/40" />
+                                    : <ChevronDown className="w-4 h-4 text-white/40" />
+                                  }
+                                </div>
+                              </button>
+
+                              {/* Corpo expandido */}
+                              {expandido && (
+                                <div className="px-4 pb-4 space-y-3">
+                                  <div className={`w-full h-px ${isExtorno ? "bg-red-500/20" : "bg-amber-500/20"}`} />
+
+                                  {/* Itens devolvidos/trocados */}
+                                  {itensDev.length > 0 && (
+                                    <div>
+                                      <p className="text-white/60 text-xs font-semibold uppercase tracking-wide mb-2 flex items-center">
+                                        <Package className="w-3.5 h-3.5 mr-1.5" />
+                                        {isExtorno ? "Itens extornados" : "Itens trocados"}
+                                      </p>
+                                      <div className="space-y-1.5">
+                                        {itensDev.map((item: any, iIdx: number) => {
+                                          const qtd = item.quantidade || 1;
+                                          const unitario = item.valorUnitario || item.precoUnitario || 0;
+                                          const subtotalItem = unitario * qtd;
+                                          return (
+                                            <div key={iIdx} className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2">
+                                              <div className="flex items-center space-x-2 flex-1 min-w-0">
+                                                <Package className={`w-4 h-4 flex-shrink-0 ${isExtorno ? "text-red-400" : "text-amber-400"}`} />
+                                                <div className="min-w-0">
+                                                  <p className="text-white text-sm font-semibold truncate">
+                                                    {item.nomeProduto || item.nome || "Produto"}
+                                                  </p>
+                                                  {unitario > 0 && (
+                                                    <p className="text-white/50 text-xs">
+                                                      {qtd}x R$ {unitario.toFixed(2)}
+                                                    </p>
+                                                  )}
+                                                </div>
+                                              </div>
+                                              {subtotalItem > 0 && (
+                                                <p className={`font-bold text-sm flex-shrink-0 ml-2 ${isExtorno ? "text-red-300" : "text-amber-300"}`}>
+                                                  R$ {subtotalItem.toFixed(2)}
+                                                </p>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Grade de dados */}
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {/* Valor total */}
+                                    {valorTotal > 0 && (
+                                      <div className="bg-white/5 rounded-lg px-3 py-2">
+                                        <p className="text-white/40 text-xs mb-0.5">Valor total</p>
+                                        <p className={`font-bold text-base ${isExtorno ? "text-red-300" : "text-amber-300"}`}>
+                                          R$ {Number(valorTotal).toFixed(2)}
+                                        </p>
+                                      </div>
+                                    )}
+
+                                    {/* Forma de devolução (apenas extorno) */}
+                                    {isExtorno && formaPgto && (
+                                      <div className="bg-white/5 rounded-lg px-3 py-2">
+                                        <p className="text-white/40 text-xs mb-0.5">Forma de devolução</p>
+                                        <p className="text-white font-semibold text-sm flex items-center">
+                                          <IconeFormaPgto forma={formaPgto} />
+                                          {labelFormaPgto(formaPgto)}
+                                        </p>
+                                      </div>
+                                    )}
+
+                                    {/* Motivo fiscal */}
+                                    {dev.motivoFiscal && (
+                                      <div className={`bg-white/5 rounded-lg px-3 py-2 ${!isExtorno || !formaPgto ? "sm:col-span-1" : ""}`}>
+                                        <p className="text-white/40 text-xs mb-0.5 flex items-center">
+                                          <Tag className="w-3 h-3 mr-1" />
+                                          Motivo fiscal (SEFAZ)
+                                        </p>
+                                        <p className="text-white/80 text-sm font-medium">{dev.motivoFiscal}</p>
+                                      </div>
+                                    )}
+
+                                    {/* Nota referenciada */}
+                                    {dev.notaReferenciada && (
+                                      <div className="bg-white/5 rounded-lg px-3 py-2">
+                                        <p className="text-white/40 text-xs mb-0.5 flex items-center">
+                                          <FileText className="w-3 h-3 mr-1" />
+                                          Nota referenciada
+                                        </p>
+                                        <p className="text-white/80 text-sm font-medium">#{dev.notaReferenciada}</p>
+                                      </div>
+                                    )}
+
+                                    {/* CFOP */}
+                                    {dev.cfopDevolucao && (
+                                      <div className="bg-white/5 rounded-lg px-3 py-2">
+                                        <p className="text-white/40 text-xs mb-0.5">CFOP</p>
+                                        <p className="text-white/80 text-sm font-medium">{dev.cfopDevolucao}</p>
+                                      </div>
+                                    )}
+
+                                    {/* Data e hora */}
+                                    {dataHoraStr && (
+                                      <div className="bg-white/5 rounded-lg px-3 py-2">
+                                        <p className="text-white/40 text-xs mb-0.5 flex items-center">
+                                          <Clock className="w-3 h-3 mr-1" />
+                                          Data / Hora
+                                        </p>
+                                        <p className="text-white/80 text-sm font-medium">{dataHoraStr}</p>
+                                      </div>
+                                    )}
+
+                                    {/* Operador */}
+                                    {dev.operador && (
+                                      <div className="bg-white/5 rounded-lg px-3 py-2">
+                                        <p className="text-white/40 text-xs mb-0.5 flex items-center">
+                                          <User className="w-3 h-3 mr-1" />
+                                          Operador
+                                        </p>
+                                        <p className="text-white/80 text-sm font-medium">{dev.operador}</p>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Observações */}
+                                  {dev.observacoes && (
+                                    <div className="bg-white/5 rounded-lg px-3 py-2">
+                                      <p className="text-white/40 text-xs mb-1 flex items-center">
+                                        <MessageSquare className="w-3 h-3 mr-1" />
+                                        Observações
+                                      </p>
+                                      <p className="text-white/70 text-sm leading-relaxed">{dev.observacoes}</p>
+                                    </div>
+                                  )}
+
+                                  {/* Protocolo */}
+                                  {dev.numero && (
+                                    <div className={`rounded-lg px-3 py-2 flex items-center justify-between ${
+                                      isExtorno ? "bg-red-500/10 border border-red-500/20" : "bg-amber-500/10 border border-amber-500/20"
+                                    }`}>
+                                      <p className="text-white/40 text-xs flex items-center">
+                                        <Hash className="w-3 h-3 mr-1" />
+                                        Protocolo
+                                      </p>
+                                      <p className={`text-xs font-mono font-bold ${isExtorno ? "text-red-300" : "text-amber-300"}`}>
+                                        {dev.numero}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
                               )}
-                              {dev.valorTotal && (
-                                <p className="text-orange-300/70 text-xs">
-                                  Valor: R$ {dev.valorTotal.toFixed(2)}
-                                  {dev.formaPagamentoDevolucao && ` via ${dev.formaPagamentoDevolucao}`}
-                                </p>
-                              )}
-                              <p className="text-orange-300/50 text-xs">
-                                {new Date(dev.dataHora).toLocaleString("pt-BR")} — {dev.operador}
-                              </p>
                             </div>
-                          ))}
-                        </div>
+                          );
+                        })}
                       </div>
                     )}
 
