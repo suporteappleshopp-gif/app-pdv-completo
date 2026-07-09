@@ -128,6 +128,7 @@ export interface Database {
         Row: {
           id: string;
           empresa_id: string;
+          user_id: string | null;
           ambiente: string;
           serie_nfce: string;
           proximo_numero: number;
@@ -139,6 +140,11 @@ export interface Database {
           aliquota_cofins_padrao: number;
           cfop_padrao: string;
           mensagem_nota: string;
+          certificado_a1_base64: string | null;
+          certificado_a1_senha: string | null;
+          certificado_validade: string | null;
+          cnpj_credenciadora: string | null;
+          codigo_autorizacao_pagamento: string | null;
           created_at: string;
           updated_at: string;
         };

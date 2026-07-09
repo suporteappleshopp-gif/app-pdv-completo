@@ -163,11 +163,16 @@ export class CloudSync {
     }
 
     try {
+      // Obter user_id do usuário autenticado para isolamento por tenant
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id || null;
+
       const { error } = await supabase
         .from('config_nfce')
         .upsert({
           id: config.id,
           empresa_id: config.empresaId,
+          user_id: userId,
           ambiente: config.ambiente,
           serie_nfce: config.serieNFCe,
           proximo_numero: config.proximoNumero,
@@ -181,6 +186,7 @@ export class CloudSync {
           mensagem_nota: config.mensagemNota,
           certificado_a1_base64: config.certificadoA1Base64 || null,
           certificado_a1_senha: config.certificadoA1Senha || null,
+          certificado_validade: config.certificadoValidade || null,
           cnpj_credenciadora: config.cnpjCredenciadora || null,
           codigo_autorizacao_pagamento: config.codigoAutorizacaoPagamento || null,
           updated_at: new Date().toISOString(),
@@ -360,6 +366,7 @@ export class CloudSync {
         mensagemNota: config.mensagem_nota,
         certificadoA1Base64: config.certificado_a1_base64 || undefined,
         certificadoA1Senha: config.certificado_a1_senha || undefined,
+        certificadoValidade: config.certificado_validade || undefined,
         cnpjCredenciadora: config.cnpj_credenciadora || undefined,
         codigoAutorizacaoPagamento: config.codigo_autorizacao_pagamento || undefined,
       };

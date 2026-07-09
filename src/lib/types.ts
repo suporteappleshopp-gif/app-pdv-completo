@@ -142,6 +142,8 @@ export interface ConfiguracaoNFCe {
   // Certificado Digital A1 (para assinatura XML e TLS 1.2)
   certificadoA1Base64?: string;
   certificadoA1Senha?: string;
+  // Data de validade do certificado (ISO string, ex: "2026-12-31")
+  certificadoValidade?: string;
   // Pagamento via Cartão/Pix - Grupo YA SEFAZ
   cnpjCredenciadora?: string;
   codigoAutorizacaoPagamento?: string;
