@@ -25,6 +25,7 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/lib/supabase";
+import { imprimirCupomFiscal, imprimirNFCe, imprimirNotaFiscalCompleta } from "@/lib/impressao";
 
 interface Mensagem {
   id: string;
@@ -813,7 +814,7 @@ export default function AnaliseLojasPage() {
                       {/* Botões de impressão */}
                       <div className="flex items-center space-x-3">
                         <button
-                          onClick={() => window.open(`/imprimir-nota/${venda.id}`, '_blank')}
+                          onClick={() => imprimirCupomFiscal(venda)}
                           className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg transition-all font-semibold"
                         >
                           <Printer className="w-5 h-5" />
@@ -821,7 +822,7 @@ export default function AnaliseLojasPage() {
                         </button>
 
                         <button
-                          onClick={() => window.open(`/imprimir-nota/${venda.id}`, '_blank')}
+                          onClick={() => imprimirNFCe(venda)}
                           className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg transition-all font-semibold"
                         >
                           <Printer className="w-5 h-5" />
@@ -829,7 +830,7 @@ export default function AnaliseLojasPage() {
                         </button>
 
                         <button
-                          onClick={() => window.open(`/imprimir-nota/${venda.id}`, '_blank')}
+                          onClick={() => imprimirNotaFiscalCompleta(venda)}
                           className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg transition-all font-semibold"
                         >
                           <Printer className="w-5 h-5" />
