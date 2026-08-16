@@ -12,6 +12,60 @@ function getSupabaseAdmin() {
   });
 }
 
+// Buscar ID do usuario no Supabase Auth pelo email (paginando listUsers)
+async function buscarAuthUserPorEmail(admin: ReturnType<typeof getSupabaseAdmin>, email: string): Promise<string | null> {
+  const emailNormalizado = (email || "").toLowerCase();
+  let page = 1;
+  while (true) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+    if (error || !data) return null;
+    const found = data.users.find((u) => (u.email || "").toLowerCase() === emailNormalizado);
+    if (found) return found.id;
+    if (data.users.length < 200) return null;
+    page++;
+    if (page > 20) return null;
+  }
+}
+
+// Garantir que exista um usuario no Auth com a senha informada e retornar seu ID.
+// Se existir (por auth_user_id ou por email), atualiza a senha. Se nao existir, cria.
+async function garantirAuthUserComSenha(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  email: string,
+  senha: string
+): Promise<{ authUserId: string | null; erro?: string }> {
+  try {
+    // 1) Tentar localizar pelo auth_user_id vinculado (passado pelo chamador via opAtual)
+    //    O chamador resolve isso; aqui tratamos apenas email + senha.
+    let authUserId = await buscarAuthUserPorEmail(admin, email);
+
+    if (authUserId) {
+      // Usuario ja existe no Auth: apenas atualizar a senha
+      const { error: updError } = await admin.auth.admin.updateUserById(authUserId, {
+        password: senha,
+        email_confirm: true,
+      });
+      if (updError) {
+        return { authUserId: null, erro: "Erro ao atualizar senha no Auth: " + updError.message };
+      }
+      return { authUserId };
+    }
+
+    // 2) Nao existe no Auth: criar com a nova senha
+    const { data: created, error: createError } = await admin.auth.admin.createUser({
+      email,
+      password: senha,
+      email_confirm: true,
+    });
+    if (createError || !created?.user) {
+      return { authUserId: null, erro: "Erro ao criar credenciais no Auth: " + (createError?.message || "desconhecido") };
+    }
+    return { authUserId: created.user.id };
+  } catch (e: any) {
+    return { authUserId: null, erro: "Falha ao sincronizar Auth: " + (e?.message || "erro desconhecido") };
+  }
+}
+
 // GET - Listar todos os operadores
 export async function GET() {
   try {
@@ -190,26 +244,64 @@ export async function PATCH(request: NextRequest) {
       .eq("id", id)
       .single();
 
-    // Se senha ou email foram enviados, atualizar no Supabase Auth primeiro
-    if (opAtual?.auth_user_id && (updates.senha || updates.email)) {
-      const authUpdates: Record<string, string> = {};
-      if (updates.senha) authUpdates.password = updates.senha;
-      if (updates.email) authUpdates.email = updates.email;
+    const emailFinal = updates.email || opAtual?.email;
 
+    // Se a senha foi enviada, garantir que o Auth tenha uma conta com a senha nova.
+    // Isso cobre 3 casos: operador com auth_user_id vinculado, operador sem
+    // auth_user_id mas com conta no Auth, e operador sem conta no Auth algum.
+    // Sem isso, usuarios sem auth_user_id ficavam travados ao trocar senha
+    // (a senha em texto era apagada e nenhuma conta Auth era criada/atualizada).
+    let authUserIdVinculado: string | null = opAtual?.auth_user_id || null;
+
+    if (updates.senha && emailFinal) {
+      // Se ja temos auth_user_id, atualizar a senha direto por ele
+      if (authUserIdVinculado) {
+        const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
+          authUserIdVinculado,
+          { password: updates.senha, email_confirm: true }
+        );
+
+        // Se falhar (ex.: usuario foi removido do Auth), cair no fluxo de garantia
+        if (authError) {
+          console.warn("⚠️ updateUserById falhou, tentando garantir conta no Auth:", authError.message);
+          const res = await garantirAuthUserComSenha(supabaseAdmin, emailFinal, updates.senha);
+          if (res.erro) {
+            return NextResponse.json(
+              { success: false, error: res.erro },
+              { status: 500 }
+            );
+          }
+          if (res.authUserId && res.authUserId !== authUserIdVinculado) {
+            authUserIdVinculado = res.authUserId;
+          }
+        } else {
+          console.log("✅ Senha atualizada no Auth para operador:", id);
+        }
+      } else {
+        // Sem auth_user_id: garantir conta no Auth e vincular
+        const res = await garantirAuthUserComSenha(supabaseAdmin, emailFinal, updates.senha);
+        if (res.erro) {
+          return NextResponse.json(
+            { success: false, error: res.erro },
+            { status: 500 }
+          );
+        }
+        authUserIdVinculado = res.authUserId;
+        console.log("✅ Conta Auth garantida/vinculada para operador:", id, "->", authUserIdVinculado);
+      }
+    } else if (opAtual?.auth_user_id && updates.email && !updates.senha) {
+      // Apenas troca de email (sem senha): atualizar no Auth
       const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
         opAtual.auth_user_id,
-        authUpdates
+        { email: updates.email }
       );
-
       if (authError) {
-        console.error("❌ Erro ao atualizar Auth:", authError);
+        console.error("❌ Erro ao atualizar email no Auth:", authError);
         return NextResponse.json(
-          { success: false, error: "Erro ao atualizar credenciais: " + authError.message },
+          { success: false, error: "Erro ao atualizar email no Auth: " + authError.message },
           { status: 500 }
         );
       }
-
-      console.log("✅ Auth atualizado para operador:", id);
     }
 
     // Mapear campos do frontend para o banco
@@ -226,6 +318,12 @@ export async function PATCH(request: NextRequest) {
     // Atualizar email na tabela e limpar senha em texto plano ao trocar credenciais
     if (updates.email !== undefined) dbUpdates.email = updates.email;
     if (updates.senha !== undefined) dbUpdates.senha = null; // Apagar senha texto plano ao usar Auth
+
+    // Se garantimos/vinculamos uma conta Auth agora (operador estava sem auth_user_id),
+    // persistir o vinculo na tabela para que futuras trocas e o login funcionem pelo Auth.
+    if (authUserIdVinculado && opAtual?.auth_user_id !== authUserIdVinculado) {
+      dbUpdates.auth_user_id = authUserIdVinculado;
+    }
 
     const { data, error } = await supabaseAdmin
       .from("operadores")
