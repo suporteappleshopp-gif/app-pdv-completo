@@ -21,11 +21,13 @@ import {
   ArrowUpDown,
   Printer,
   RefreshCw,
+  FileText,
+  RotateCcw,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/lib/supabase";
-import { imprimirCupomFiscal, imprimirNFCe, imprimirNotaFiscalCompleta } from "@/lib/impressao";
+import { imprimirCupomFiscal, imprimirNFCe, imprimirNotaFiscalCompleta, imprimirNotaExtorno, type RegistroExtorno } from "@/lib/impressao";
 
 interface Mensagem {
   id: string;
@@ -65,6 +67,10 @@ export default function AnaliseLojasPage() {
   const [totalVendas, setTotalVendas] = useState(0);
   const [faturamentoTotal, setFaturamentoTotal] = useState(0);
   const [ticketMedio, setTicketMedio] = useState(0);
+
+  // Modal de Notas de Extorno (admin)
+  const [showModalNotasExtorno, setShowModalNotasExtorno] = useState(false);
+  const [vendaNotasExtorno, setVendaNotasExtorno] = useState<any>(null);
 
   // Manter ref do operador selecionado para closures de realtime
   useEffect(() => {
@@ -837,6 +843,19 @@ export default function AnaliseLojasPage() {
                           <span>Nota Completa</span>
                         </button>
                       </div>
+
+                      {venda.devolucoes && venda.devolucoes.some((d: any) => d.tipo === "extorno") && (
+                        <button
+                          onClick={() => {
+                            setVendaNotasExtorno(venda);
+                            setShowModalNotasExtorno(true);
+                          }}
+                          className="w-full mt-3 flex items-center justify-center space-x-2 px-4 py-3 bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 rounded-lg transition-all font-semibold border border-orange-500/30"
+                        >
+                          <FileText className="w-5 h-5" />
+                          <span>Nota do Extorno</span>
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1009,6 +1028,84 @@ export default function AnaliseLojasPage() {
                   Trocar Senha
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Notas de Extorno (admin) */}
+      {showModalNotasExtorno && vendaNotasExtorno && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 rounded-2xl shadow-2xl border border-orange-500/30 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="bg-orange-700 px-6 py-4 rounded-t-2xl flex items-center justify-between">
+              <div className="flex items-center space-x-3 text-white">
+                <FileText className="w-6 h-6" />
+                <h2 className="text-xl font-bold">Notas de Extorno — Venda #{vendaNotasExtorno.numero}</h2>
+              </div>
+              <button
+                onClick={() => setShowModalNotasExtorno(false)}
+                className="text-white/80 hover:text-white transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-3">
+              {(vendaNotasExtorno.devolucoes || [])
+                .filter((d: any) => d.tipo === "extorno")
+                .map((dev: any, idx: number) => {
+                  const itensDev: any[] = dev.itens || [];
+                  const valorTotal = dev.valorTotal ?? itensDev.reduce((s: number, i: any) => s + ((i.valorUnitario || i.precoUnitario || 0) * (i.quantidade || 1)), 0);
+                  const dataStr = dev.dataHora ? new Date(dev.dataHora).toLocaleString("pt-BR") : "-";
+                  return (
+                    <div key={idx} className="bg-slate-900/60 border border-orange-500/20 rounded-xl p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <p className="text-white font-bold text-sm flex items-center">
+                            <RotateCcw className="w-4 h-4 mr-2 text-orange-300" />
+                            Protocolo: {dev.numero}
+                          </p>
+                          <p className="text-purple-200 text-xs mt-1">{dataStr}</p>
+                          {dev.operador && <p className="text-purple-200 text-xs">Operador: {dev.operador}</p>}
+                        </div>
+                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-red-500/25 text-red-300">
+                          EXTORNO
+                        </span>
+                      </div>
+
+                      <div className="space-y-1 mb-3">
+                        {itensDev.map((it: any, i: number) => (
+                          <div key={i} className="flex justify-between text-sm bg-white/5 rounded-lg px-3 py-2">
+                            <span className="text-purple-200">{it.quantidade}x {it.nomeProduto || it.nome}</span>
+                            <span className="text-white font-semibold">
+                              R$ {((it.valorUnitario || it.precoUnitario || 0) * (it.quantidade || 1)).toFixed(2)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2 mb-3">
+                        <span className="text-orange-300 font-semibold text-sm">Valor Extornado:</span>
+                        <span className="text-orange-300 font-bold">R$ {valorTotal.toFixed(2)}</span>
+                      </div>
+
+                      {dev.motivoFiscal && (
+                        <p className="text-purple-200 text-xs mb-3"><strong>Motivo:</strong> {dev.motivoFiscal}</p>
+                      )}
+                      {dev.formaPagamentoDevolucao && (
+                        <p className="text-purple-200 text-xs mb-3"><strong>Devolução via:</strong> {dev.formaPagamentoDevolucao}</p>
+                      )}
+
+                      <button
+                        onClick={() => imprimirNotaExtorno(vendaNotasExtorno, dev as RegistroExtorno)}
+                        className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 rounded-lg transition-all font-semibold"
+                      >
+                        <Printer className="w-5 h-5" />
+                        <span>Imprimir Nota do Extorno</span>
+                      </button>
+                    </div>
+                  );
+                })}
             </div>
           </div>
         </div>

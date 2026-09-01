@@ -1016,7 +1016,7 @@ export function imprimirNotaFiscalCompleta(venda: Venda) {
           ${config.ambiente === "homologacao" ? "DOCUMENTO EMITIDO EM AMBIENTE DE HOMOLOGAÇÃO - SEM VALOR FISCAL" : ""}
         </p>
       </div>
-      
+
       <script>
         window.onload = function() {
           ${dispositivo === "desktop" ? "window.print();" : ""}
@@ -1026,7 +1026,7 @@ export function imprimirNotaFiscalCompleta(venda: Venda) {
     </body>
     </html>
   `;
-  
+
   if (dispositivo === "mobile") {
     const janela = window.open("", "_blank");
     if (janela) {
@@ -1039,5 +1039,185 @@ export function imprimirNotaFiscalCompleta(venda: Venda) {
       janela.document.write(html);
       janela.document.close();
     }
+  }
+}
+
+// Interface para o registro de extorno/devolução
+export interface RegistroExtorno {
+  tipo?: string;
+  numero?: string;
+  itens?: Array<{
+    produtoId?: string;
+    nome?: string;
+    nomeProduto?: string;
+    quantidade?: number;
+    valorUnitario?: number;
+    precoUnitario?: number;
+    subtotal?: number;
+  }>;
+  itens_originais?: Array<{
+    produtoId?: string;
+    nome?: string;
+    nomeProduto?: string;
+    quantidade?: number;
+    valorUnitario?: number;
+    precoUnitario?: number;
+    subtotal?: number;
+  }>;
+  valorTotal?: number;
+  valor_original?: number;
+  valor_diferenca?: number;
+  motivoFiscal?: string;
+  motivo_fiscal?: string;
+  motivo?: string;
+  observacoes?: string;
+  formaPagamentoDevolucao?: string;
+  forma_pagamento_diferenca?: string | null;
+  dataHora?: string;
+  operador?: string;
+  operador_nome?: string;
+  nota_referenciada?: string;
+  cfop_devolucao?: string;
+  status?: string;
+}
+
+// Imprimir Nota de Extorno / Devolução (CFOP 5411)
+export function imprimirNotaExtorno(venda: Venda, extorno: RegistroExtorno) {
+  const dispositivo = detectarDispositivo();
+  const empresa = obterDadosEmpresa();
+
+  const protocolo = extorno.numero || `EXTORNO-${(venda.numero || 0).toString().padStart(6, "0")}`;
+  const itensExtorno = extorno.itens || extorno.itens_originais || [];
+  const valorTotal = extorno.valorTotal ?? Math.abs(extorno.valor_diferenca ?? extorno.valor_original ?? 0);
+  const motivo = extorno.motivoFiscal || extorno.motivo_fiscal || extorno.motivo || "Não informado";
+  const formaPgto = extorno.formaPagamentoDevolucao || extorno.forma_pagamento_diferenca || null;
+  const notaRef = extorno.nota_referenciada || (venda.numero?.toString() ?? "");
+  const cfop = extorno.cfop_devolucao || "5411";
+  const operador = extorno.operador || extorno.operador_nome || venda.operadorNome || "-";
+
+  let dataStr = "";
+  try {
+    dataStr = extorno.dataHora
+      ? format(new Date(extorno.dataHora), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })
+      : format(new Date(), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR });
+  } catch {
+    dataStr = format(new Date(), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR });
+  }
+
+  const labelFormaPgto = (f: string) => {
+    const map: Record<string, string> = { dinheiro: "Dinheiro", credito: "Cartão Crédito", debito: "Cartão Débito", pix: "PIX", outros: "Outros" };
+    return map[f] || f || "-";
+  };
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Nota de Extorno ${protocolo}</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+          font-family: 'Courier New', monospace;
+          max-width: ${dispositivo === "mobile" ? "100%" : "380px"};
+          margin: ${dispositivo === "mobile" ? "0" : "20px auto"};
+          padding: 15px;
+          font-size: ${dispositivo === "mobile" ? "14px" : "12px"};
+          background: white;
+          color: black;
+        }
+        .header { text-align: center; border-bottom: 3px double #000; padding-bottom: 12px; margin-bottom: 12px; }
+        .header h2 { font-size: ${dispositivo === "mobile" ? "17px" : "15px"}; margin-bottom: 5px; }
+        .badge { display: inline-block; background: #7f1d1d; color: #fff; padding: 4px 12px; border-radius: 4px; font-weight: bold; font-size: ${dispositivo === "mobile" ? "13px" : "11px"}; margin-top: 6px; }
+        .info { margin: 12px 0; font-size: ${dispositivo === "mobile" ? "13px" : "11px"}; }
+        .info p { margin: 3px 0; }
+        .info-box { background: #f3f4f6; border: 1px solid #000; border-radius: 4px; padding: 8px; margin: 10px 0; }
+        .items { border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 10px 0; margin: 10px 0; }
+        .item { margin: 8px 0; }
+        .item-nome { font-weight: bold; margin-bottom: 2px; }
+        .item-detalhes { display: flex; justify-content: space-between; font-size: ${dispositivo === "mobile" ? "12px" : "11px"}; }
+        .total { font-size: ${dispositivo === "mobile" ? "18px" : "15px"}; font-weight: bold; text-align: right; margin-top: 10px; padding-top: 10px; border-top: 2px solid #000; }
+        .footer { text-align: center; margin-top: 20px; font-size: ${dispositivo === "mobile" ? "12px" : "10px"}; border-top: 2px dashed #000; padding-top: 10px; }
+        .protocolo { font-family: 'Courier New', monospace; font-weight: bold; letter-spacing: 1px; }
+        @media print { body { max-width: 380px; font-size: 12px; } }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h2>${empresa.nome}</h2>
+        <p>CNPJ: ${empresa.cnpj}</p>
+        ${empresa.inscricaoEstadual ? `<p>IE: ${empresa.inscricaoEstadual}</p>` : ""}
+        <p>${empresa.endereco}</p>
+        ${empresa.telefone ? `<p>Tel: ${empresa.telefone}</p>` : ""}
+        <div class="badge">NOTA DE EXTORNO / DEVOLUÇÃO</div>
+      </div>
+
+      <div class="info">
+        <p><strong>Protocolo:</strong> <span class="protocolo">${protocolo}</span></p>
+        <p><strong>Venda de Origem:</strong> #${notaRef}</p>
+        <p><strong>Data do Extorno:</strong> ${dataStr}</p>
+        <p><strong>Operador:</strong> ${operador}</p>
+        <p><strong>CFOP:</strong> ${cfop} (Devolução de venda do contribuinte)</p>
+        ${venda.clienteNome ? `<p><strong>Cliente:</strong> ${venda.clienteNome}</p>` : ""}
+        ${venda.clienteCpf ? `<p><strong>CPF:</strong> ${venda.clienteCpf}</p>` : ""}
+      </div>
+
+      <div class="info-box">
+        <p><strong>Motivo Fiscal (SEFAZ):</strong> ${motivo}</p>
+        ${extorno.observacoes ? `<p style="margin-top:4px;"><strong>Observações:</strong> ${extorno.observacoes}</p>` : ""}
+      </div>
+
+      <div class="items">
+        <p style="font-weight:bold;margin-bottom:6px;">ITENS EXTORNADOS</p>
+        ${itensExtorno
+          .map((item) => {
+            const nome = item.nome || item.nomeProduto || "Produto";
+            const qtd = item.quantidade || 0;
+            const unit = item.valorUnitario || item.precoUnitario || 0;
+            const sub = item.subtotal ?? (unit * qtd);
+            return `
+          <div class="item">
+            <div class="item-nome">${nome}</div>
+            <div class="item-detalhes">
+              <span>${qtd} x R$ ${unit.toFixed(2)}</span>
+              <span>R$ ${sub.toFixed(2)}</span>
+            </div>
+          </div>`;
+          })
+          .join("")}
+      </div>
+
+      <div class="total">
+        VALOR EXTORNADO: R$ ${valorTotal.toFixed(2)}
+      </div>
+
+      <div style="margin-top:12px;border-top:1px solid #000;padding-top:8px;">
+        <p><strong>Forma de Devolução:</strong> ${labelFormaPgto(formaPgto || "")}</p>
+      </div>
+
+      <div class="footer">
+        <p style="font-weight:bold;margin-bottom:8px;">${empresa.nome}</p>
+        <p>Documento de extorno vinculado à nota de origem #${notaRef}</p>
+        <p style="margin-top:8px;">Conforme CFOP ${cfop} — SEFAZ / Receita Federal</p>
+        <p style="margin-top:8px;font-size:${dispositivo === "mobile" ? "10px" : "9px"};">
+          Documento auxiliar de extorno/devolução
+        </p>
+      </div>
+
+      <script>
+        window.onload = function() {
+          ${dispositivo === "desktop" ? "window.print();" : ""}
+          ${dispositivo === "desktop" ? "setTimeout(() => window.close(), 500);" : ""}
+        }
+      </script>
+    </body>
+    </html>
+  `;
+
+  const janela = window.open("", "_blank");
+  if (janela) {
+    janela.document.write(html);
+    janela.document.close();
   }
 }
