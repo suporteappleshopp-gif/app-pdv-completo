@@ -124,20 +124,36 @@ export default function FinanceiroGestaoPage() {
 
   const carregarVendas = async (uid: string) => {
     const { supabase } = await import("@/lib/supabase");
-    const { data } = await supabase.from("vendas").select("*")
+    const { data: vendasData } = await supabase.from("vendas").select("*")
       .eq("operador_id", uid).order("created_at", { ascending: false });
-    const vendaMapped = (data || []).map((v: any) => ({
-      id: v.id,
-      numero: v.numero,
-      operadorId: v.operador_id,
-      operadorNome: v.operador_nome,
-      itens: v.itens || [],
-      total: v.total,
-      dataHora: new Date(v.created_at),
-      tipoPagamento: v.forma_pagamento,
-      status: v.status,
-    }));
-    setVendas(vendaMapped);
+
+    // Os itens de cada venda ficam em uma tabela separada (itens_venda) e o
+    // total é NUMERIC (devolvido como string pelo Supabase). Buscamos os itens
+    // por venda e convertemos os valores para número, igual à tela de Histórico.
+    const vendasComItens = await Promise.all(
+      (vendasData || []).map(async (v: any) => {
+        const { data: itens } = await supabase.from("itens_venda")
+          .select("*").eq("venda_id", v.id);
+        return {
+          id: v.id,
+          numero: v.numero,
+          operadorId: v.operador_id,
+          operadorNome: v.operador_nome,
+          itens: (itens || []).map((item: any) => ({
+            produtoId: item.produto_id,
+            nome: item.nome,
+            quantidade: parseFloat(String(item.quantidade ?? 0)),
+            precoUnitario: parseFloat(String(item.preco_unitario ?? 0)),
+            subtotal: parseFloat(String(item.subtotal ?? 0)),
+          })),
+          total: parseFloat(String(v.total ?? 0)),
+          dataHora: new Date(v.created_at),
+          tipoPagamento: v.forma_pagamento || v.tipo_pagamento,
+          status: v.status,
+        };
+      })
+    );
+    setVendas(vendasComItens);
   };
 
   const mostrarSucesso = (msg: string) => { setSucesso(msg); setTimeout(() => setSucesso(""), 4000); };
