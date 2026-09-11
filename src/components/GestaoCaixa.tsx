@@ -58,6 +58,7 @@ export default function GestaoCaixa({
 
   const [ultimaAbertura, setUltimaAbertura] = useState<RegistroCaixa | null>(null);
   const [ultimoFechamento, setUltimoFechamento] = useState<RegistroCaixa | null>(null);
+  const [todosFechamentos, setTodosFechamentos] = useState<RegistroCaixa[]>([]);
   const [caixaAberto, setCaixaAberto] = useState(false);
 
   // Modal de abertura
@@ -94,50 +95,57 @@ export default function GestaoCaixa({
         .select("*")
         .eq("operador_id", operadorId)
         .gte("data_hora", inicioHoje)
-        .order("data_hora", { ascending: false });
+        .order("data_hora", { ascending: true });
 
       if (error) throw error;
 
+      const mapear = (r: Record<string, unknown>): RegistroCaixa => ({
+        id: r.id as string,
+        operadorId: r.operador_id as string,
+        operadorNome: r.operador_nome as string,
+        tipo: r.tipo as "abertura" | "fechamento",
+        valorInicial: r.valor_inicial as number,
+        valorFinal: r.valor_final as number,
+        totalVendas: r.total_vendas as number,
+        totalDinheiro: r.total_dinheiro as number,
+        totalCredito: r.total_credito as number,
+        totalDebito: r.total_debito as number,
+        totalPix: r.total_pix as number,
+        totalOutros: r.total_outros as number,
+        quantidadeVendas: r.quantidade_vendas as number,
+        observacoes: r.observacoes as string,
+        dataHora: r.data_hora as string,
+      });
+
       if (data && data.length > 0) {
-        const abertura = data.find((r) => r.tipo === "abertura");
-        const fechamento = data.find((r) => r.tipo === "fechamento");
+        const registros = data.map(mapear);
 
-        if (abertura) {
-          setUltimaAbertura({
-            id: abertura.id,
-            operadorId: abertura.operador_id,
-            operadorNome: abertura.operador_nome,
-            tipo: abertura.tipo,
-            valorInicial: abertura.valor_inicial,
-            observacoes: abertura.observacoes,
-            dataHora: abertura.data_hora,
-          });
-        }
+        // Ordena do mais recente para o mais antigo
+        const ordenados = [...registros].sort((a, b) =>
+          new Date(b.dataHora || 0).getTime() - new Date(a.dataHora || 0).getTime()
+        );
 
-        if (fechamento) {
-          setUltimoFechamento({
-            id: fechamento.id,
-            operadorId: fechamento.operador_id,
-            operadorNome: fechamento.operador_nome,
-            tipo: fechamento.tipo,
-            valorFinal: fechamento.valor_final,
-            totalVendas: fechamento.total_vendas,
-            totalDinheiro: fechamento.total_dinheiro,
-            totalCredito: fechamento.total_credito,
-            totalDebito: fechamento.total_debito,
-            totalPix: fechamento.total_pix,
-            totalOutros: fechamento.total_outros,
-            quantidadeVendas: fechamento.quantidade_vendas,
-            observacoes: fechamento.observacoes,
-            dataHora: fechamento.data_hora,
-          });
-        }
+        // O registro mais recente define o estado atual do caixa
+        const maisRecente = ordenados[0];
+        const aberto = maisRecente?.tipo === "abertura";
 
-        // Caixa está aberto se tem abertura mas não tem fechamento hoje
-        setCaixaAberto(!!abertura && !fechamento);
+        // Última abertura = abertura mais recente (só conta se não houve fechamento depois)
+        const aberturaAtual = aberto ? ordenados.find((r) => r.tipo === "abertura") : null;
+
+        // Último fechamento = fechamento mais recente
+        const ultimoFech = ordenados.find((r) => r.tipo === "fechamento") || null;
+
+        // Todos os fechamentos do dia (para histórico/relatório)
+        const fechamentosDia = ordenados.filter((r) => r.tipo === "fechamento");
+
+        setUltimaAbertura(aberturaAtual || null);
+        setUltimoFechamento(ultimoFech);
+        setTodosFechamentos(fechamentosDia);
+        setCaixaAberto(aberto);
       } else {
         setUltimaAbertura(null);
         setUltimoFechamento(null);
+        setTodosFechamentos([]);
         setCaixaAberto(false);
       }
     } catch (err) {
@@ -149,15 +157,20 @@ export default function GestaoCaixa({
 
   const consultarVendasDoDia = async (): Promise<VendaDia> => {
     const hoje = new Date();
-    const inicioHoje = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()).toISOString();
     const fimHoje = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + 1).toISOString();
+
+    // Considera apenas as vendas do turno atual: desde a última abertura até agora.
+    // Se não houver abertura, usa o início do dia.
+    const inicioPeriodo = ultimaAbertura?.dataHora
+      ? new Date(ultimaAbertura.dataHora).toISOString()
+      : new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()).toISOString();
 
     const { data, error } = await supabase
       .from("vendas")
       .select("total, forma_pagamento, pagamentos")
       .eq("operador_id", operadorId)
       .eq("status", "concluida")
-      .gte("created_at", inicioHoje)
+      .gte("created_at", inicioPeriodo)
       .lt("created_at", fimHoje);
 
     if (error) throw error;
@@ -404,10 +417,10 @@ export default function GestaoCaixa({
     return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   };
 
-  const statusCaixa = ultimoFechamento
-    ? "fechado"
-    : ultimaAbertura
+  const statusCaixa = caixaAberto
     ? "aberto"
+    : ultimoFechamento
+    ? "fechado"
     : "sem_registro";
 
   return (
@@ -558,39 +571,28 @@ export default function GestaoCaixa({
 
           {/* Botões de ação */}
           <div className="flex flex-col sm:flex-row gap-3">
-            {!ultimaAbertura && !ultimoFechamento && (
+            {caixaAberto ? (
+              <button
+                onClick={prepararFechamento}
+                disabled={processando || carregando}
+                className="flex-1 flex items-center justify-center space-x-2 px-5 py-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-xl font-semibold transition-all"
+              >
+                {carregando ? (
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                ) : (
+                  <LogOut className="w-5 h-5" />
+                )}
+                <span>Fechar Caixa</span>
+              </button>
+            ) : (
               <button
                 onClick={() => setMostrarModalAbertura(true)}
                 disabled={processando || carregando}
                 className="flex-1 flex items-center justify-center space-x-2 px-5 py-3 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-xl font-semibold transition-all"
               >
                 <LogIn className="w-5 h-5" />
-                <span>Abrir Caixa</span>
+                <span>{ultimoFechamento ? "Abrir Novo Caixa" : "Abrir Caixa"}</span>
               </button>
-            )}
-
-            {ultimaAbertura && !ultimoFechamento && (
-              <>
-                <button
-                  onClick={prepararFechamento}
-                  disabled={processando || carregando}
-                  className="flex-1 flex items-center justify-center space-x-2 px-5 py-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-xl font-semibold transition-all"
-                >
-                  {carregando ? (
-                    <RefreshCw className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <LogOut className="w-5 h-5" />
-                  )}
-                  <span>Fechar Caixa</span>
-                </button>
-              </>
-            )}
-
-            {ultimoFechamento && (
-              <div className="flex-1 flex items-center justify-center space-x-2 px-5 py-3 bg-gray-700/50 text-gray-300 rounded-xl font-semibold">
-                <CheckCircle className="w-5 h-5 text-green-400" />
-                <span>Caixa fechado hoje</span>
-              </div>
             )}
 
             <button
@@ -602,6 +604,42 @@ export default function GestaoCaixa({
               <RefreshCw className={`w-5 h-5 ${carregando ? "animate-spin" : ""}`} />
             </button>
           </div>
+
+          {/* Histórico de fechamentos do dia */}
+          {todosFechamentos.length > 0 && (
+            <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+              <div className="flex items-center space-x-2 mb-3">
+                <CheckCircle className="w-5 h-5 text-green-300" />
+                <span className="text-white font-semibold">
+                  Fechamentos de hoje ({todosFechamentos.length})
+                </span>
+              </div>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {todosFechamentos.map((f) => (
+                  <div key={f.id} className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2">
+                    <div>
+                      <p className="text-red-300 text-sm font-bold">
+                        Fechado às {formatarHora(f.dataHora)}
+                      </p>
+                      <p className="text-purple-200 text-xs">
+                        Total: R$ {(f.totalVendas ?? 0).toFixed(2)} • {f.quantidadeVendas ?? 0} venda(s)
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setDadosFechamentoFinal(f);
+                        setMostrarModalImpressao(true);
+                      }}
+                      className="flex items-center space-x-1 text-xs text-purple-300 hover:text-white transition-colors"
+                    >
+                      <Printer className="w-3 h-3" />
+                      <span>Imprimir</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
