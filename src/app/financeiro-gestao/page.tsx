@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { format, isAfter, isBefore, isToday, parseISO, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ContaPagar, MovimentacaoCaixa, Loja, Venda } from "@/lib/types";
+import { ContaPagar, MovimentacaoCaixa, Loja, Venda, RegistroCaixa } from "@/lib/types";
 
 type AbaFinanceiro = "contas" | "caixa" | "relatorios";
 type FiltroContas = "todas" | "a_pagar" | "pago" | "vencido";
@@ -56,6 +56,7 @@ export default function FinanceiroGestaoPage() {
 
   // Caixa
   const [movimentacoesCaixa, setMovimentacoesCaixa] = useState<MovimentacaoCaixa[]>([]);
+  const [registrosCaixa, setRegistrosCaixa] = useState<RegistroCaixa[]>([]);
   const [showModalCaixa, setShowModalCaixa] = useState(false);
   const [tipoCaixa, setTipoCaixa] = useState<"sangria" | "suprimento">("sangria");
   const [valorCaixa, setValorCaixa] = useState("");
@@ -83,6 +84,7 @@ export default function FinanceiroGestaoPage() {
       await Promise.all([
         carregarContas(operador.id),
         carregarMovimentacoesCaixa(operador.id),
+        carregarRegistrosCaixa(operador.id),
         carregarLojas(operador.id),
         carregarVendas(operador.id),
       ]);
@@ -114,6 +116,13 @@ export default function FinanceiroGestaoPage() {
     const { data } = await supabase.from("movimentacoes_caixa")
       .select("*").eq("user_id", uid).order("data_hora", { ascending: false }).limit(100);
     setMovimentacoesCaixa(data || []);
+  };
+
+  const carregarRegistrosCaixa = async (uid: string) => {
+    const { supabase } = await import("@/lib/supabase");
+    const { data } = await supabase.from("registros_caixa")
+      .select("*").eq("operador_id", uid).order("data_hora", { ascending: false }).limit(200);
+    setRegistrosCaixa(data || []);
   };
 
   const carregarLojas = async (uid: string) => {
@@ -281,10 +290,46 @@ export default function FinanceiroGestaoPage() {
       } else if (tipo === "caixa") {
         const totalSangrias = movimentacoesCaixa.filter(m => m.tipo === "sangria").reduce((acc, m) => acc + m.valor, 0);
         const totalSuprimentos = movimentacoesCaixa.filter(m => m.tipo === "suprimento").reduce((acc, m) => acc + m.valor, 0);
-        const linhas = movimentacoesCaixa.slice(0, 50).map(m =>
+
+        // Fechamentos de caixa registrados (abertura/fechamento do turno)
+        const fechamentos = (registrosCaixa as any[])
+          .filter(r => r.tipo === "fechamento")
+          .slice(0, 100);
+        const linhasFechamento = fechamentos.map((r) => {
+          const dt = r.data_hora ? format(new Date(r.data_hora), "dd/MM/yyyy HH:mm") : "—";
+          const vendas = Number(r.total_vendas) || 0;
+          const qtd = Number(r.quantidade_vendas) || 0;
+          const dinheiro = Number(r.total_dinheiro) || 0;
+          const credito = Number(r.total_credito) || 0;
+          const debito = Number(r.total_debito) || 0;
+          const pix = Number(r.total_pix) || 0;
+          const outros = Number(r.total_outros) || 0;
+          const fundo = Number(r.valor_inicial) || 0;
+          const final = Number(r.valor_final) || 0;
+          const pag = [
+            dinheiro > 0 ? `Dinheiro R$ ${dinheiro.toFixed(2)}` : null,
+            credito > 0 ? `Credito R$ ${credito.toFixed(2)}` : null,
+            debito > 0 ? `Debito R$ ${debito.toFixed(2)}` : null,
+            pix > 0 ? `PIX R$ ${pix.toFixed(2)}` : null,
+            outros > 0 ? `Outros R$ ${outros.toFixed(2)}` : null,
+          ].filter(Boolean).join(" | ");
+          return `[${dt}] | Total R$ ${vendas.toFixed(2)} | Qtd ${qtd} | ${pag || "sem pagamentos"} | Fundo R$ ${fundo.toFixed(2)} | Final R$ ${final.toFixed(2)}${r.observacoes ? " | Obs: " + r.observacoes : ""}`;
+        }).join("\n");
+
+        const linhasMov = movimentacoesCaixa.slice(0, 50).map(m =>
           `${m.data_hora ? format(new Date(m.data_hora), "dd/MM HH:mm") : "—"} | ${m.tipo.toUpperCase()} | R$ ${m.valor.toFixed(2)} | ${m.motivo || "—"} | ${m.operador_nome}`
         ).join("\n");
-        conteudo = `FECHAMENTO DE CAIXA\n===================\nTotal Sangrias: R$ ${totalSangrias.toFixed(2)}\nTotal Suprimentos: R$ ${totalSuprimentos.toFixed(2)}\n\nDETALHAMENTO:\n${linhas}`;
+
+        conteudo =
+          `FECHAMENTO DE CAIXA\n` +
+          `===================\n` +
+          `Total Sangrias: R$ ${totalSangrias.toFixed(2)}\n` +
+          `Total Suprimentos: R$ ${totalSuprimentos.toFixed(2)}\n` +
+          `\nFECHAMENTOS DE CAIXA (${fechamentos.length}):\n` +
+          `-----------------------------\n` +
+          (linhasFechamento || "Nenhum fechamento registrado") +
+          `\n\nDETALHAMENTO DE SANGRIAS/SUPRIMENTOS:\n` +
+          (linhasMov || "Nenhuma movimentação registrada");
       } else if (tipo === "abc") {
         const mapProdutos: Record<string, { nome: string; qtd: number; valor: number }> = {};
         vendasPeriodo.forEach(v => {
