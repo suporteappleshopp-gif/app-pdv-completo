@@ -154,7 +154,7 @@ export default function GestaoCaixa({
 
     const { data, error } = await supabase
       .from("vendas")
-      .select("total, tipo_pagamento, pagamentos")
+      .select("total, forma_pagamento, pagamentos")
       .eq("operador_id", operadorId)
       .eq("status", "concluida")
       .gte("created_at", inicioHoje)
@@ -189,7 +189,7 @@ export default function GestaoCaixa({
           });
         } else {
           const val = Number(venda.total) || 0;
-          const tipo = venda.tipo_pagamento;
+          const tipo = venda.forma_pagamento;
           if (tipo === "dinheiro") resumo.totalDinheiro += val;
           else if (tipo === "credito") resumo.totalCredito += val;
           else if (tipo === "debito") resumo.totalDebito += val;
