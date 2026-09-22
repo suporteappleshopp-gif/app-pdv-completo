@@ -1081,12 +1081,24 @@ export interface RegistroExtorno {
   status?: string;
 }
 
-// Imprimir Nota de Extorno / Devolução (CFOP 5411)
+// Imprimir Nota de Extorno / Devolução ou Troca (CFOP 5411)
 export function imprimirNotaExtorno(venda: Venda, extorno: RegistroExtorno) {
   const dispositivo = detectarDispositivo();
   const empresa = obterDadosEmpresa();
 
-  const protocolo = extorno.numero || `EXTORNO-${(venda.numero || 0).toString().padStart(6, "0")}`;
+  // tipo da operação: "troca" ou "extorno" (padrão: extorno p/ compatibilidade)
+  const tipoOperacao = (extorno.tipo || "extorno").toLowerCase();
+  const isTroca = tipoOperacao === "troca";
+
+  const tituloNota = isTroca ? "NOTA DE TROCA DE MERCADORIA" : "NOTA DE EXTORNO / DEVOLUÇÃO";
+  const labelItens = isTroca ? "ITENS TROCADOS" : "ITENS EXTORNADOS";
+  const labelValor = isTroca ? "VALOR DOS ITENS TROCADOS" : "VALOR EXTORNADO";
+  const labelFormaDevolucao = isTroca ? "Forma de Compensação:" : "Forma de Devolução:";
+  const descCfop = isTroca
+    ? "Troca de mercadoria (devolução vinculada)"
+    : "Devolução de venda do contribuinte";
+
+  const protocolo = extorno.numero || `${isTroca ? "TROCA" : "EXTORNO"}-${(venda.numero || 0).toString().padStart(6, "0")}`;
   const itensExtorno = extorno.itens || extorno.itens_originais || [];
   const valorTotal = extorno.valorTotal ?? Math.abs(extorno.valor_diferenca ?? extorno.valor_original ?? 0);
   const motivo = extorno.motivoFiscal || extorno.motivo_fiscal || extorno.motivo || "Não informado";
@@ -1150,15 +1162,15 @@ export function imprimirNotaExtorno(venda: Venda, extorno: RegistroExtorno) {
         ${empresa.inscricaoEstadual ? `<p>IE: ${empresa.inscricaoEstadual}</p>` : ""}
         <p>${empresa.endereco}</p>
         ${empresa.telefone ? `<p>Tel: ${empresa.telefone}</p>` : ""}
-        <div class="badge">NOTA DE EXTORNO / DEVOLUÇÃO</div>
+        <div class="badge">${tituloNota}</div>
       </div>
 
       <div class="info">
         <p><strong>Protocolo:</strong> <span class="protocolo">${protocolo}</span></p>
         <p><strong>Venda de Origem:</strong> #${notaRef}</p>
-        <p><strong>Data do Extorno:</strong> ${dataStr}</p>
+        <p><strong>Data:</strong> ${dataStr}</p>
         <p><strong>Operador:</strong> ${operador}</p>
-        <p><strong>CFOP:</strong> ${cfop} (Devolução de venda do contribuinte)</p>
+        <p><strong>CFOP:</strong> ${cfop} (${descCfop})</p>
         ${venda.clienteNome ? `<p><strong>Cliente:</strong> ${venda.clienteNome}</p>` : ""}
         ${venda.clienteCpf ? `<p><strong>CPF:</strong> ${venda.clienteCpf}</p>` : ""}
       </div>
@@ -1169,7 +1181,7 @@ export function imprimirNotaExtorno(venda: Venda, extorno: RegistroExtorno) {
       </div>
 
       <div class="items">
-        <p style="font-weight:bold;margin-bottom:6px;">ITENS EXTORNADOS</p>
+        <p style="font-weight:bold;margin-bottom:6px;">${labelItens}</p>
         ${itensExtorno
           .map((item) => {
             const nome = item.nome || item.nomeProduto || "Produto";
@@ -1189,16 +1201,16 @@ export function imprimirNotaExtorno(venda: Venda, extorno: RegistroExtorno) {
       </div>
 
       <div class="total">
-        VALOR EXTORNADO: R$ ${valorTotal.toFixed(2)}
+        ${labelValor}: R$ ${valorTotal.toFixed(2)}
       </div>
 
       <div style="margin-top:12px;border-top:1px solid #000;padding-top:8px;">
-        <p><strong>Forma de Devolução:</strong> ${labelFormaPgto(formaPgto || "")}</p>
+        <p><strong>${labelFormaDevolucao}</strong> ${labelFormaPgto(formaPgto || (isTroca ? "troca" : ""))}</p>
       </div>
 
       <div class="footer">
         <p style="font-weight:bold;margin-bottom:8px;">${empresa.nome}</p>
-        <p>Documento de extorno vinculado à nota de origem #${notaRef}</p>
+        <p>Documento de ${isTroca ? "troca" : "extorno"} vinculado à nota de origem #${notaRef}</p>
         <p style="margin-top:8px;">Conforme CFOP ${cfop} — SEFAZ / Receita Federal</p>
         <p style="margin-top:8px;font-size:${dispositivo === "mobile" ? "10px" : "9px"};">
           Documento auxiliar de extorno/devolução

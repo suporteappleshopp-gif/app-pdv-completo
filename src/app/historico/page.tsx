@@ -53,6 +53,28 @@ interface ItemTrocaExtorno {
   codigoBarras?: string;
 }
 
+// Registro de troca/extorno vindo da tabela trocas_extornos
+interface RegistroTrocaExtorno {
+  id: string;
+  venda_id: string;
+  operador_id: string;
+  operador_nome: string;
+  tipo: "troca" | "extorno";
+  numero: string;
+  itens_originais: ItemTrocaExtorno[];
+  itens_novos: any[];
+  valor_original: number;
+  valor_diferenca: number;
+  forma_pagamento_diferenca: string | null;
+  motivo: string;
+  observacoes: string;
+  nota_referenciada: string;
+  cfop_devolucao: string;
+  motivo_fiscal: string;
+  status: string;
+  created_at: string;
+}
+
 // Motivos fiscais conforme SEFAZ
 const MOTIVOS_DEVOLUCAO_SEFAZ = [
   { codigo: "01", descricao: "Mercadoria com defeito" },
@@ -92,12 +114,21 @@ export default function HistoricoPage() {
   const [showModalNotasExtorno, setShowModalNotasExtorno] = useState(false);
   const [vendaNotasExtorno, setVendaNotasExtorno] = useState<Venda | null>(null);
 
+  // Painel de Trocas e Extornos
+  const [trocasExtornos, setTrocasExtornos] = useState<RegistroTrocaExtorno[]>([]);
+  const [carregandoTrocas, setCarregandoTrocas] = useState(false);
+  const [buscaTroca, setBuscaTroca] = useState("");
+  const [filtroTipoTroca, setFiltroTipoTroca] = useState<"todos" | "troca" | "extorno">("todos");
+  const [imprimindoVendaId, setImprimindoVendaId] = useState<string | null>(null);
+
   useEffect(() => {
     let channel: any = null;
     let channelItens: any = null;
+    let channelTrocas: any = null;
 
     const init = async () => {
       await carregarVendas();
+      carregarTrocasExtornos();
 
       const { AuthSupabase } = await import("@/lib/auth-supabase");
       const operador = await AuthSupabase.getCurrentOperador();
@@ -131,6 +162,16 @@ export default function HistoricoPage() {
             () => { carregarVendas(true); }
           )
           .subscribe();
+
+        // Realtime para trocas e extornos
+        channelTrocas = supabase
+          .channel(`trocas_historico_${operador.id}_${Date.now()}`)
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'trocas_extornos', filter: `operador_id=eq.${operador.id}` },
+            () => { carregarTrocasExtornos(true); }
+          )
+          .subscribe();
       }
     };
 
@@ -139,6 +180,7 @@ export default function HistoricoPage() {
     return () => {
       if (channel) channel.unsubscribe();
       if (channelItens) channelItens.unsubscribe();
+      if (channelTrocas) channelTrocas.unsubscribe();
     };
   }, []);
 
@@ -224,6 +266,151 @@ export default function HistoricoPage() {
 
   const imprimirNota = (venda: Venda) => {
     imprimirNotaFiscalCompleta(venda);
+  };
+
+  // Carregar todas as trocas e extornos do operador (painel dedicado)
+  const carregarTrocasExtornos = async (silencioso = false) => {
+    try {
+      if (!silencioso) setCarregandoTrocas(true);
+
+      const { AuthSupabase } = await import("@/lib/auth-supabase");
+      const operador = await AuthSupabase.getCurrentOperador();
+      if (!operador) return;
+
+      const { supabase } = await import("@/lib/supabase");
+
+      const { data, error } = await supabase
+        .from("trocas_extornos")
+        .select("*")
+        .eq("operador_id", operador.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("❌ Erro ao carregar trocas/extornos:", error);
+        setTrocasExtornos([]);
+        return;
+      }
+
+      const registros = (data || []).map((r: any) => ({
+        id: r.id,
+        venda_id: r.venda_id,
+        operador_id: r.operador_id,
+        operador_nome: r.operador_nome,
+        tipo: (r.tipo === "troca" ? "troca" : "extorno") as "troca" | "extorno",
+        numero: r.numero || "",
+        itens_originais: Array.isArray(r.itens_originais) ? r.itens_originais : [],
+        itens_novos: Array.isArray(r.itens_novos) ? r.itens_novos : [],
+        valor_original: parseFloat((r.valor_original || 0).toString()),
+        valor_diferenca: parseFloat((r.valor_diferenca || 0).toString()),
+        forma_pagamento_diferenca: r.forma_pagamento_diferenca ?? null,
+        motivo: r.motivo || "",
+        observacoes: r.observacoes || "",
+        nota_referenciada: r.nota_referenciada || "",
+        cfop_devolucao: r.cfop_devolucao || "5411",
+        motivo_fiscal: r.motivo_fiscal || "",
+        status: r.status || "processado",
+        created_at: r.created_at,
+      })) as RegistroTrocaExtorno[];
+
+      setTrocasExtornos(registros);
+    } catch (err) {
+      console.error("❌ Erro ao carregar trocas/extornos:", err);
+    } finally {
+      setCarregandoTrocas(false);
+    }
+  };
+
+  // Buscar a venda original completa (com itens) para impressão da "nota toda"
+  const buscarVendaOriginal = async (vendaId: string): Promise<Venda | null> => {
+    try {
+      // Primeiro tenta encontrar na lista já carregada
+      const vendaLocal = vendas.find((v) => v.id === vendaId);
+      if (vendaLocal) return vendaLocal;
+
+      const { supabase } = await import("@/lib/supabase");
+      const { data: v } = await supabase.from("vendas").select("*").eq("id", vendaId).single();
+      if (!v) return null;
+
+      const { data: itens } = await supabase
+        .from("itens_venda")
+        .select("*")
+        .eq("venda_id", v.id);
+
+      return {
+        id: v.id,
+        numero: v.numero || 0,
+        operadorId: v.operador_id,
+        operadorNome: v.operador_nome,
+        itens: (itens || []).map((item) => ({
+          produtoId: item.produto_id,
+          nome: item.nome,
+          codigoBarras: item.codigo_barras || "",
+          quantidade: item.quantidade,
+          precoUnitario: parseFloat(item.preco_unitario.toString()),
+          subtotal: parseFloat(item.subtotal.toString()),
+        })),
+        total: parseFloat(v.total.toString()),
+        dataHora: new Date(v.created_at),
+        status: v.status as "concluida" | "cancelada",
+        tipoPagamento: v.forma_pagamento || v.tipo_pagamento,
+        motivoCancelamento: v.motivo_cancelamento,
+        devolucoes: [],
+        exclusoes: [],
+        clienteCpf: v.cliente_cpf || undefined,
+        clienteNome: v.cliente_nome || undefined,
+      } as Venda;
+    } catch (err) {
+      console.error("❌ Erro ao buscar venda original:", err);
+      return null;
+    }
+  };
+
+  // Imprimir nota individual da troca/extorno
+  const imprimirNotaTrocaExtorno = async (registro: RegistroTrocaExtorno) => {
+    const vendaOriginal = await buscarVendaOriginal(registro.venda_id);
+    if (!vendaOriginal) {
+      setErro("Venda de origem não encontrada para imprimir a nota");
+      setTimeout(() => setErro(""), 3000);
+      return;
+    }
+    imprimirNotaExtorno(vendaOriginal, {
+      tipo: registro.tipo,
+      numero: registro.numero,
+      itens: registro.itens_originais,
+      itens_originais: registro.itens_originais,
+      valorTotal: registro.tipo === "extorno"
+        ? Math.abs(registro.valor_diferenca || registro.valor_original)
+        : registro.valor_original,
+      valor_original: registro.valor_original,
+      valor_diferenca: registro.valor_diferenca,
+      motivoFiscal: registro.motivo_fiscal,
+      motivo: registro.motivo,
+      observacoes: registro.observacoes,
+      formaPagamentoDevolucao: registro.forma_pagamento_diferenca || undefined,
+      forma_pagamento_diferenca: registro.forma_pagamento_diferenca,
+      nota_referenciada: registro.nota_referenciada,
+      cfop_devolucao: registro.cfop_devolucao,
+      operador: registro.operador_nome,
+      operador_nome: registro.operador_nome,
+      dataHora: registro.created_at,
+      status: registro.status,
+    });
+  };
+
+  // Imprimir a nota fiscal completa da venda original ("nota toda")
+  const imprimirNotaVendaOriginal = async (registro: RegistroTrocaExtorno) => {
+    setImprimindoVendaId(registro.id);
+    try {
+      const vendaOriginal = await buscarVendaOriginal(registro.venda_id);
+      if (!vendaOriginal) {
+        setErro("Venda de origem não encontrada");
+        setTimeout(() => setErro(""), 3000);
+        return;
+      }
+      imprimirNotaFiscalCompleta(vendaOriginal);
+    } finally {
+      setImprimindoVendaId(null);
+    }
   };
 
   // Abrir modal de troca/extorno
@@ -373,6 +560,7 @@ export default function HistoricoPage() {
       setTimeout(() => setSucesso(""), 8000);
       setShowModalTrocaExtorno(false);
       await carregarVendas();
+      await carregarTrocasExtornos();
 
     } catch (err) {
       console.error("Erro ao processar:", err);
@@ -408,6 +596,23 @@ export default function HistoricoPage() {
     .filter(v => v.status !== "cancelada")
     .reduce((acc, venda) => acc + venda.total, 0);
   const ticketMedio = totalVendas > 0 ? valorTotalVendas / totalVendas : 0;
+
+  // Filtrar trocas/extornos do painel
+  const trocasFiltradas = trocasExtornos.filter((r) => {
+    if (filtroTipoTroca !== "todos" && r.tipo !== filtroTipoTroca) return false;
+    if (buscaTroca) {
+      const b = buscaTroca.toLowerCase();
+      const match =
+        (r.numero || "").toLowerCase().includes(b) ||
+        (r.nota_referenciada || "").toLowerCase().includes(b) ||
+        (r.operador_nome || "").toLowerCase().includes(b) ||
+        (r.motivo_fiscal || "").toLowerCase().includes(b) ||
+        (r.observacoes || "").toLowerCase().includes(b) ||
+        (r.itens_originais || []).some((i) => (i.nome || "").toLowerCase().includes(b));
+      if (!match) return false;
+    }
+    return true;
+  });
 
   if (loading) {
     return (
@@ -984,6 +1189,265 @@ export default function HistoricoPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Painel de Trocas e Extornos */}
+        <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
+          {/* Cabeçalho do painel */}
+          <div className="bg-slate-700 px-8 py-6">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+              <h2 className="text-2xl font-bold text-white flex items-center">
+                <ArrowLeftRight className="w-7 h-7 mr-3" />
+                Troca e Extorno
+              </h2>
+              <div className="flex items-center space-x-2">
+                <span className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-amber-500/20 text-amber-200 text-sm font-semibold">
+                  <ArrowLeftRight className="w-4 h-4" />
+                  <span>{trocasExtornos.filter(r => r.tipo === "troca").length} trocas</span>
+                </span>
+                <span className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-red-500/20 text-red-200 text-sm font-semibold">
+                  <RotateCcw className="w-4 h-4" />
+                  <span>{trocasExtornos.filter(r => r.tipo === "extorno").length} extornos</span>
+                </span>
+                <button
+                  onClick={() => carregarTrocasExtornos()}
+                  className="flex items-center space-x-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all text-sm"
+                >
+                  <RefreshCw className={`w-4 h-4 ${carregandoTrocas ? "animate-spin" : ""}`} />
+                  <span>Atualizar</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-3 flex-wrap gap-2">
+              {/* Filtro por tipo */}
+              <div className="flex items-center space-x-1 bg-white/10 rounded-lg p-1">
+                {[
+                  { v: "todos", l: "Todos" },
+                  { v: "troca", l: "Trocas" },
+                  { v: "extorno", l: "Extornos" },
+                ].map(op => (
+                  <button
+                    key={op.v}
+                    onClick={() => setFiltroTipoTroca(op.v as any)}
+                    className={`px-3 py-1.5 rounded-md text-sm font-semibold transition-all ${
+                      filtroTipoTroca === op.v
+                        ? "bg-white text-slate-800"
+                        : "text-white/70 hover:text-white"
+                    }`}
+                  >
+                    {op.l}
+                  </button>
+                ))}
+              </div>
+
+              {/* Busca */}
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white/50" />
+                <input
+                  type="text"
+                  value={buscaTroca}
+                  onChange={(e) => setBuscaTroca(e.target.value)}
+                  placeholder="Buscar por protocolo, nota, item ou operador..."
+                  className="w-full pl-10 pr-4 py-2 bg-white/20 border border-white/30 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/50"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Conteúdo do painel */}
+          <div className="p-8">
+            {carregandoTrocas ? (
+              <div className="text-center py-12">
+                <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-white/70">Carregando trocas e extornos...</p>
+              </div>
+            ) : trocasFiltradas.length === 0 ? (
+              <div className="text-center py-12">
+                <ArrowLeftRight className="w-16 h-16 text-white/50 mx-auto mb-4" />
+                <p className="text-white/70 text-lg">
+                  {buscaTroca || filtroTipoTroca !== "todos"
+                    ? "Nenhuma operação encontrada com os filtros aplicados"
+                    : "Nenhuma troca ou extorno realizada ainda"}
+                </p>
+                <p className="text-white/40 text-sm mt-2">
+                  Use os botões <strong>Troca</strong> ou <strong>Extorno</strong> nas vendas acima para registrar uma operação.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4 max-h-[700px] overflow-y-auto pr-2">
+                {trocasFiltradas.map((registro) => {
+                  const isTroca = registro.tipo === "troca";
+                  const itens = registro.itens_originais || [];
+                  const valorOp = isTroca
+                    ? registro.valor_original
+                    : Math.abs(registro.valor_diferenca || registro.valor_original);
+                  const dataStr = registro.created_at
+                    ? format(new Date(registro.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+                    : "-";
+                  const formaPgto = registro.forma_pagamento_diferenca;
+
+                  return (
+                    <div
+                      key={registro.id}
+                      className={`border rounded-xl p-5 transition-all ${
+                        isTroca
+                          ? "bg-amber-500/5 border-amber-500/30 hover:bg-amber-500/10"
+                          : "bg-red-500/5 border-red-500/30 hover:bg-red-500/10"
+                      }`}
+                    >
+                      {/* Cabeçalho da operação */}
+                      <div className="flex items-start justify-between mb-4 flex-wrap gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center space-x-3 mb-2 flex-wrap">
+                            <span className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-sm font-bold ${
+                              isTroca ? "bg-amber-500/20 text-amber-300" : "bg-red-500/20 text-red-300"
+                            }`}>
+                              {isTroca ? <ArrowLeftRight className="w-4 h-4" /> : <RotateCcw className="w-4 h-4" />}
+                              <span>{isTroca ? "TROCA" : "EXTORNO"}</span>
+                            </span>
+                            <span className={`flex items-center text-sm font-mono font-bold ${isTroca ? "text-amber-300" : "text-red-300"}`}>
+                              <Hash className="w-3.5 h-3.5 mr-1" />
+                              {registro.numero || "—"}
+                            </span>
+                            <span className="text-purple-200 text-sm flex items-center">
+                              <FileText className="w-4 h-4 mr-1" />
+                              Nota de origem: #{registro.nota_referenciada || "—"}
+                            </span>
+                            <span className="text-purple-200 text-sm flex items-center">
+                              <Calendar className="w-4 h-4 mr-1" />
+                              {dataStr}
+                            </span>
+                          </div>
+                          <p className="text-white/70 text-sm flex items-center">
+                            <User className="w-4 h-4 mr-1" />
+                            Operador: {registro.operador_nome || "—"}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center space-x-2 flex-wrap gap-2">
+                          <button
+                            onClick={() => imprimirNotaTrocaExtorno(registro)}
+                            className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-all border ${
+                              isTroca
+                                ? "bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/30"
+                                : "bg-red-500/20 hover:bg-red-500/30 text-red-300 border-red-500/30"
+                            }`}
+                            title="Imprimir nota individual desta operação"
+                          >
+                            <Printer className="w-4 h-4" />
+                            <span className="font-semibold text-sm">Nota {isTroca ? "Troca" : "Extorno"}</span>
+                          </button>
+                          <button
+                            onClick={() => imprimirNotaVendaOriginal(registro)}
+                            disabled={imprimindoVendaId === registro.id}
+                            className="flex items-center space-x-2 px-3 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg transition-all border border-blue-500/30 disabled:opacity-50"
+                            title="Imprimir a nota fiscal completa da venda original"
+                          >
+                            {imprimindoVendaId === registro.id
+                              ? <RefreshCw className="w-4 h-4 animate-spin" />
+                              : <Receipt className="w-4 h-4" />}
+                            <span className="font-semibold text-sm">Nota da Venda</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Itens extornados/trocados */}
+                      <div className="space-y-2 mb-4">
+                        <p className={`text-xs font-semibold uppercase tracking-wide flex items-center ${isTroca ? "text-amber-300" : "text-red-300"}`}>
+                          <Package className="w-3.5 h-3.5 mr-1.5" />
+                          {isTroca ? "O que foi trocado" : "O que foi extornado"}
+                        </p>
+                        {itens.length === 0 ? (
+                          <p className="text-white/40 text-sm italic">Nenhum item registrado</p>
+                        ) : (
+                          itens.map((item, i) => {
+                            const qtd = item.quantidade || 0;
+                            const unit = item.precoUnitario || 0;
+                            const sub = item.subtotal ?? (unit * qtd);
+                            return (
+                              <div key={i} className="flex items-center justify-between bg-white/5 rounded-lg p-3">
+                                <div className="flex items-center space-x-3 flex-1 min-w-0">
+                                  <Package className={`w-5 h-5 flex-shrink-0 ${isTroca ? "text-amber-300" : "text-red-300"}`} />
+                                  <div className="min-w-0">
+                                    <p className="text-white font-semibold truncate">{item.nome || "Produto"}</p>
+                                    <p className="text-purple-200 text-sm">
+                                      {qtd}x R$ {unit.toFixed(2)}
+                                      {item.codigoBarras ? ` · ${item.codigoBarras}` : ""}
+                                    </p>
+                                  </div>
+                                </div>
+                                <p className="text-white font-bold ml-2">
+                                  R$ {sub.toFixed(2)}
+                                </p>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      {/* Grade de dados fiscais */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
+                        <div className="bg-white/5 rounded-lg px-3 py-2">
+                          <p className="text-white/40 text-xs mb-0.5">{isTroca ? "Valor dos itens" : "Valor extornado"}</p>
+                          <p className={`font-bold text-base ${isTroca ? "text-amber-300" : "text-red-300"}`}>
+                            R$ {valorOp.toFixed(2)}
+                          </p>
+                        </div>
+                        {registro.cfop_devolucao && (
+                          <div className="bg-white/5 rounded-lg px-3 py-2">
+                            <p className="text-white/40 text-xs mb-0.5">CFOP</p>
+                            <p className="text-white/80 text-sm font-medium">{registro.cfop_devolucao}</p>
+                          </div>
+                        )}
+                        {formaPgto && (
+                          <div className="bg-white/5 rounded-lg px-3 py-2">
+                            <p className="text-white/40 text-xs mb-0.5">Forma de devolução</p>
+                            <p className="text-white/80 text-sm font-medium capitalize">{formaPgto}</p>
+                          </div>
+                        )}
+                        {registro.motivo_fiscal && (
+                          <div className={`bg-white/5 rounded-lg px-3 py-2 ${formaPgto ? "" : "sm:col-span-2"}`}>
+                            <p className="text-white/40 text-xs mb-0.5 flex items-center">
+                              <Tag className="w-3 h-3 mr-1" />
+                              Motivo fiscal (SEFAZ)
+                            </p>
+                            <p className="text-white/80 text-sm font-medium">{registro.motivo_fiscal}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {registro.observacoes && (
+                        <div className="bg-white/5 rounded-lg px-3 py-2 mb-3">
+                          <p className="text-white/40 text-xs mb-1 flex items-center">
+                            <MessageSquare className="w-3 h-3 mr-1" />
+                            Observações
+                          </p>
+                          <p className="text-white/70 text-sm leading-relaxed">{registro.observacoes}</p>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between pt-3 border-t border-white/10">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                          registro.status === "processado"
+                            ? "bg-green-500/20 text-green-300"
+                            : "bg-white/10 text-white/60"
+                        }`}>
+                          {registro.status === "processado" ? "✓ Processado" : registro.status || "processado"}
+                        </span>
+                        <span className="text-white/40 text-xs flex items-center">
+                          <Info className="w-3 h-3 mr-1" />
+                          {isTroca
+                            ? "Produto volta ao estoque — registro conforme SEFAZ"
+                            : "Devolução ao cliente — registro conforme Receita Federal"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
