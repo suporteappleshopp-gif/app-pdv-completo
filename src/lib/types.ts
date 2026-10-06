@@ -93,6 +93,7 @@ export interface PagamentoItem {
   tipo: TipoPagamento;
   valor: number;
   label: string; // ex: "Dinheiro", "PIX", "Crédito"
+  parcelas?: number; // Nº de parcelas (apenas para crédito)
 }
 
 export interface Venda {
@@ -109,6 +110,7 @@ export interface Venda {
   motivoCancelamento?: string;
   tipoPagamento?: TipoPagamento;
   pagamentos?: PagamentoItem[]; // Para pagamentos mistos (múltiplas formas)
+  parcelas?: number; // Nº de parcelas quando pagamento único no crédito
   valorRecebido?: number;
   troco?: number;
   clienteCpf?: string;

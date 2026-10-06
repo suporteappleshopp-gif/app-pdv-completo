@@ -117,6 +117,10 @@ export default function CaixaPage() {
   const [novoTipoPagamento, setNovoTipoPagamento] = useState<TipoPagamento>("dinheiro");
   const [novoValorPagamento, setNovoValorPagamento] = useState<string>("");
 
+  // Parcelamento no cartão de crédito
+  const [parcelasCredito, setParcelasCredito] = useState<number>(1);
+  const [novoParcelasCredito, setNovoParcelasCredito] = useState<number>(1);
+
   // CPF na nota
   const [mostrarModalCpf, setMostrarModalCpf] = useState(false);
   const [cpfInput, setCpfInput] = useState("");
@@ -1243,6 +1247,8 @@ export default function CaixaPage() {
     setPagamentosMultiplos([]);
     setNovoTipoPagamento("dinheiro");
     setNovoValorPagamento("");
+    setParcelasCredito(1);
+    setNovoParcelasCredito(1);
     setClienteCpf(null);
     setClienteNome(null);
     setMostrarModalFinalizacao(true);
@@ -1361,6 +1367,16 @@ export default function CaixaPage() {
       
       // Para pagamentos múltiplos, a forma principal é "outros"
       // Para pagamento único, usar o tipoPagamento selecionado
+      // Parcelamento no crédito: quando parcelas > 1, registra no objeto pagamentos (JSONB)
+      const creditoParceladoUnico =
+        !modoMultiplos && tipoPagamento === "credito" && parcelasCredito > 1;
+      const pagamentosVenda: PagamentoItem[] | undefined =
+        modoMultiplos && pagamentosMultiplos.length > 0
+          ? pagamentosMultiplos
+          : creditoParceladoUnico
+          ? [{ tipo: "credito", valor: total, label: `Crédito ${parcelasCredito}x`, parcelas: parcelasCredito }]
+          : undefined;
+
       const venda: Venda = {
         id: `venda-${Date.now()}`,
         numero: numeroVenda,
@@ -1371,7 +1387,8 @@ export default function CaixaPage() {
         dataHora: new Date(),
         status: "concluida",
         tipoPagamento: modoMultiplos ? "outros" : tipoPagamento,
-        pagamentos: modoMultiplos && pagamentosMultiplos.length > 0 ? pagamentosMultiplos : undefined,
+        pagamentos: pagamentosVenda,
+        parcelas: creditoParceladoUnico ? parcelasCredito : undefined,
         valorRecebido: !modoMultiplos && tipoPagamento === "dinheiro" && valorRecebido ? parseFloat(valorRecebido) : undefined,
         troco: !modoMultiplos && tipoPagamento === "dinheiro" && valorRecebido && parseFloat(valorRecebido) > total
           ? parseFloat(valorRecebido) - total
@@ -2462,6 +2479,55 @@ export default function CaixaPage() {
                     )}
                   </div>
                 )}
+
+                {/* Parcelamento - apenas para crédito */}
+                {tipoPagamento === "credito" && (
+                  <div className="mb-4 p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-gray-700 font-semibold">Parcelamento</label>
+                      <span className="text-xs text-gray-500">Digite quantas vezes quiser</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
+                        <button
+                          key={n}
+                          onClick={() => setParcelasCredito(n)}
+                          className={`px-3 py-1.5 rounded-lg border-2 text-sm font-semibold transition-all ${parcelasCredito === n ? "border-blue-500 bg-blue-100 text-blue-800" : "border-gray-300 bg-white hover:bg-gray-50 text-gray-700"}`}
+                        >
+                          {n}x
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        max="48"
+                        value={parcelasCredito}
+                        onChange={(e) => {
+                          const v = parseInt(e.target.value.replace(/\D/g, "")) || 1;
+                          setParcelasCredito(Math.min(Math.max(v, 1), 48));
+                        }}
+                        className="w-24 px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-semibold text-center"
+                      />
+                      <span className="text-sm text-gray-600">vezes</span>
+                    </div>
+                    {parcelasCredito > 1 && (
+                      <div className="mt-2 p-3 bg-white rounded-lg border border-blue-300">
+                        <p className="text-gray-600 text-sm mb-1">
+                          {parcelasCredito}x de:
+                        </p>
+                        <p className="text-2xl font-bold text-blue-600">
+                          R$ {(total / parcelasCredito).toFixed(2)}
+                        </p>
+                        <p className="text-gray-500 text-xs mt-1">Total: R$ {total.toFixed(2)}</p>
+                      </div>
+                    )}
+                    {parcelasCredito === 1 && (
+                      <p className="mt-2 text-sm text-gray-500">Pagamento à vista (1x)</p>
+                    )}
+                  </div>
+                )}
               </>
             )}
 
@@ -2523,13 +2589,49 @@ export default function CaixaPage() {
                       ].map(({ tipo, label }) => (
                         <button
                           key={tipo}
-                          onClick={() => setNovoTipoPagamento(tipo)}
+                          onClick={() => { setNovoTipoPagamento(tipo); setNovoParcelasCredito(1); }}
                           className={`py-2 px-3 rounded-lg border-2 text-sm font-semibold transition-all ${novoTipoPagamento === tipo ? "border-orange-500 bg-orange-100 text-orange-800" : "border-gray-300 bg-white hover:bg-gray-50"}`}
                         >
                           {label}
                         </button>
                       ))}
                     </div>
+
+                    {/* Parcelamento do crédito (modo múltiplos) */}
+                    {novoTipoPagamento === "credito" && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-blue-800">Parcelas (crédito)</span>
+                          <span className="text-[10px] text-gray-500">quantas vezes quiser</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
+                            <button
+                              key={n}
+                              onClick={() => setNovoParcelasCredito(n)}
+                              className={`px-2 py-1 rounded-md border-2 text-xs font-semibold transition-all ${novoParcelasCredito === n ? "border-blue-500 bg-blue-100 text-blue-800" : "border-gray-300 bg-white text-gray-700"}`}
+                            >
+                              {n}x
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="1"
+                            max="48"
+                            value={novoParcelasCredito}
+                            onChange={(e) => {
+                              const v = parseInt(e.target.value.replace(/\D/g, "")) || 1;
+                              setNovoParcelasCredito(Math.min(Math.max(v, 1), 48));
+                            }}
+                            className="w-20 px-2 py-1 border-2 border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 font-semibold text-center text-sm"
+                          />
+                          <span className="text-xs text-gray-600">vezes</span>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex gap-2">
                       <input
                         type="number"
@@ -2544,8 +2646,14 @@ export default function CaixaPage() {
                             const val = parseFloat(novoValorPagamento.replace(",", "."));
                             if (!val || val <= 0) return;
                             const labels: Record<TipoPagamento, string> = { dinheiro: "Dinheiro", credito: "Crédito", debito: "Débito", pix: "PIX", outros: "Outros" };
-                            setPagamentosMultiplos([...pagamentosMultiplos, { tipo: novoTipoPagamento, valor: val, label: labels[novoTipoPagamento] }]);
+                            const novoItem: PagamentoItem = { tipo: novoTipoPagamento, valor: val, label: labels[novoTipoPagamento] };
+                            if (novoTipoPagamento === "credito" && novoParcelasCredito > 1) {
+                              novoItem.parcelas = novoParcelasCredito;
+                              novoItem.label = `Crédito ${novoParcelasCredito}x`;
+                            }
+                            setPagamentosMultiplos([...pagamentosMultiplos, novoItem]);
                             setNovoValorPagamento("");
+                            setNovoParcelasCredito(1);
                           }
                         }}
                       />
@@ -2554,8 +2662,14 @@ export default function CaixaPage() {
                           const val = parseFloat(novoValorPagamento.replace(",", "."));
                           if (!val || val <= 0) return;
                           const labels: Record<TipoPagamento, string> = { dinheiro: "Dinheiro", credito: "Crédito", debito: "Débito", pix: "PIX", outros: "Outros" };
-                          setPagamentosMultiplos([...pagamentosMultiplos, { tipo: novoTipoPagamento, valor: val, label: labels[novoTipoPagamento] }]);
+                          const novoItem: PagamentoItem = { tipo: novoTipoPagamento, valor: val, label: labels[novoTipoPagamento] };
+                          if (novoTipoPagamento === "credito" && novoParcelasCredito > 1) {
+                            novoItem.parcelas = novoParcelasCredito;
+                            novoItem.label = `Crédito ${novoParcelasCredito}x`;
+                          }
+                          setPagamentosMultiplos([...pagamentosMultiplos, novoItem]);
                           setNovoValorPagamento("");
+                          setNovoParcelasCredito(1);
                         }}
                         className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-semibold transition-all"
                       >
@@ -2593,6 +2707,8 @@ export default function CaixaPage() {
                   setValorRecebido("");
                   setModoMultiplos(false);
                   setPagamentosMultiplos([]);
+                  setParcelasCredito(1);
+                  setNovoParcelasCredito(1);
                 }}
                 className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-lg font-semibold transition-all"
               >
@@ -2629,6 +2745,14 @@ export default function CaixaPage() {
                       : "Outros"}
                   </span>
                 </div>
+                {!modoMultiplos && tipoPagamento === "credito" && parcelasCredito > 1 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500 text-sm font-medium">Parcelamento</span>
+                    <span className="font-bold text-blue-700">
+                      {parcelasCredito}x de R$ {(total / parcelasCredito).toFixed(2).replace(".", ",")}
+                    </span>
+                  </div>
+                )}
                 {!modoMultiplos && tipoPagamento === "dinheiro" && valorRecebido && parseFloat(valorRecebido.replace(",", ".")) > total && (
                   <div className="flex items-center justify-between">
                     <span className="text-gray-500 text-sm font-medium">Troco</span>
