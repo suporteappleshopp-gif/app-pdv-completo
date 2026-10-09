@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/db";
-import { Venda, ItemVenda } from "@/lib/types";
+import { Venda, ItemVenda, PagamentoItem } from "@/lib/types";
 import {
   ArrowLeft,
   History,
@@ -245,6 +245,12 @@ export default function HistoricoPage() {
             dataHora: new Date(v.created_at),
             status: v.status as "concluida" | "cancelada",
             tipoPagamento: v.forma_pagamento || v.tipo_pagamento,
+            pagamentos: (v.pagamentos as PagamentoItem[] | null) || undefined,
+            parcelas:
+              v.parcelas ??
+              (v.pagamentos as PagamentoItem[] | null)?.find(
+                (p) => p.tipo === "credito" && p.parcelas && p.parcelas > 1
+              )?.parcelas,
             motivoCancelamento: v.motivo_cancelamento,
             devolucoes: v.devolucoes || [],
             exclusoes: v.exclusoes || [],
@@ -266,6 +272,39 @@ export default function HistoricoPage() {
 
   const imprimirNota = (venda: Venda) => {
     imprimirNotaFiscalCompleta(venda);
+  };
+
+  // Monta o texto da forma de pagamento para exibição no histórico,
+  // incluindo o parcelamento no cartão de crédito (ex.: "Crédito 3x")
+  // e os pagamentos mistos quando houver mais de uma forma.
+  const formatarFormaPagamentoHistorico = (venda: Venda): string | null => {
+    // Pagamentos mistos (várias formas) — mostra cada um com seu valor/parcela
+    if (venda.pagamentos && venda.pagamentos.length > 0) {
+      return venda.pagamentos
+        .map((p) => {
+          const parcelaTxt =
+            p.tipo === "credito" && p.parcelas && p.parcelas > 1
+              ? ` ${p.parcelas}x`
+              : "";
+          return `${p.label}${parcelaTxt}: R$ ${p.valor.toFixed(2)}`;
+        })
+        .join(" | ");
+    }
+
+    // Pagamento único
+    const labels: Record<string, string> = {
+      dinheiro: "Dinheiro",
+      credito: "Crédito",
+      debito: "Débito",
+      pix: "PIX",
+      outros: "Outros",
+    };
+    if (!venda.tipoPagamento) return null;
+    const base = labels[venda.tipoPagamento] || venda.tipoPagamento;
+    if (venda.tipoPagamento === "credito" && venda.parcelas && venda.parcelas > 1) {
+      return `${base} ${venda.parcelas}x`;
+    }
+    return base;
   };
 
   // Carregar todas as trocas e extornos do operador (painel dedicado)
@@ -353,6 +392,12 @@ export default function HistoricoPage() {
         dataHora: new Date(v.created_at),
         status: v.status as "concluida" | "cancelada",
         tipoPagamento: v.forma_pagamento || v.tipo_pagamento,
+        pagamentos: (v.pagamentos as PagamentoItem[] | null) || undefined,
+        parcelas:
+          v.parcelas ??
+          (v.pagamentos as PagamentoItem[] | null)?.find(
+            (p) => p.tipo === "credito" && p.parcelas && p.parcelas > 1
+          )?.parcelas,
         motivoCancelamento: v.motivo_cancelamento,
         devolucoes: [],
         exclusoes: [],
@@ -1172,14 +1217,11 @@ export default function HistoricoPage() {
 
                     {/* Total */}
                     <div className="flex justify-between items-center pt-4 border-t border-white/10">
-                      <div className="flex items-center space-x-4">
+                      <div className="flex items-center space-x-4 flex-wrap gap-y-1">
                         <span className="text-purple-200 font-semibold">TOTAL:</span>
-                        {venda.tipoPagamento && (
+                        {formatarFormaPagamentoHistorico(venda) && (
                           <span className="text-purple-300 text-sm">
-                            {venda.tipoPagamento === "dinheiro" ? "Dinheiro" :
-                             venda.tipoPagamento === "credito" ? "Crédito" :
-                             venda.tipoPagamento === "debito" ? "Débito" :
-                             venda.tipoPagamento === "pix" ? "PIX" : venda.tipoPagamento}
+                            {formatarFormaPagamentoHistorico(venda)}
                           </span>
                         )}
                       </div>
